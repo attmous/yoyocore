@@ -15,7 +15,7 @@ Author: YoyoPod Team
 Date: 2025-11-30
 """
 
-from yoyopy.ui.display.display_hal import DisplayHAL
+from yoyopy.ui.display.hal import DisplayHAL
 from typing import Optional, Tuple
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont

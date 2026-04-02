@@ -18,7 +18,7 @@ import os
 
 from loguru import logger
 
-from yoyopy.ui.display.display_hal import DisplayHAL
+from yoyopy.ui.display.hal import DisplayHAL
 from yoyopy.ui.display.whisplay_paths import find_whisplay_driver
 
 

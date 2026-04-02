@@ -14,7 +14,7 @@ Author: YoyoPod Team
 Date: 2025-11-30
 """
 
-from yoyopy.ui.input.input_hal import InputHAL, InputAction
+from yoyopy.ui.input.hal import InputHAL, InputAction
 from typing import List, Callable, Any, Optional
 from loguru import logger
 import threading

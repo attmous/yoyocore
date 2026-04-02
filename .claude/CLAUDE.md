@@ -45,7 +45,7 @@ yoyopod.py / yoyopy/main.py  (entry points)
     `- ScreenManager (ui/screens/manager.py) -- stack-based navigation
 ```
 
-**Display HAL** (`ui/display/`): `DisplayHAL` interface -> factory -> adapters (pimoroni, whisplay, simulation). Facade via `Display` in `display_manager.py`.
+**Display HAL** (`ui/display/`): `DisplayHAL` interface -> factory -> adapters (pimoroni, whisplay, simulation). Facade via `Display` in `manager.py`.
 
 **Input HAL** (`ui/input/`): Semantic actions (SELECT, BACK, UP, DOWN). Adapters: `four_button.py`, `ptt_button.py`, `keyboard.py`. Manager dispatches actions to active screen.
 

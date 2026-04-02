@@ -9,9 +9,9 @@ Provides hardware abstraction for various display types:
 The Display class provides a unified interface that works with any supported hardware.
 """
 
-from yoyopy.ui.display.display_hal import DisplayHAL
-from yoyopy.ui.display.display_manager import Display
-from yoyopy.ui.display.display_factory import get_display, detect_hardware, get_hardware_info
+from yoyopy.ui.display.factory import detect_hardware, get_display, get_hardware_info
+from yoyopy.ui.display.hal import DisplayHAL
+from yoyopy.ui.display.manager import Display
 
 __all__ = [
     'DisplayHAL',

@@ -8,9 +8,9 @@ Provides hardware abstraction for various input methods:
 - Touch screen (future)
 """
 
-from yoyopy.ui.input.input_hal import InputHAL, InputAction
-from yoyopy.ui.input.input_manager import InputManager
-from yoyopy.ui.input.input_factory import get_input_manager
+from yoyopy.ui.input.factory import get_input_manager
+from yoyopy.ui.input.hal import InputAction, InputHAL
+from yoyopy.ui.input.manager import InputManager
 
 __all__ = [
     'InputHAL',

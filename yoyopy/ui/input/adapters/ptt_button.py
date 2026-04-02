@@ -11,7 +11,7 @@ from typing import Callable, Optional, Any, List, Dict
 from threading import Thread, Event
 from loguru import logger
 
-from yoyopy.ui.input.input_hal import InputHAL, InputAction
+from yoyopy.ui.input.hal import InputHAL, InputAction
 
 
 class PTTInputAdapter(InputHAL):
