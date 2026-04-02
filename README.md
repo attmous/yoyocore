@@ -76,6 +76,7 @@ Important settings:
 
 - `config/yoyopod_config.yaml`: display hardware selection, Mopidy host/port, auto-resume behavior
 - `config/yoyopod_config.yaml`: Whisplay gesture tuning under `input.whisplay_*_ms`
+- `config/yoyopod_config.yaml`: `input.ptt_navigation=false` is reserved for future voice/PTT work and is currently experimental
 - `config/voip_config.yaml`: SIP account, transport, STUN, `linphonec` path
 - `config/contacts.yaml`: contact list and speed dial entries
 

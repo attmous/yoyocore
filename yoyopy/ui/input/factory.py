@@ -65,7 +65,7 @@ def get_input_manager(
             manager.set_interaction_profile(InteractionProfile.ONE_BUTTON)
         else:
             logger.warning(
-                "  -> Whisplay PTT navigation disabled; keeping standard interaction profile",
+                "  -> Whisplay raw PTT mode is experimental; keeping standard interaction profile",
             )
         debounce_time = float(input_config.get("whisplay_debounce_ms", 50)) / 1000.0
         double_click_time = float(input_config.get("whisplay_double_tap_ms", 300)) / 1000.0
@@ -93,7 +93,9 @@ def get_input_manager(
                     int(long_press_time * 1000),
                 )
             else:
-                logger.info("  -> Added PTT button input (press/release only)")
+                logger.info(
+                    "  -> Added experimental raw PTT input (press/release only)",
+                )
         else:
             logger.warning("  -> No Whisplay device available for PTT input")
 

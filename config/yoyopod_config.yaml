@@ -31,7 +31,7 @@ ui:
 
 # Input Settings
 input:
-  ptt_navigation: true            # Single-button Whisplay navigation mode
+  ptt_navigation: true            # true = Whisplay navigation; false = experimental raw PTT mode for future voice features
   whisplay_debounce_ms: 50        # Debounce for the hardware button
   whisplay_double_tap_ms: 300     # Max gap between taps for confirm
   whisplay_long_hold_ms: 800      # Hold time for back/cancel

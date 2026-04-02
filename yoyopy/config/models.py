@@ -178,7 +178,12 @@ class AppUiConfig:
 
 @dataclass(slots=True)
 class AppInputConfig:
-    """Input hardware and gesture timing settings."""
+    """Input hardware and gesture timing settings.
+
+    `ptt_navigation=False` keeps the Whisplay button in raw press/release mode
+    for future voice/PTT features. That path is experimental today and does not
+    provide a complete navigable app flow.
+    """
 
     ptt_navigation: bool = config_value(default=True, env="YOYOPOD_PTT_NAVIGATION")
     whisplay_debounce_ms: int = config_value(default=50, env="YOYOPOD_WHISPLAY_DEBOUNCE_MS")
