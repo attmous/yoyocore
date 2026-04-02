@@ -357,6 +357,18 @@ class CallScreen(Screen):
 
     def _instruction_text(self) -> str:
         """Return the footer instructions for the current selection and state."""
+        if self.is_one_button_mode():
+            if not self.quick_targets:
+                return "Double: Open | Hold: Back"
+
+            selected_target = self._selected_target()
+            if selected_target is None:
+                return "Double: Open | Hold: Back"
+
+            if selected_target.kind == "browse_contacts" or not self._is_ready_to_call():
+                return "Tap: Next | Double: Open | Hold: Back"
+            return "Tap: Next | Double: Call | Hold: Back"
+
         if not self.quick_targets:
             return "B: Back"
 
@@ -441,3 +453,10 @@ class CallScreen(Screen):
         if self.selected_index < len(self.quick_targets) - 1:
             self.selected_index += 1
             self._ensure_selection_visible()
+
+    def on_advance(self, data=None) -> None:
+        """Move through quick-call targets with wraparound for one-button UX."""
+        if not self.quick_targets:
+            return
+        self.selected_index = (self.selected_index + 1) % len(self.quick_targets)
+        self._ensure_selection_visible()

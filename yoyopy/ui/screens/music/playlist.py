@@ -279,7 +279,10 @@ class PlaylistScreen(Screen):
         # Draw instructions at bottom
         instructions_y = self.display.HEIGHT - 15
         instructions_size = 10
-        instructions = "A: Load | B: Back | X/Y: Navigate"
+        if self.is_one_button_mode():
+            instructions = "Tap: Next | Double: Load | Hold: Back"
+        else:
+            instructions = "A: Load | B: Back | X/Y: Navigate"
         instr_width, _ = self.display.get_text_size(instructions, instructions_size)
         instr_x = (self.display.WIDTH - instr_width) // 2
 
@@ -299,6 +302,13 @@ class PlaylistScreen(Screen):
         if self.playlists and self.selected_index < len(self.playlists) - 1:
             self.selected_index += 1
             logger.debug(f"Selected: {self.playlists[self.selected_index].name}")
+
+    def select_next_wrapped(self) -> None:
+        """Move selection to next playlist with wraparound."""
+        if not self.playlists:
+            return
+        self.selected_index = (self.selected_index + 1) % len(self.playlists)
+        logger.debug(f"Selected: {self.playlists[self.selected_index].name}")
 
     def select_previous(self) -> None:
         """Move selection to previous playlist."""
@@ -357,6 +367,10 @@ class PlaylistScreen(Screen):
     def on_back(self, data=None) -> None:
         """Go back to the previous screen."""
         self.request_route("back")
+
+    def on_advance(self, data=None) -> None:
+        """Move to the next playlist for one-button navigation."""
+        self.select_next_wrapped()
 
     def on_up(self, data=None) -> None:
         """Move selection up."""
