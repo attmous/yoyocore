@@ -16,7 +16,7 @@ Author: YoyoPod Team
 Date: 2025-11-30
 """
 
-from yoyopy.ui.display.display_hal import DisplayHAL
+from yoyopy.ui.display.hal import DisplayHAL
 from yoyopy.ui.display.whisplay_paths import ensure_whisplay_driver_on_path
 from typing import Optional, Tuple
 from pathlib import Path

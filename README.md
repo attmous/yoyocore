@@ -152,17 +152,17 @@ yoyopy/
     __init__.py
     web_server.py
     display/
-      display_hal.py
-      display_factory.py
-      display_manager.py
+      hal.py
+      factory.py
+      manager.py
       adapters/
         pimoroni.py
         simulation.py
         whisplay.py
     input/
-      input_hal.py
-      input_factory.py
-      input_manager.py
+      hal.py
+      factory.py
+      manager.py
       adapters/
         four_button.py
         keyboard.py

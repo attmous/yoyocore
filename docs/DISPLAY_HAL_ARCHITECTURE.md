@@ -14,9 +14,9 @@ This document describes the display abstraction layer that is now present in the
 
 ## Current Files
 
-- `yoyopy/ui/display/display_hal.py`: HAL interface
-- `yoyopy/ui/display/display_manager.py`: `Display` facade
-- `yoyopy/ui/display/display_factory.py`: adapter selection and auto-detection
+- `yoyopy/ui/display/hal.py`: HAL interface
+- `yoyopy/ui/display/manager.py`: `Display` facade
+- `yoyopy/ui/display/factory.py`: adapter selection and auto-detection
 - `yoyopy/ui/display/adapters/pimoroni.py`
 - `yoyopy/ui/display/adapters/whisplay.py`
 - `yoyopy/ui/display/adapters/simulation.py`
@@ -68,7 +68,7 @@ The facade exposes:
 
 ## Selection Rules
 
-`display_factory.py` currently chooses hardware using:
+`factory.py` currently chooses hardware using:
 
 1. explicit `display.hardware` config
 2. `YOYOPOD_DISPLAY`

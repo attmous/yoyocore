@@ -11,7 +11,7 @@ from typing import Callable, Dict, Optional, Any, List
 from threading import Thread, Event
 from loguru import logger
 
-from yoyopy.ui.input.input_hal import InputHAL, InputAction
+from yoyopy.ui.input.hal import InputHAL, InputAction
 
 try:
     from displayhatmini import DisplayHATMini

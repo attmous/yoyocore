@@ -65,7 +65,7 @@ yoyopod.py / yoyopy.main
 
 ## Display Architecture
 
-`Display` in `yoyopy/ui/display/display_manager.py` is a facade over the HAL interface in `yoyopy/ui/display/display_hal.py`.
+`Display` in `yoyopy/ui/display/manager.py` is a facade over the HAL interface in `yoyopy/ui/display/hal.py`.
 
 Supported adapters:
 
@@ -73,7 +73,7 @@ Supported adapters:
 - `WhisplayDisplayAdapter`: 240x280 portrait
 - `SimulationDisplayAdapter`: browser-rendered portrait simulation
 
-Selection happens in `yoyopy/ui/display/display_factory.py` using:
+Selection happens in `yoyopy/ui/display/factory.py` using:
 
 1. explicit `display.hardware` config
 2. `YOYOPOD_DISPLAY` environment variable

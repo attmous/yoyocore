@@ -10,7 +10,7 @@ from collections import defaultdict
 from typing import List, Callable, Optional, Any, Dict
 from loguru import logger
 
-from yoyopy.ui.input.input_hal import InputHAL, InputAction
+from yoyopy.ui.input.hal import InputAction, InputHAL
 
 
 class InputManager:

@@ -8,7 +8,8 @@ hardware detection and configuration.
 from typing import Dict, Any, Optional
 from loguru import logger
 
-from yoyopy.ui.input.input_manager import InputManager
+from yoyopy.ui.input.hal import InputAction
+from yoyopy.ui.input.manager import InputManager
 
 
 def get_input_manager(
@@ -126,7 +127,6 @@ def get_input_manager(
 
             def web_input_handler(action: str):
                 """Handle input from web UI buttons."""
-                from yoyopy.ui.input.input_hal import InputAction
 
                 # Map action string to InputAction
                 action_map = {
