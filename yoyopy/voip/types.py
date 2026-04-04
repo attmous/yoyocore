@@ -48,10 +48,10 @@ class VoIPConfig:
     transport: str = "tcp"
     stun_server: str = ""
     linphonec_path: str = "/usr/bin/linphonec"
-    playback_dev_id: str = "ALSA: plughw:1"
-    ringer_dev_id: str = "ALSA: plughw:1"
-    capture_dev_id: str = "ALSA: plughw:1"
-    media_dev_id: str = "ALSA: plughw:1"
+    playback_dev_id: str = "ALSA: wm8960-soundcard"
+    ringer_dev_id: str = "ALSA: wm8960-soundcard"
+    capture_dev_id: str = "ALSA: wm8960-soundcard"
+    media_dev_id: str = "ALSA: wm8960-soundcard"
     mic_gain: int = 80
     speaker_volume: int = 80
 

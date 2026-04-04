@@ -260,19 +260,19 @@ class VoIPAudioConfig:
     mic_gain: int = 80
     speaker_volume: int = 80
     playback_device_id: str = config_value(
-        default="ALSA: plughw:1",
+        default="ALSA: wm8960-soundcard",
         env="YOYOPOD_PLAYBACK_DEVICE",
     )
     ringer_device_id: str = config_value(
-        default="ALSA: plughw:1",
+        default="ALSA: wm8960-soundcard",
         env="YOYOPOD_RINGER_DEVICE",
     )
     capture_device_id: str = config_value(
-        default="ALSA: plughw:1",
+        default="ALSA: wm8960-soundcard",
         env="YOYOPOD_CAPTURE_DEVICE",
     )
     media_device_id: str = config_value(
-        default="ALSA: plughw:1",
+        default="ALSA: wm8960-soundcard",
         env="YOYOPOD_MEDIA_DEVICE",
     )
     ring_output_device: str = config_value(default="", env="YOYOPOD_RING_OUTPUT_DEVICE")

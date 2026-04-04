@@ -311,9 +311,11 @@ class LinphonecBackend:
         capture_raw = int(30 + capture_pct * 0.33)
 
         commands = [
-            f"amixer -c {card} sset 'Speaker Playback' {speaker_raw}",
+            f"amixer -c {card} sset 'Speaker' {speaker_raw}",
+            f"amixer -c {card} sset 'Playback' 255",
+            f"amixer -c {card} sset 'Headphone' {speaker_raw}",
             f"amixer -c {card} sset 'Capture' {capture_raw}",
-            f"amixer -c {card} sset 'ADC PCM Capture' 235",
+            f"amixer -c {card} sset 'ADC PCM' 235",
             f"amixer -c {card} sset 'Left Input Boost Mixer LINPUT1' 3",
             f"amixer -c {card} sset 'Right Input Boost Mixer RINPUT1' 3",
         ]
