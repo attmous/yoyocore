@@ -40,6 +40,7 @@ class InputManager:
         """Initialize the input manager."""
         self.adapters: List[InputHAL] = []
         self.callbacks: Dict[InputAction, List[Callable]] = defaultdict(list)
+        self.activity_callbacks: List[Callable[[InputAction, Optional[Any]], None]] = []
         self.interaction_profile = interaction_profile
         self.running = False
         logger.debug("InputManager initialized")
@@ -100,6 +101,14 @@ class InputManager:
         """
         self.callbacks[action].append(callback)
         logger.debug(f"Registered callback for action: {action.value}")
+
+    def on_activity(
+        self,
+        callback: Callable[[InputAction, Optional[Any]], None],
+    ) -> None:
+        """Register a callback fired whenever any semantic action occurs."""
+        self.activity_callbacks.append(callback)
+        logger.debug("Registered input activity callback")
 
     def clear_callbacks(self) -> None:
         """
@@ -188,6 +197,12 @@ class InputManager:
             action: Action that occurred
             data: Optional data dict with action-specific information
         """
+        for callback in self.activity_callbacks:
+            try:
+                callback(action, data)
+            except Exception as e:
+                logger.error(f"Error in activity callback for {action.value}: {e}")
+
         callbacks = self.callbacks.get(action, [])
         if callbacks:
             logger.debug(f"Action fired: {action.value} (data: {data})")

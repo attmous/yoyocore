@@ -22,6 +22,7 @@ from yoyopy.events import (
     RecoveryAttemptCompletedEvent,
     RegistrationChangedEvent,
     TrackChangedEvent,
+    UserActivityEvent,
     VoIPAvailabilityChangedEvent,
 )
 from yoyopy.fsm import (
@@ -54,6 +55,23 @@ class FakeIncomingCallScreen(FakeScreen):
         self.caller_address = ""
         self.caller_name = "Unknown"
         self.ring_animation_frame = 0
+
+
+class FakeDisplay:
+    """Minimal display double for screen-power tests."""
+
+    COLOR_RED = (255, 0, 0)
+    COLOR_YELLOW = (255, 255, 0)
+    COLOR_GREEN = (0, 255, 0)
+    COLOR_WHITE = (255, 255, 255)
+    COLOR_BLACK = (0, 0, 0)
+    COLOR_CYAN = (0, 255, 255)
+
+    def __init__(self) -> None:
+        self.set_backlight_calls: list[float] = []
+
+    def set_backlight(self, brightness: float) -> None:
+        self.set_backlight_calls.append(brightness)
 
 
 class FakeScreenManager:
@@ -697,6 +715,75 @@ def test_power_poll_honors_interval_and_tracks_unavailable_backend() -> None:
     assert app.context.power_error == "I2C not connected"
     assert app.coordinator_runtime.power_available is False
     assert app.menu_screen.render_calls == 2
+
+
+def test_screen_timeout_turns_backlight_off_after_inactivity() -> None:
+    """Inactivity beyond the configured timeout should sleep the screen."""
+
+    app, _, _ = _build_app(playback_state="stopped")
+    app.display = FakeDisplay()
+    app.app_settings = SimpleNamespace(
+        ui=SimpleNamespace(screen_timeout_seconds=300),
+        display=SimpleNamespace(brightness=80, backlight_timeout_seconds=30),
+    )
+
+    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
+    app._active_brightness = app._resolve_active_brightness()
+    app._configure_screen_power(initial_now=0.0)
+    app._update_screen_power(31.0)
+
+    assert app.display.set_backlight_calls == [0.8, 0.0]
+    assert app.context.screen_awake is False
+    assert app.context.screen_on_seconds == 31
+    assert app.context.screen_idle_seconds == 31
+
+
+def test_user_activity_event_wakes_screen_and_refreshes_current_screen() -> None:
+    """Queued user activity should wake a sleeping screen and re-render the visible route."""
+
+    app, _, _ = _build_app(playback_state="stopped")
+    app.display = FakeDisplay()
+    app.app_settings = SimpleNamespace(
+        ui=SimpleNamespace(screen_timeout_seconds=300),
+        display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
+    )
+
+    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
+    app._active_brightness = app._resolve_active_brightness()
+    app._configure_screen_power(initial_now=0.0)
+    app._sleep_screen(31.0)
+
+    assert app.context.screen_awake is False
+    render_calls_before = app.menu_screen.render_calls
+
+    _publish_from_worker(app, UserActivityEvent(action_name="select"))
+
+    assert app.event_bus.drain() == 1
+    assert app.display.set_backlight_calls[-1] == 0.75
+    assert app.context.screen_awake is True
+    assert app.menu_screen.render_calls == render_calls_before + 1
+
+
+def test_screen_on_time_accumulates_across_sleep_and_wake_cycles() -> None:
+    """Screen-on metrics should accumulate only while the backlight is awake."""
+
+    app, _, _ = _build_app(playback_state="stopped")
+    app.display = FakeDisplay()
+    app.app_settings = SimpleNamespace(
+        ui=SimpleNamespace(screen_timeout_seconds=300),
+        display=SimpleNamespace(brightness=80, backlight_timeout_seconds=30),
+    )
+
+    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
+    app._active_brightness = app._resolve_active_brightness()
+    app._configure_screen_power(initial_now=0.0)
+    app._sleep_screen(10.0)
+    app._wake_screen(20.0, render_current=False)
+    app._sleep_screen(25.0)
+
+    assert app.display.set_backlight_calls == [0.8, 0.0, 0.8, 0.0]
+    assert app.context.screen_on_seconds == 15
+    assert app.get_status()["screen_on_seconds"] == 15
 
 
 def test_low_battery_snapshot_sets_temporary_alert() -> None:

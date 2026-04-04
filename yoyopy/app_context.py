@@ -124,6 +124,10 @@ class AppContext:
         self.external_power: bool = False
         self.power_available: bool = False
         self.power_error: str = ""
+        self.screen_awake: bool = True
+        self.screen_idle_seconds: int = 0
+        self.screen_on_seconds: int = 0
+        self.app_uptime_seconds: int = 0
         self.signal_strength: int = 4  # 0-4 bars
         self.is_connected: bool = False
         self.connection_type: str = "none"  # wifi, 4g, none
@@ -350,3 +354,17 @@ class AppContext:
 
         if snapshot.battery.power_plugged is not None:
             self.external_power = snapshot.battery.power_plugged
+
+    def update_screen_runtime(
+        self,
+        *,
+        screen_awake: bool,
+        app_uptime_seconds: float,
+        screen_on_seconds: float,
+        idle_seconds: float,
+    ) -> None:
+        """Update runtime metrics for app uptime and display activity."""
+        self.screen_awake = screen_awake
+        self.app_uptime_seconds = max(0, int(app_uptime_seconds))
+        self.screen_on_seconds = max(0, int(screen_on_seconds))
+        self.screen_idle_seconds = max(0, int(idle_seconds))

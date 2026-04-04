@@ -48,6 +48,13 @@ class ScreenChangedEvent:
 
 
 @dataclass(frozen=True, slots=True)
+class UserActivityEvent:
+    """Published when user input activity should wake or keep the screen alive."""
+
+    action_name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RecoveryAttemptCompletedEvent:
     """Published when a background backend recovery attempt finishes."""
 

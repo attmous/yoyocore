@@ -27,7 +27,11 @@ from yoyopy.coordinators import (
     ScreenCoordinator,
 )
 from yoyopy.event_bus import EventBus
-from yoyopy.events import RecoveryAttemptCompletedEvent, ScreenChangedEvent
+from yoyopy.events import (
+    RecoveryAttemptCompletedEvent,
+    ScreenChangedEvent,
+    UserActivityEvent,
+)
 from yoyopy.fsm import CallFSM, CallInterruptionPolicy, MusicFSM
 from yoyopy.power import (
     GracefulShutdownCancelled,
@@ -144,6 +148,7 @@ class YoyoPodApp:
         self._main_thread_id = threading.get_ident()
         self.event_bus = EventBus(main_thread_id=self._main_thread_id)
         self.event_bus.subscribe(ScreenChangedEvent, self._handle_screen_changed_event)
+        self.event_bus.subscribe(UserActivityEvent, self._handle_user_activity_event)
         self.event_bus.subscribe(
             RecoveryAttemptCompletedEvent,
             self._handle_recovery_attempt_completed_event,
@@ -178,6 +183,13 @@ class YoyoPodApp:
         self._power_hooks_registered = False
         self._shutdown_completed = False
         self._stopping = False
+        self._app_started_at = time.monotonic()
+        self._last_user_activity_at = self._app_started_at
+        self._screen_on_started_at = self._app_started_at
+        self._screen_on_accumulated_seconds = 0.0
+        self._screen_timeout_seconds = 0.0
+        self._active_brightness = 1.0
+        self._screen_awake = True
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -250,11 +262,48 @@ class YoyoPodApp:
                 logger.info("Using default application configuration")
 
             self.auto_resume_after_call = self.app_settings.audio.auto_resume_after_call
+            self._screen_timeout_seconds = self._resolve_screen_timeout_seconds()
+            self._active_brightness = self._resolve_active_brightness()
             logger.info(f"  Auto-resume after call: {self.auto_resume_after_call}")
+            logger.info(f"  Screen timeout: {self._screen_timeout_seconds:.1f}s")
+            logger.info(f"  Active brightness: {self._active_brightness:.2f}")
             return True
         except Exception as exc:
             logger.error(f"Failed to load configuration: {exc}")
             return False
+
+    def _resolve_screen_timeout_seconds(self) -> float:
+        """Resolve the effective inactivity timeout used to sleep the screen."""
+        if self.app_settings is None:
+            return 0.0
+
+        display_timeout = max(0.0, float(self.app_settings.display.backlight_timeout_seconds))
+        if display_timeout > 0.0:
+            return display_timeout
+
+        return max(0.0, float(self.app_settings.ui.screen_timeout_seconds))
+
+    def _resolve_active_brightness(self) -> float:
+        """Resolve the active display brightness as a normalized 0.0-1.0 value."""
+        if self.app_settings is None:
+            return 1.0
+
+        brightness = max(0, min(100, int(self.app_settings.display.brightness)))
+        return brightness / 100.0
+
+    def _configure_screen_power(self, initial_now: float | None = None) -> None:
+        """Initialize screen timeout and usage tracking state."""
+        now = time.monotonic() if initial_now is None else initial_now
+        self._app_started_at = now
+        self._last_user_activity_at = now
+        self._screen_on_started_at = now
+        self._screen_on_accumulated_seconds = 0.0
+        self._screen_awake = True
+
+        if self.display is not None:
+            self.display.set_backlight(self._active_brightness)
+
+        self._update_screen_runtime_metrics(now)
 
     def _init_core_components(self) -> bool:
         """Initialize display, context, orchestration models, input, and screen manager."""
@@ -279,9 +328,11 @@ class YoyoPodApp:
                 font_size=16,
             )
             self.display.update()
+            self._configure_screen_power(initial_now=time.monotonic())
 
             logger.info("  - AppContext")
             self.context = AppContext()
+            self._update_screen_runtime_metrics(time.monotonic())
 
             logger.info("  - Orchestration Models")
             self.music_fsm = MusicFSM()
@@ -296,6 +347,7 @@ class YoyoPodApp:
             )
             if self.input_manager:
                 self.context.interaction_profile = self.input_manager.interaction_profile
+                self.input_manager.on_activity(self._queue_user_activity_event)
                 self.input_manager.start()
                 logger.info("    ✓ Input system initialized")
             else:
@@ -518,6 +570,17 @@ class YoyoPodApp:
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
         """Apply queued screen-change state sync on the coordinator thread."""
         self._sync_screen_changed(event.screen_name)
+        self._mark_user_activity(now=time.monotonic(), render_on_wake=False)
+
+    def _queue_user_activity_event(self, action, data: Any | None = None) -> None:
+        """Publish semantic user activity onto the main-thread event bus."""
+        action_name = getattr(action, "value", None)
+        self.event_bus.publish(UserActivityEvent(action_name=action_name))
+
+    def _handle_user_activity_event(self, event: UserActivityEvent) -> None:
+        """Wake the display and reset the inactivity timer on user activity."""
+        logger.debug(f"User activity received: {event.action_name or 'unknown'}")
+        self._mark_user_activity(now=time.monotonic(), render_on_wake=True)
 
     def _handle_recovery_attempt_completed_event(
         self,
@@ -570,6 +633,7 @@ class YoyoPodApp:
             execute_at=requested_at + max(0.0, event.delay_seconds),
             battery_percent=event.snapshot.battery.level_percent,
         )
+        self._wake_screen(requested_at, render_current=False)
         logger.warning(
             "Critical battery detected; shutdown in {:.1f}s",
             event.delay_seconds,
@@ -634,6 +698,10 @@ class YoyoPodApp:
             "external_power": self.context.external_power if self.context else None,
             "voip_registered": self.voip_registered,
             "music_available": self.mopidy_client.is_connected if self.mopidy_client else False,
+            "app_uptime_seconds": self.context.app_uptime_seconds if self.context else 0,
+            "screen_on_seconds": self.context.screen_on_seconds if self.context else 0,
+            "screen_awake": self.context.screen_awake if self.context else True,
+            "screen_idle_seconds": self.context.screen_idle_seconds if self.context else 0,
             "playback": {
                 "is_playing": self.context.playback.is_playing if self.context else False,
                 "is_paused": self.context.playback.is_paused if self.context else False,
@@ -726,6 +794,87 @@ class YoyoPodApp:
         self._ensure_coordinators()
         self.coordinator_runtime.sync_ui_state_for_screen(screen_name)
 
+    def _mark_user_activity(
+        self,
+        *,
+        now: float | None = None,
+        render_on_wake: bool,
+    ) -> None:
+        """Reset inactivity tracking and wake the screen when needed."""
+        activity_now = time.monotonic() if now is None else now
+        self._last_user_activity_at = activity_now
+        if self._screen_awake:
+            self._update_screen_runtime_metrics(activity_now)
+            return
+
+        self._wake_screen(activity_now, render_current=render_on_wake)
+
+    def _wake_screen(self, now: float, *, render_current: bool) -> None:
+        """Restore active brightness and optionally re-render the current screen."""
+        if self._screen_awake:
+            self._update_screen_runtime_metrics(now)
+            return
+
+        self._screen_awake = True
+        self._screen_on_started_at = now
+        if self.display is not None:
+            self.display.set_backlight(self._active_brightness)
+
+        if render_current and self.screen_manager is not None:
+            current_screen = self.screen_manager.get_current_screen()
+            if current_screen is not None:
+                current_screen.render()
+
+        self._update_screen_runtime_metrics(now)
+        logger.debug("Screen woke from inactivity")
+
+    def _sleep_screen(self, now: float) -> None:
+        """Turn off the display backlight and retain cumulative screen-on time."""
+        if not self._screen_awake:
+            self._update_screen_runtime_metrics(now)
+            return
+
+        if self._screen_on_started_at is not None:
+            self._screen_on_accumulated_seconds += max(0.0, now - self._screen_on_started_at)
+        self._screen_on_started_at = None
+        self._screen_awake = False
+        if self.display is not None:
+            self.display.set_backlight(0.0)
+        self._update_screen_runtime_metrics(now)
+        logger.info("Screen slept after inactivity timeout")
+
+    def _update_screen_runtime_metrics(self, now: float) -> None:
+        """Refresh app uptime and screen usage metrics in the shared context."""
+        screen_on_seconds = self._screen_on_accumulated_seconds
+        if self._screen_awake and self._screen_on_started_at is not None:
+            screen_on_seconds += max(0.0, now - self._screen_on_started_at)
+
+        idle_seconds = max(0.0, now - self._last_user_activity_at)
+        app_uptime_seconds = max(0.0, now - self._app_started_at)
+
+        if self.context is not None:
+            self.context.update_screen_runtime(
+                screen_awake=self._screen_awake,
+                app_uptime_seconds=app_uptime_seconds,
+                screen_on_seconds=screen_on_seconds,
+                idle_seconds=idle_seconds,
+            )
+
+    def _update_screen_power(self, now: float) -> None:
+        """Apply inactivity-based screen timeout policy and refresh runtime metrics."""
+        if self._pending_shutdown is not None or self._power_alert is not None:
+            self._wake_screen(now, render_current=False)
+            return
+
+        self._update_screen_runtime_metrics(now)
+        if self._screen_timeout_seconds <= 0 or not self._screen_awake:
+            return
+
+        if now - self._last_user_activity_at < self._screen_timeout_seconds:
+            return
+
+        self._sleep_screen(now)
+
     def _attempt_manager_recovery(self, now: float | None = None) -> None:
         """Try to recover VoIP and Mopidy when they become unavailable."""
         if self._stopping:
@@ -765,6 +914,7 @@ class YoyoPodApp:
         duration_seconds: float,
     ) -> None:
         """Queue a short-lived fullscreen power alert overlay."""
+        self._wake_screen(time.monotonic(), render_current=False)
         self._power_alert = _PowerAlert(
             title=title,
             subtitle=subtitle,
@@ -1014,10 +1164,15 @@ class YoyoPodApp:
                 self._process_pending_shutdown(monotonic_now)
                 if self._shutdown_completed:
                     break
+                self._update_screen_power(monotonic_now)
 
                 current_time = time.time()
                 overlay_active = self._update_power_overlays(monotonic_now)
                 if overlay_active:
+                    last_screen_update = current_time
+                    continue
+
+                if not self._screen_awake:
                     last_screen_update = current_time
                     continue
 
@@ -1060,6 +1215,7 @@ class YoyoPodApp:
 
         if self.display:
             logger.info("  - Clearing display")
+            self.display.set_backlight(self._active_brightness)
             self.display.clear(self.display.COLOR_BLACK)
             self.display.text("Goodbye!", 70, 120, color=self.display.COLOR_CYAN, font_size=20)
             self.display.update()
@@ -1088,6 +1244,10 @@ class YoyoPodApp:
             "battery_percent": self.context.battery_percent if self.context else None,
             "battery_charging": self.context.battery_charging if self.context else None,
             "external_power": self.context.external_power if self.context else None,
+            "screen_awake": self.context.screen_awake if self.context else self._screen_awake,
+            "screen_idle_seconds": self.context.screen_idle_seconds if self.context else None,
+            "screen_on_seconds": self.context.screen_on_seconds if self.context else None,
+            "app_uptime_seconds": self.context.app_uptime_seconds if self.context else None,
             "shutdown_pending": self._pending_shutdown is not None,
             "shutdown_reason": self._pending_shutdown.reason if self._pending_shutdown else None,
             "shutdown_in_seconds": pending_shutdown_in_seconds,
