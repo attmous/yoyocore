@@ -11,6 +11,7 @@ from loguru import logger
 
 from yoyopy.power.backend import PiSugarBackend, PowerBackend
 from yoyopy.power.models import PowerConfig, PowerSnapshot, RTCState
+from yoyopy.power.watchdog import PiSugarWatchdog, WatchdogCommandError
 
 if TYPE_CHECKING:
     from yoyopy.config import ConfigManager
@@ -28,10 +29,14 @@ class PowerManager:
         config: PowerConfig,
         backend: PowerBackend | None = None,
         shutdown_runner: ShutdownRunner | None = None,
+        watchdog: PiSugarWatchdog | None = None,
     ) -> None:
         self.config = config
         self.backend = backend or PiSugarBackend(config)
         self._shutdown_runner = shutdown_runner or self._default_shutdown_runner
+        self.watchdog = watchdog or (
+            PiSugarWatchdog(config) if config.watchdog_enabled else None
+        )
         self._shutdown_hooks: list[tuple[str, ShutdownHook]] = []
         self.last_snapshot = PowerSnapshot(
             available=False,
@@ -99,6 +104,43 @@ class PowerManager:
         """Disable the PiSugar RTC wake alarm and return fresh RTC state."""
         self.backend.disable_rtc_alarm()
         return self.get_rtc_state(refresh=True)
+
+    def enable_watchdog(self) -> bool:
+        """Enable and immediately feed the PiSugar software watchdog."""
+        if self.watchdog is None:
+            logger.info("Power watchdog not configured")
+            return False
+
+        try:
+            self.watchdog.enable()
+        except WatchdogCommandError as exc:
+            logger.error(f"Failed to enable power watchdog: {exc}")
+            return False
+        return True
+
+    def feed_watchdog(self) -> bool:
+        """Feed the PiSugar software watchdog once."""
+        if self.watchdog is None:
+            return False
+
+        try:
+            self.watchdog.feed()
+        except WatchdogCommandError as exc:
+            logger.error(f"Failed to feed power watchdog: {exc}")
+            return False
+        return True
+
+    def disable_watchdog(self) -> bool:
+        """Disable the PiSugar software watchdog."""
+        if self.watchdog is None:
+            return False
+
+        try:
+            self.watchdog.disable()
+        except WatchdogCommandError as exc:
+            logger.error(f"Failed to disable power watchdog: {exc}")
+            return False
+        return True
 
     def register_shutdown_hook(self, name: str, hook: ShutdownHook) -> None:
         """Register one callable to run before a graceful poweroff."""

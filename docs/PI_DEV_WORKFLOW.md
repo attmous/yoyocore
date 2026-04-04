@@ -11,6 +11,7 @@ The repo now has a clear hardware smoke path, but developers still need a quick 
 - run one combined preflight before manual app startup
 - run the Pi smoke checks
 - launch the production app
+- install and inspect the production systemd unit
 
 Use `scripts/pi_remote.py` for that loop.
 
@@ -104,6 +105,19 @@ uv run python scripts/pi_remote.py rtc status
 uv run python scripts/pi_remote.py rtc sync-to-rtc
 ```
 
+### Production systemd service
+
+```bash
+uv run python scripts/pi_remote.py service status
+uv run python scripts/pi_remote.py service install
+uv run python scripts/pi_remote.py service restart
+uv run python scripts/pi_remote.py service logs --lines 150
+```
+
+This installs `deploy/systemd/yoyopod@.service` onto the Pi as
+`yoyopod@<remote-user>.service`, enables it at boot, and keeps the app paired
+with the PiSugar watchdog recovery loop.
+
 Use this during on-device tuning when the Whisplay button feels too eager or too sluggish. The helper runs interactively over SSH, prints every semantic gesture event, and accepts temporary timing overrides without modifying the tracked config file.
 
 ### Run the full preflight in one command
@@ -149,6 +163,12 @@ uv run python scripts/pi_remote.py run --app-arg=--your-extra-flag
 4. Launch the app:
    `uv run python scripts/pi_remote.py run`
 
+If you are validating the production boot path rather than an interactive SSH
+run, use:
+
+5. `uv run python scripts/pi_remote.py service restart`
+6. `uv run python scripts/pi_remote.py service status`
+
 ## Release / Pre-Merge Checklist
 
 - Local branch is green with `uv run pytest -q`
@@ -166,5 +186,6 @@ uv run python scripts/pi_remote.py run --app-arg=--your-extra-flag
 
 - `pi_remote.py run` uses an interactive SSH session so you can stop the remote app with `Ctrl+C`.
 - `pi_remote.py preflight` is intentionally non-interactive. It validates but does not launch the app.
+- `pi_remote.py service install` expects passwordless `sudo` or an interactive sudo policy on the Pi.
 - The helper does not kill existing remote processes for you. If the Pi already has a stale YoyoPod or `linphonec` process, stop it first.
 - For deeper hardware debugging, use `docs/RPI_SMOKE_VALIDATION.md`.

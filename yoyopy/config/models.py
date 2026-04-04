@@ -120,6 +120,8 @@ def _coerce_value(value: Any, field_type: Any) -> Any:
             return False
         raise ValueError(f"Cannot coerce {value!r} to bool")
     if target_type is int:
+        if isinstance(value, str):
+            return int(value, 0)
         return int(value)
     if target_type is float:
         return float(value)
@@ -242,6 +244,30 @@ class AppPowerConfig:
     shutdown_state_file: str = config_value(
         default="data/last_shutdown_state.json",
         env="YOYOPOD_POWER_SHUTDOWN_STATE_FILE",
+    )
+    watchdog_enabled: bool = config_value(
+        default=False,
+        env="YOYOPOD_POWER_WATCHDOG_ENABLED",
+    )
+    watchdog_timeout_seconds: int = config_value(
+        default=60,
+        env="YOYOPOD_POWER_WATCHDOG_TIMEOUT_SECONDS",
+    )
+    watchdog_feed_interval_seconds: float = config_value(
+        default=15.0,
+        env="YOYOPOD_POWER_WATCHDOG_FEED_INTERVAL_SECONDS",
+    )
+    watchdog_i2c_bus: int = config_value(
+        default=1,
+        env="YOYOPOD_POWER_WATCHDOG_I2C_BUS",
+    )
+    watchdog_i2c_address: int = config_value(
+        default=0x57,
+        env="YOYOPOD_POWER_WATCHDOG_I2C_ADDRESS",
+    )
+    watchdog_command_timeout_seconds: float = config_value(
+        default=5.0,
+        env="YOYOPOD_POWER_WATCHDOG_COMMAND_TIMEOUT_SECONDS",
     )
 
 

@@ -6,6 +6,7 @@ and keeps the installed entry point aligned with the top-level launcher.
 """
 
 import sys
+import signal
 
 from loguru import logger
 
@@ -73,6 +74,14 @@ def main() -> int:
     logger.info("=" * 60)
     logger.info("")
 
+    def handle_shutdown_signal(signum, _frame) -> None:
+        signal_name = signal.Signals(signum).name
+        logger.info(f"Received {signal_name}, shutting down...")
+        raise KeyboardInterrupt
+
+    previous_sigterm = signal.getsignal(signal.SIGTERM)
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
+
     try:
         app.run()
     except KeyboardInterrupt:
@@ -80,6 +89,7 @@ def main() -> int:
         logger.info("=" * 60)
         logger.info("Shutting down...")
     finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
         app.stop()
 
     logger.info("")

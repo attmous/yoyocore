@@ -41,6 +41,11 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.power.shutdown_delay_seconds == 15.0
     assert settings.power.shutdown_command == "sudo -n shutdown -h now"
     assert settings.power.shutdown_state_file == "data/last_shutdown_state.json"
+    assert settings.power.watchdog_enabled is False
+    assert settings.power.watchdog_timeout_seconds == 60
+    assert settings.power.watchdog_feed_interval_seconds == 15.0
+    assert settings.power.watchdog_i2c_bus == 1
+    assert settings.power.watchdog_i2c_address == 0x57
     assert settings.display.hardware == "auto"
 
 
@@ -78,6 +83,10 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     monkeypatch.setenv("YOYOPOD_CRITICAL_BATTERY_SHUTDOWN_PERCENT", "8.5")
     monkeypatch.setenv("YOYOPOD_POWER_SHUTDOWN_DELAY_SECONDS", "22.0")
     monkeypatch.setenv("YOYOPOD_POWER_SHUTDOWN_COMMAND", "sudo -n poweroff")
+    monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_ENABLED", "true")
+    monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_TIMEOUT_SECONDS", "90")
+    monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_FEED_INTERVAL_SECONDS", "30")
+    monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_I2C_ADDRESS", "0x58")
     monkeypatch.setenv("YOYOPOD_DISPLAY", "whisplay")
 
     config_manager = ConfigManager(config_dir=str(tmp_path))
@@ -96,6 +105,10 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert settings.power.critical_shutdown_percent == 8.5
     assert settings.power.shutdown_delay_seconds == 22.0
     assert settings.power.shutdown_command == "sudo -n poweroff"
+    assert settings.power.watchdog_enabled is True
+    assert settings.power.watchdog_timeout_seconds == 90
+    assert settings.power.watchdog_feed_interval_seconds == 30.0
+    assert settings.power.watchdog_i2c_address == 0x58
     assert settings.display.hardware == "whisplay"
     assert settings.logging.level == "DEBUG"
     assert config_dict["audio"]["mopidy_port"] == 7788
