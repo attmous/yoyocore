@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         IncomingCallScreen,
         NowPlayingScreen,
         OutgoingCallScreen,
+        PowerScreen,
         ScreenManager,
     )
 
@@ -43,6 +44,7 @@ class AppRuntimeState(Enum):
     SETTINGS = "settings"
     PLAYLIST = "playlist"
     PLAYLIST_BROWSER = "playlist_browser"
+    POWER = "power"
     CALL_IDLE = "call_idle"
     CALL_INCOMING = "call_incoming"
     CALL_OUTGOING = "call_outgoing"
@@ -84,6 +86,7 @@ class CoordinatorRuntime:
     power_manager: PowerManager | None
     now_playing_screen: NowPlayingScreen | None
     call_screen: CallScreen | None
+    power_screen: PowerScreen | None
     incoming_call_screen: IncomingCallScreen | None
     outgoing_call_screen: OutgoingCallScreen | None
     in_call_screen: InCallScreen | None
@@ -104,6 +107,7 @@ class CoordinatorRuntime:
         AppRuntimeState.SETTINGS,
         AppRuntimeState.PLAYLIST,
         AppRuntimeState.PLAYLIST_BROWSER,
+        AppRuntimeState.POWER,
         AppRuntimeState.CALL_IDLE,
         AppRuntimeState.CONNECTING,
         AppRuntimeState.ERROR,
@@ -201,6 +205,7 @@ class CoordinatorRuntime:
             "hub": AppRuntimeState.HUB,
             "menu": AppRuntimeState.MENU,
             "playlists": AppRuntimeState.PLAYLIST_BROWSER,
+            "power": AppRuntimeState.POWER,
             "call": AppRuntimeState.CALL_IDLE,
             "contacts": AppRuntimeState.CALL_IDLE,
         }

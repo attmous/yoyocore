@@ -1,6 +1,6 @@
 # YoyoPod Current Status & Developer Guide
 
-**Last Updated:** 2026-04-02
+**Last Updated:** 2026-04-05
 **Target Hardware:** Raspberry Pi Zero 2W
 **Project:** iPod-inspired VoIP and Mopidy player with a small-screen, button-driven UI
 
@@ -120,6 +120,7 @@ Key design points:
 - `yoyopy/power/watchdog.py` - PiSugar software watchdog controller over `i2cget`/`i2cset`
 - `yoyopy/power/manager.py` - app-facing power facade
 - `yoyopy/power/policies.py` - low-battery safety policy
+- `scripts/pisugar_power.py` - battery, charging, shutdown, and watchdog helper
 - `scripts/pisugar_rtc.py` - RTC status/sync/alarm helper
 - `deploy/systemd/yoyopod@.service` - production boot-time service unit
 
@@ -129,6 +130,7 @@ Key design points:
 - `yoyopy/ui/input/` - input HAL, factory, manager, and adapters
 - `yoyopy/ui/screens/manager.py` - stack navigation and input binding
 - `yoyopy/ui/screens/router.py` - declarative route resolution
+- `yoyopy/ui/screens/navigation/power.py` - two-page power and runtime status screen
 - `yoyopy/ui/screens/voip/hub.py` - VoIP hub / quick-call screen
 
 ### Configuration
@@ -206,6 +208,7 @@ uv run python scripts/pi_remote.py status --host rpi-zero
 uv run python scripts/pi_remote.py preflight --host rpi-zero --with-mopidy --with-voip
 uv run python scripts/pi_remote.py sync --host rpi-zero --branch main
 uv run python scripts/pi_remote.py smoke --host rpi-zero --with-mopidy --with-voip
+uv run python scripts/pi_remote.py power --host rpi-zero
 uv run python scripts/pi_remote.py service install --host rpi-zero
 ```
 

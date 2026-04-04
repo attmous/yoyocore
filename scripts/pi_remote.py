@@ -168,6 +168,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable verbose RTC helper logging",
     )
 
+    power_parser = subparsers.add_parser(
+        "power",
+        help="Inspect PiSugar power telemetry remotely",
+    )
+    power_parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose power helper logging",
+    )
+
     service_parser = subparsers.add_parser(
         "service",
         help="Install or inspect the production YoyoPod systemd service",
@@ -402,6 +412,14 @@ def build_rtc_command(args: argparse.Namespace) -> str:
     return " ".join(parts)
 
 
+def build_power_command(args: argparse.Namespace) -> str:
+    """Create the remote PiSugar power-status command."""
+    parts = ["uv run python scripts/pisugar_power.py"]
+    if args.verbose:
+        parts.append("--verbose")
+    return " ".join(parts)
+
+
 def build_service_command(args: argparse.Namespace) -> str:
     """Create the remote systemd service command."""
     service_name = 'yoyopod@"$(id -un)".service'
@@ -459,6 +477,7 @@ def build_local_preflight_commands() -> list[tuple[str, list[str]]]:
                 "scripts/pi_smoke.py",
                 "scripts/pi_remote.py",
                 "scripts/pisugar_rtc.py",
+                "scripts/pisugar_power.py",
                 "scripts/whisplay_tune.py",
             ],
         ),
@@ -514,6 +533,9 @@ def main() -> int:
 
     if args.command == "rtc":
         return run_remote(config, build_rtc_command(args))
+
+    if args.command == "power":
+        return run_remote(config, build_power_command(args))
 
     if args.command == "service":
         return run_remote(config, build_service_command(args))

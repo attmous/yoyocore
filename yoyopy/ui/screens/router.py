@@ -87,6 +87,10 @@ class ScreenRouter:
                 "select:Call": NavigationRequest.push("contacts"),
                 "select:Call Contact": NavigationRequest.push("contacts"),
                 "select:Contacts": NavigationRequest.push("contacts"),
+                "select:Power Status": NavigationRequest.push("power"),
+            },
+            "power": {
+                "back": NavigationRequest.pop(),
             },
             "now_playing": {
                 "back": NavigationRequest.pop(),

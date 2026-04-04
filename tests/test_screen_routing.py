@@ -56,6 +56,7 @@ def test_screen_router_covers_live_menu_labels() -> None:
         "VoIP Status": NavigationRequest.push("call"),
         "Call Contact": NavigationRequest.push("contacts"),
         "Contacts": NavigationRequest.push("contacts"),
+        "Power Status": NavigationRequest.push("power"),
     }
 
     for label, expected_request in expected_routes.items():
@@ -88,10 +89,12 @@ def test_screen_manager_routes_menu_labels_through_stack(display: Display) -> No
     home = HomeScreen(display, context)
     menu = MenuScreen(display, context, items=["Load Playlist", "Back"])
     playlists = RoutableStubScreen(display, context)
+    power = RoutableStubScreen(display, context)
 
     screen_manager.register_screen("home", home)
     screen_manager.register_screen("menu", menu)
     screen_manager.register_screen("playlists", playlists)
+    screen_manager.register_screen("power", power)
 
     screen_manager.replace_screen("home")
     assert screen_manager.current_screen is home
@@ -108,6 +111,24 @@ def test_screen_manager_routes_menu_labels_through_stack(display: Display) -> No
     menu.selected_index = 1
     input_manager.simulate_action(InputAction.SELECT)
     assert screen_manager.current_screen is home
+
+
+def test_screen_manager_routes_power_status_through_stack(display: Display) -> None:
+    """Power Status should route through the stack like any other menu destination."""
+    context = AppContext()
+    input_manager = InputManager()
+    screen_manager = ScreenManager(display, input_manager)
+
+    menu = MenuScreen(display, context, items=["Power Status"])
+    power = RoutableStubScreen(display, context)
+
+    screen_manager.register_screen("menu", menu)
+    screen_manager.register_screen("power", power)
+
+    screen_manager.replace_screen("menu")
+    input_manager.simulate_action(InputAction.SELECT)
+
+    assert screen_manager.current_screen is power
 
 
 def test_screen_manager_routes_whisplay_hub_cards_through_stack(display: Display) -> None:

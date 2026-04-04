@@ -52,6 +52,7 @@ from yoyopy.ui.screens import (
     NowPlayingScreen,
     OutgoingCallScreen,
     PlaylistScreen,
+    PowerScreen,
     ScreenManager,
 )
 from yoyopy.voip import VoIPConfig, VoIPManager
@@ -123,6 +124,7 @@ class YoyoPodApp:
         self.hub_screen: Optional[HubScreen] = None
         self.home_screen: Optional[HomeScreen] = None
         self.menu_screen: Optional[MenuScreen] = None
+        self.power_screen: Optional[PowerScreen] = None
         self.now_playing_screen: Optional[NowPlayingScreen] = None
         self.playlist_screen: Optional[PlaylistScreen] = None
         self.call_screen: Optional[CallScreen] = None
@@ -425,7 +427,7 @@ class YoyoPodApp:
                 "Browse Playlists",
                 "VoIP Status",
                 "Call Contact",
-                "Back",
+                "Power Status",
             ]
             self.hub_screen = HubScreen(
                 self.display,
@@ -435,6 +437,12 @@ class YoyoPodApp:
             )
             self.menu_screen = MenuScreen(self.display, self.context, items=menu_items)
             self.home_screen = HomeScreen(self.display, self.context)
+            self.power_screen = PowerScreen(
+                self.display,
+                self.context,
+                power_manager=self.power_manager,
+                status_provider=self.get_status,
+            )
             self.now_playing_screen = NowPlayingScreen(
                 self.display,
                 self.context,
@@ -480,6 +488,7 @@ class YoyoPodApp:
             self.screen_manager.register_screen("hub", self.hub_screen)
             self.screen_manager.register_screen("home", self.home_screen)
             self.screen_manager.register_screen("menu", self.menu_screen)
+            self.screen_manager.register_screen("power", self.power_screen)
             self.screen_manager.register_screen("now_playing", self.now_playing_screen)
             self.screen_manager.register_screen("playlists", self.playlist_screen)
             self.screen_manager.register_screen("call", self.call_screen)
@@ -491,6 +500,7 @@ class YoyoPodApp:
 
             logger.info("  ✓ All screens registered")
             logger.info("    - Music screens: now_playing, playlists")
+            logger.info("    - Power screen: power")
             logger.info("    - VoIP screens: call, contacts, incoming_call, outgoing_call, in_call")
             logger.info("    - Navigation: home, menu")
 
@@ -734,6 +744,7 @@ class YoyoPodApp:
             power_manager=self.power_manager,
             now_playing_screen=self.now_playing_screen,
             call_screen=self.call_screen,
+            power_screen=self.power_screen,
             incoming_call_screen=self.incoming_call_screen,
             outgoing_call_screen=self.outgoing_call_screen,
             in_call_screen=self.in_call_screen,
@@ -778,6 +789,11 @@ class YoyoPodApp:
         """Refresh the in-call screen from the main loop when it is visible."""
         self._ensure_coordinators()
         self.screen_coordinator.update_in_call_if_needed()
+
+    def _update_power_screen_if_needed(self) -> None:
+        """Refresh the power screen from the main loop when it is visible."""
+        self._ensure_coordinators()
+        self.screen_coordinator.update_power_screen_if_needed()
 
     def _start_ringing(self) -> None:
         """Compatibility wrapper for starting the call ring tone."""
@@ -1255,6 +1271,7 @@ class YoyoPodApp:
                 if current_time - last_screen_update >= screen_update_interval:
                     self._update_now_playing_if_needed()
                     self._update_in_call_if_needed()
+                    self._update_power_screen_if_needed()
                     last_screen_update = current_time
         except KeyboardInterrupt:
             logger.info("\n" + "=" * 60)
@@ -1317,6 +1334,8 @@ class YoyoPodApp:
                 self._pending_shutdown.execute_at - time.monotonic(),
             )
 
+        power_snapshot = self.power_manager.get_snapshot() if self.power_manager is not None else None
+
         return {
             "state": self.coordinator_runtime.get_state_name(),
             "voip_registered": self.voip_registered,
@@ -1324,7 +1343,7 @@ class YoyoPodApp:
             "auto_resume": self.auto_resume_after_call,
             "voip_available": self.voip_manager is not None and self.voip_manager.running,
             "music_available": self.mopidy_client is not None and self.mopidy_client.is_connected,
-            "power_available": self.power_manager is not None and self.power_manager.get_snapshot().available,
+            "power_available": power_snapshot.available if power_snapshot is not None else False,
             "battery_percent": self.context.battery_percent if self.context else None,
             "battery_charging": self.context.battery_charging if self.context else None,
             "external_power": self.context.external_power if self.context else None,
@@ -1336,6 +1355,35 @@ class YoyoPodApp:
             "shutdown_reason": self._pending_shutdown.reason if self._pending_shutdown else None,
             "shutdown_in_seconds": pending_shutdown_in_seconds,
             "shutdown_completed": self._shutdown_completed,
+            "warning_threshold_percent": (
+                self.power_manager.config.low_battery_warning_percent
+                if self.power_manager is not None
+                else None
+            ),
+            "critical_shutdown_percent": (
+                self.power_manager.config.critical_shutdown_percent
+                if self.power_manager is not None
+                else None
+            ),
+            "shutdown_delay_seconds": (
+                self.power_manager.config.shutdown_delay_seconds
+                if self.power_manager is not None
+                else None
+            ),
+            "screen_timeout_seconds": self._screen_timeout_seconds,
+            "power_model": power_snapshot.device.model if power_snapshot is not None else None,
+            "power_error": power_snapshot.error if power_snapshot is not None else None,
+            "power_voltage_volts": (
+                power_snapshot.battery.voltage_volts if power_snapshot is not None else None
+            ),
+            "power_temperature_celsius": (
+                power_snapshot.battery.temperature_celsius if power_snapshot is not None else None
+            ),
+            "rtc_time": power_snapshot.rtc.time if power_snapshot is not None else None,
+            "rtc_alarm_enabled": (
+                power_snapshot.rtc.alarm_enabled if power_snapshot is not None else None
+            ),
+            "rtc_alarm_time": power_snapshot.rtc.alarm_time if power_snapshot is not None else None,
             "watchdog_enabled": (
                 self.power_manager.config.watchdog_enabled
                 if self.power_manager is not None
@@ -1343,4 +1391,14 @@ class YoyoPodApp:
             ),
             "watchdog_active": self._watchdog_active,
             "watchdog_feed_suppressed": self._watchdog_feed_suppressed,
+            "watchdog_timeout_seconds": (
+                self.power_manager.config.watchdog_timeout_seconds
+                if self.power_manager is not None
+                else None
+            ),
+            "watchdog_feed_interval_seconds": (
+                self.power_manager.config.watchdog_feed_interval_seconds
+                if self.power_manager is not None
+                else None
+            ),
         }

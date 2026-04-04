@@ -120,6 +120,14 @@ uv run python scripts/pisugar_rtc.py sync-to-rtc
 
 Use this when you want a focused RTC read/sync pass without running the full app.
 
+### PiSugar power drill
+
+```bash
+uv run python scripts/pisugar_power.py
+```
+
+Use this when you want a focused battery, charging, RTC, shutdown-threshold, and watchdog readout without the full smoke flow.
+
 ## Suggested Order On Hardware
 
 1. `uv sync --extra dev`

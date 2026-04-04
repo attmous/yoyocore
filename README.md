@@ -24,6 +24,7 @@ The current codebase supports three display/input modes:
 - `yoyopy/app.py`: `YoyoPodApp` coordinator
 - `scripts/pi_smoke.py`: Raspberry Pi smoke validator for hardware and optional service checks
 - `scripts/pi_remote.py`: SSH helper for Raspberry Pi sync, smoke, status, and run loops
+- `scripts/pisugar_power.py`: PiSugar battery, shutdown, and watchdog helper
 - `scripts/pisugar_rtc.py`: PiSugar RTC status, sync, and alarm helper
 - `deploy/systemd/yoyopod@.service`: production systemd unit for boot-time app supervision
 - `yoyopy/fsm.py`: split `MusicFSM`, `CallFSM`, and call interruption policy
@@ -82,6 +83,7 @@ Important settings:
 - `config/yoyopod_config.yaml`: Whisplay gesture tuning under `input.whisplay_*_ms`
 - `config/yoyopod_config.yaml`: `input.ptt_navigation=false` is reserved for future voice/PTT work and is currently experimental
 - `config/yoyopod_config.yaml`: `power.watchdog_*` controls the PiSugar app heartbeat watchdog
+- `config/yoyopod_config.yaml`: `power.*` also controls low-battery warning, graceful shutdown, and PiSugar polling
 - `config/voip_config.yaml`: SIP account, transport, STUN, `linphonec` path
 - `config/contacts.yaml`: contact list and speed dial entries
 
@@ -108,6 +110,7 @@ uv run python scripts/pi_remote.py status
 uv run python scripts/pi_remote.py preflight --branch main --with-mopidy --with-voip
 uv run python scripts/pi_remote.py sync --branch main
 uv run python scripts/pi_remote.py smoke --with-mopidy --with-voip
+uv run python scripts/pi_remote.py power
 uv run python scripts/pi_remote.py rtc status
 uv run python scripts/pi_remote.py rtc sync-to-rtc
 uv run python scripts/pi_remote.py service status
@@ -128,6 +131,13 @@ Whisplay tuning on-device:
 ```bash
 uv run python scripts/whisplay_tune.py
 uv run python scripts/whisplay_tune.py --double-tap-ms 240 --long-hold-ms 900
+```
+
+PiSugar power diagnostics:
+
+```bash
+uv run python scripts/pisugar_power.py
+uv run python scripts/pi_remote.py power
 ```
 
 ## Running

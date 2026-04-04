@@ -21,6 +21,7 @@ def _build_runtime() -> CoordinatorRuntime:
         power_manager=None,
         now_playing_screen=None,
         call_screen=None,
+        power_screen=None,
         incoming_call_screen=None,
         outgoing_call_screen=None,
         in_call_screen=None,

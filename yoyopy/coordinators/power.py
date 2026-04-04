@@ -75,26 +75,20 @@ class PowerCoordinator:
 
     def handle_snapshot_updated(self, snapshot: PowerSnapshot) -> None:
         """Apply the latest power telemetry to runtime and UI state."""
-        previous_signature = (
-            self.context.battery_percent,
-            self.context.battery_charging,
-            self.context.external_power,
-            self.context.power_available,
-            self.context.power_error,
+        previous_signature = self._snapshot_signature(self.runtime.power_snapshot)
+        current_screen = (
+            self.runtime.screen_manager.get_current_screen()
+            if self.runtime.screen_manager is not None
+            else None
         )
+        current_route_name = current_screen.route_name if current_screen is not None else None
 
         self.runtime.set_power_snapshot(snapshot)
         self.context.update_power_status(snapshot)
 
-        current_signature = (
-            self.context.battery_percent,
-            self.context.battery_charging,
-            self.context.external_power,
-            self.context.power_available,
-            self.context.power_error,
-        )
+        current_signature = self._snapshot_signature(snapshot)
 
-        if current_signature != previous_signature:
+        if current_signature != previous_signature or current_route_name == "power":
             self.screen_coordinator.refresh_current_screen()
 
         if self.policy is None or self._event_bus is None:
@@ -114,3 +108,30 @@ class PowerCoordinator:
         if self.policy is not None:
             self.policy.shutdown_requested = False
             self.policy.next_warning_at = 0.0
+
+    @staticmethod
+    def _snapshot_signature(snapshot: PowerSnapshot | None) -> tuple[object, ...] | None:
+        """Return the stable, user-visible subset of a power snapshot."""
+        if snapshot is None:
+            return None
+
+        return (
+            snapshot.available,
+            snapshot.error,
+            snapshot.device.model,
+            snapshot.device.firmware_version,
+            snapshot.battery.level_percent,
+            snapshot.battery.voltage_volts,
+            snapshot.battery.charging,
+            snapshot.battery.power_plugged,
+            snapshot.battery.allow_charging,
+            snapshot.battery.output_enabled,
+            snapshot.battery.temperature_celsius,
+            snapshot.rtc.time,
+            snapshot.rtc.alarm_enabled,
+            snapshot.rtc.alarm_time,
+            snapshot.rtc.alarm_repeat_mask,
+            snapshot.rtc.adjust_ppm,
+            snapshot.shutdown.safe_shutdown_level_percent,
+            snapshot.shutdown.safe_shutdown_delay_seconds,
+        )

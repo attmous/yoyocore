@@ -32,7 +32,11 @@ class ScreenCoordinator:
 
     def update_now_playing_if_needed(self) -> None:
         """Refresh the now playing screen for periodic progress updates."""
-        if self.runtime.screen_manager.current_screen != self.runtime.now_playing_screen:
+        if (
+            self.runtime.screen_manager is None
+            or self.runtime.now_playing_screen is None
+            or self.runtime.screen_manager.current_screen != self.runtime.now_playing_screen
+        ):
             return
 
         if self.runtime.mopidy_client and self.runtime.mopidy_client.is_connected:
@@ -42,8 +46,21 @@ class ScreenCoordinator:
 
     def update_in_call_if_needed(self) -> None:
         """Refresh the in-call screen for live duration and mute updates."""
-        if self.runtime.screen_manager.current_screen == self.runtime.in_call_screen:
+        if (
+            self.runtime.screen_manager is not None
+            and self.runtime.in_call_screen is not None
+            and self.runtime.screen_manager.current_screen == self.runtime.in_call_screen
+        ):
             self.runtime.in_call_screen.render()
+
+    def update_power_screen_if_needed(self) -> None:
+        """Refresh the power screen for live runtime metrics when visible."""
+        if (
+            self.runtime.screen_manager is not None
+            and self.runtime.power_screen is not None
+            and self.runtime.screen_manager.current_screen == self.runtime.power_screen
+        ):
+            self.runtime.power_screen.render()
 
     def refresh_current_screen(self) -> None:
         """Refresh whichever screen is currently visible."""

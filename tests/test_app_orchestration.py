@@ -231,7 +231,7 @@ class FakePowerManager:
         self.refresh_calls += 1
         return self._snapshots[index]
 
-    def get_snapshot(self) -> PowerSnapshot:
+    def get_snapshot(self, refresh: bool = False) -> PowerSnapshot:
         index = max(0, min(self.refresh_calls - 1, len(self._snapshots) - 1))
         return self._snapshots[index]
 
@@ -315,6 +315,7 @@ def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tup
     app.mopidy_client = mopidy
 
     app.menu_screen = FakeScreen()
+    app.power_screen = FakeScreen()
     app.now_playing_screen = FakeScreen()
     app.playlist_screen = FakeScreen()
     app.call_screen = FakeScreen()
@@ -326,6 +327,7 @@ def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tup
     screen_manager = FakeScreenManager(
         {
             "menu": app.menu_screen,
+            "power": app.power_screen,
             "playlists": app.playlist_screen,
             "contacts": app.contact_list_screen,
             "incoming_call": app.incoming_call_screen,
@@ -362,6 +364,7 @@ def _build_app_with_power(
     app.mopidy_client = mopidy
 
     app.menu_screen = FakeScreen()
+    app.power_screen = FakeScreen()
     app.now_playing_screen = FakeScreen()
     app.playlist_screen = FakeScreen()
     app.call_screen = FakeScreen()
@@ -373,6 +376,7 @@ def _build_app_with_power(
     screen_manager = FakeScreenManager(
         {
             "menu": app.menu_screen,
+            "power": app.power_screen,
             "playlists": app.playlist_screen,
             "contacts": app.contact_list_screen,
             "incoming_call": app.incoming_call_screen,
@@ -582,6 +586,9 @@ def test_navigation_updates_runtime_base_state() -> None:
     screen_manager.push_screen("playlists")
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.PLAYLIST_BROWSER
 
+    screen_manager.push_screen("power")
+    assert app.coordinator_runtime.current_app_state == AppRuntimeState.POWER
+
 
 def test_worker_navigation_waits_for_coordinator_drain_before_syncing_state() -> None:
     """Screen-change callbacks from worker threads should queue runtime sync onto the event bus."""
@@ -719,6 +726,20 @@ def test_power_poll_updates_context_runtime_and_visible_screen() -> None:
     assert app.coordinator_runtime.power_snapshot is not None
     assert app.coordinator_runtime.power_snapshot.battery.level_percent == 55.4
     assert app.menu_screen.render_calls == 1
+
+
+def test_periodic_power_refresh_only_renders_visible_power_screen() -> None:
+    """The main loop should only re-render the power screen while it is visible."""
+    app, _, screen_manager = _build_app_with_power(
+        FakePowerManager([_power_snapshot(available=True, battery_percent=55.0)])
+    )
+
+    app._update_power_screen_if_needed()
+    assert app.power_screen.render_calls == 0
+
+    screen_manager.push_screen("power")
+    app._update_power_screen_if_needed()
+    assert app.power_screen.render_calls == 1
 
 
 def test_power_poll_honors_interval_and_tracks_unavailable_backend() -> None:

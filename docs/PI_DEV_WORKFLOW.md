@@ -105,6 +105,14 @@ uv run python scripts/pi_remote.py rtc status
 uv run python scripts/pi_remote.py rtc sync-to-rtc
 ```
 
+### PiSugar power helper
+
+```bash
+uv run python scripts/pi_remote.py power
+```
+
+Use this when you want a focused battery, charging, and watchdog snapshot without the full smoke pass.
+
 ### Production systemd service
 
 ```bash

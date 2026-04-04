@@ -69,6 +69,7 @@ def main() -> int:
         power_manager=None,
         now_playing_screen=now_playing_screen,
         call_screen=None,
+        power_screen=None,
         incoming_call_screen=None,
         outgoing_call_screen=None,
         in_call_screen=None,
