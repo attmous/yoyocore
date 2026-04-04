@@ -29,6 +29,12 @@ class PowerConfig:
     shutdown_delay_seconds: float = 15.0
     shutdown_command: str = "sudo -n shutdown -h now"
     shutdown_state_file: str = "data/last_shutdown_state.json"
+    watchdog_enabled: bool = False
+    watchdog_timeout_seconds: int = 60
+    watchdog_feed_interval_seconds: float = 15.0
+    watchdog_i2c_bus: int = 1
+    watchdog_i2c_address: int = 0x57
+    watchdog_command_timeout_seconds: float = 5.0
 
     @staticmethod
     def from_config_manager(config_manager: "ConfigManager") -> "PowerConfig":
@@ -51,6 +57,12 @@ class PowerConfig:
             shutdown_delay_seconds=settings.shutdown_delay_seconds,
             shutdown_command=settings.shutdown_command,
             shutdown_state_file=settings.shutdown_state_file,
+            watchdog_enabled=settings.watchdog_enabled,
+            watchdog_timeout_seconds=settings.watchdog_timeout_seconds,
+            watchdog_feed_interval_seconds=settings.watchdog_feed_interval_seconds,
+            watchdog_i2c_bus=settings.watchdog_i2c_bus,
+            watchdog_i2c_address=settings.watchdog_i2c_address,
+            watchdog_command_timeout_seconds=settings.watchdog_command_timeout_seconds,
         )
 
 

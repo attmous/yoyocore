@@ -190,6 +190,10 @@ class YoyoPodApp:
         self._screen_timeout_seconds = 0.0
         self._active_brightness = 1.0
         self._screen_awake = True
+        self._watchdog_active = False
+        self._watchdog_feed_suppressed = False
+        self._next_watchdog_feed_at = 0.0
+        self._stopped = False
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -989,6 +993,7 @@ class YoyoPodApp:
         if self._shutdown_completed:
             return
 
+        self._suppress_watchdog_feeding("pending system poweroff")
         self._render_power_overlay(
             "Powering Off",
             "Saving state...",
@@ -1000,12 +1005,80 @@ class YoyoPodApp:
             if failed_hooks:
                 logger.warning(f"Shutdown hooks failed: {', '.join(failed_hooks)}")
 
-        self.stop()
+        self.stop(disable_watchdog=False)
 
         if self.power_manager is not None:
             self.power_manager.request_system_shutdown()
 
         self._shutdown_completed = True
+
+    def _start_watchdog(self, now: float | None = None) -> None:
+        """Enable the PiSugar software watchdog once the app loop is ready."""
+        if self.simulate or self.power_manager is None:
+            return
+
+        if not self.power_manager.config.watchdog_enabled or self._watchdog_active:
+            return
+
+        feed_interval = max(1.0, float(self.power_manager.config.watchdog_feed_interval_seconds))
+        timeout_seconds = max(1, int(self.power_manager.config.watchdog_timeout_seconds))
+        if feed_interval >= timeout_seconds:
+            logger.warning(
+                "Power watchdog feed interval ({}) should be less than timeout ({})",
+                feed_interval,
+                timeout_seconds,
+            )
+
+        if not self.power_manager.enable_watchdog():
+            logger.warning("Power watchdog could not be enabled")
+            return
+
+        watchdog_now = time.monotonic() if now is None else now
+        self._watchdog_active = True
+        self._watchdog_feed_suppressed = False
+        self._next_watchdog_feed_at = watchdog_now + feed_interval
+        logger.info(
+            "Power watchdog enabled (timeout={}s, feed={}s)",
+            timeout_seconds,
+            feed_interval,
+        )
+
+    def _feed_watchdog_if_due(self, now: float) -> None:
+        """Feed the PiSugar software watchdog on the coordinator thread."""
+        if not self._watchdog_active or self._watchdog_feed_suppressed:
+            return
+
+        if self.power_manager is None or now < self._next_watchdog_feed_at:
+            return
+
+        feed_interval = max(1.0, float(self.power_manager.config.watchdog_feed_interval_seconds))
+        if self.power_manager.feed_watchdog():
+            self._next_watchdog_feed_at = now + feed_interval
+            return
+
+        self._next_watchdog_feed_at = now + min(feed_interval, 5.0)
+
+    def _disable_watchdog(self) -> None:
+        """Disable the PiSugar watchdog during intentional app shutdowns."""
+        if not self._watchdog_active:
+            return
+
+        if self.power_manager is not None and self.power_manager.disable_watchdog():
+            logger.info("Power watchdog disabled for intentional stop")
+        else:
+            logger.warning("Failed to disable power watchdog cleanly")
+
+        self._watchdog_active = False
+        self._watchdog_feed_suppressed = False
+        self._next_watchdog_feed_at = 0.0
+
+    def _suppress_watchdog_feeding(self, reason: str) -> None:
+        """Stop feeding the watchdog without disabling it."""
+        if not self._watchdog_active or self._watchdog_feed_suppressed:
+            return
+
+        self._watchdog_feed_suppressed = True
+        logger.info(f"Power watchdog feeding suppressed: {reason}")
 
     def _attempt_voip_recovery(self, recovery_now: float) -> None:
         """Restart the VoIP backend when it is not running."""
@@ -1129,6 +1202,7 @@ class YoyoPodApp:
                 logger.info(f"  Charging: {power_snapshot.battery.charging}")
             if power_snapshot.battery.power_plugged is not None:
                 logger.info(f"  External power: {power_snapshot.battery.power_plugged}")
+            logger.info(f"  Watchdog enabled: {self.power_manager.config.watchdog_enabled}")
         else:
             logger.info("  Power backend not configured")
         logger.info("")
@@ -1148,6 +1222,7 @@ class YoyoPodApp:
         try:
             last_screen_update = time.time()
             screen_update_interval = 1.0
+            self._start_watchdog(now=time.monotonic())
 
             if self.simulate:
                 logger.info("")
@@ -1161,6 +1236,7 @@ class YoyoPodApp:
                 self._attempt_manager_recovery()
                 self._poll_power_status()
                 monotonic_now = time.monotonic()
+                self._feed_watchdog_if_due(monotonic_now)
                 self._process_pending_shutdown(monotonic_now)
                 if self._shutdown_completed:
                     break
@@ -1188,10 +1264,16 @@ class YoyoPodApp:
             if not self._shutdown_completed and not self._stopping:
                 self.stop()
 
-    def stop(self) -> None:
+    def stop(self, disable_watchdog: bool = True) -> None:
         """Clean up and stop the application."""
+        if self._stopped:
+            return
+
         logger.info("Stopping YoyoPod...")
         self._stopping = True
+
+        if disable_watchdog:
+            self._disable_watchdog()
 
         self._ensure_coordinators()
         self.call_coordinator.cleanup()
@@ -1224,6 +1306,8 @@ class YoyoPodApp:
 
         logger.info("✓ YoyoPod stopped")
 
+        self._stopped = True
+
     def get_status(self) -> Dict[str, Any]:
         """Return the current application status."""
         pending_shutdown_in_seconds = None
@@ -1252,4 +1336,11 @@ class YoyoPodApp:
             "shutdown_reason": self._pending_shutdown.reason if self._pending_shutdown else None,
             "shutdown_in_seconds": pending_shutdown_in_seconds,
             "shutdown_completed": self._shutdown_completed,
+            "watchdog_enabled": (
+                self.power_manager.config.watchdog_enabled
+                if self.power_manager is not None
+                else False
+            ),
+            "watchdog_active": self._watchdog_active,
+            "watchdog_feed_suppressed": self._watchdog_feed_suppressed,
         }

@@ -26,6 +26,7 @@ from yoyopy.power.models import (
     ShutdownState,
 )
 from yoyopy.power.policies import PowerSafetyPolicy
+from yoyopy.power.watchdog import PiSugarWatchdog, WatchdogCommandError
 
 __all__ = [
     "PowerBackend",
@@ -36,6 +37,8 @@ __all__ = [
     "PiSugarAutoTransport",
     "build_pisugar_transport",
     "PowerManager",
+    "PiSugarWatchdog",
+    "WatchdogCommandError",
     "PowerConfig",
     "PowerDeviceInfo",
     "BatteryState",

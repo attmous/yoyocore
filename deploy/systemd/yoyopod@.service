@@ -1,0 +1,23 @@
+[Unit]
+Description=YoyoPod portable VoIP/music appliance (%i)
+After=network-online.target sound.target pisugar-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=%i
+Group=%i
+WorkingDirectory=/home/%i/yoyo-py
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=-/etc/default/yoyopod
+ExecStart=/usr/bin/env bash -lc 'exec uv run python yoyopod.py'
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -4,7 +4,9 @@ from scripts.pi_remote import (
     RemoteConfig,
     build_local_preflight_commands,
     build_rtc_command,
+    build_service_command,
     build_smoke_command,
+    build_status_command,
     build_sync_command,
     build_whisplay_command,
     quote_remote_project_dir,
@@ -115,3 +117,26 @@ def test_build_rtc_command_supports_status_and_set_alarm() -> None:
     assert set_alarm_command.startswith("uv run python scripts/pisugar_rtc.py --verbose set-alarm")
     assert "--time 2026-04-06T07:30:00+02:00" in set_alarm_command
     assert "--repeat-mask 31" in set_alarm_command
+
+
+def test_build_status_command_reports_yoyopod_service_and_pisugar_server() -> None:
+    """Status output should include the production YoyoPod service and PiSugar daemon."""
+
+    command = build_status_command()
+
+    assert 'systemctl is-active "yoyopod@$(id -un).service" || true' in command
+    assert "systemctl is-active pisugar-server || true" in command
+
+
+def test_build_service_command_supports_install_and_logs() -> None:
+    """Service helper should build install and log commands for the systemd unit."""
+
+    install_args = Namespace(service_action="install", lines=100)
+    logs_args = Namespace(service_action="logs", lines=25)
+
+    install_command = build_service_command(install_args)
+    logs_command = build_service_command(logs_args)
+
+    assert "deploy/systemd/yoyopod@.service" in install_command
+    assert 'sudo systemctl enable --now yoyopod@"$(id -un)".service' in install_command
+    assert logs_command == 'sudo journalctl -u yoyopod@"$(id -un)".service -n 25 --no-pager'

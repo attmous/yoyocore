@@ -129,6 +129,12 @@ class FakeMopidyClient:
         self.playback_state = "playing"
         return True
 
+    def stop_polling(self) -> None:
+        pass
+
+    def cleanup(self) -> None:
+        pass
+
 
 class FakeRecoveringVoIPManager:
     """Minimal VoIP manager double for app-level recovery tests."""
@@ -193,9 +199,15 @@ class FakePowerManager:
         critical_shutdown_percent: float = 10.0,
         shutdown_delay_seconds: float = 15.0,
         shutdown_state_file: str = "data/test_shutdown_state.json",
+        watchdog_enabled: bool = False,
+        watchdog_timeout_seconds: int = 60,
+        watchdog_feed_interval_seconds: float = 15.0,
     ) -> None:
         self._snapshots = snapshots
         self.refresh_calls = 0
+        self.enable_watchdog_calls = 0
+        self.feed_watchdog_calls = 0
+        self.disable_watchdog_calls = 0
         self.config = SimpleNamespace(
             enabled=True,
             poll_interval_seconds=poll_interval_seconds,
@@ -206,6 +218,9 @@ class FakePowerManager:
             shutdown_delay_seconds=shutdown_delay_seconds,
             shutdown_command="sudo -n shutdown -h now",
             shutdown_state_file=shutdown_state_file,
+            watchdog_enabled=watchdog_enabled,
+            watchdog_timeout_seconds=watchdog_timeout_seconds,
+            watchdog_feed_interval_seconds=watchdog_feed_interval_seconds,
         )
         self.registered_shutdown_hooks: list[tuple[str, object]] = []
         self.run_shutdown_hooks_calls = 0
@@ -235,6 +250,18 @@ class FakePowerManager:
 
     def request_system_shutdown(self) -> bool:
         self.shutdown_requested = True
+        return True
+
+    def enable_watchdog(self) -> bool:
+        self.enable_watchdog_calls += 1
+        return True
+
+    def feed_watchdog(self) -> bool:
+        self.feed_watchdog_calls += 1
+        return True
+
+    def disable_watchdog(self) -> bool:
+        self.disable_watchdog_calls += 1
         return True
 
 
@@ -891,7 +918,7 @@ def test_pending_shutdown_runs_hooks_and_requests_system_poweroff(tmp_path) -> N
     app, _, _ = _build_app_with_power(power_manager)
     stop_calls: list[str] = []
 
-    def fake_stop() -> None:
+    def fake_stop(disable_watchdog: bool = True) -> None:
         stop_calls.append("stop")
         app._stopping = True
 
@@ -914,3 +941,70 @@ def test_pending_shutdown_runs_hooks_and_requests_system_poweroff(tmp_path) -> N
     assert payload["current_screen"] == "menu"
     assert payload["battery_percent"] == 8
     assert payload["external_power"] is False
+
+
+def test_watchdog_starts_and_feeds_from_app_loop() -> None:
+    """The app loop should enable and periodically feed the PiSugar watchdog."""
+
+    power_manager = FakePowerManager(
+        [_power_snapshot(available=True, battery_percent=60.0)],
+        watchdog_enabled=True,
+        watchdog_timeout_seconds=60,
+        watchdog_feed_interval_seconds=10.0,
+    )
+    app, _, _ = _build_app_with_power(power_manager)
+    app.simulate = False
+
+    app._start_watchdog(now=0.0)
+    app._feed_watchdog_if_due(9.0)
+    app._feed_watchdog_if_due(10.0)
+
+    assert power_manager.enable_watchdog_calls == 1
+    assert power_manager.feed_watchdog_calls == 1
+    assert app.get_status()["watchdog_active"] is True
+
+
+def test_intentional_stop_disables_watchdog() -> None:
+    """Ordinary app stops should disable the watchdog to avoid reboot loops."""
+
+    power_manager = FakePowerManager(
+        [_power_snapshot(available=True, battery_percent=60.0)],
+        watchdog_enabled=True,
+    )
+    app, _, _ = _build_app_with_power(power_manager)
+    app.simulate = False
+
+    app._start_watchdog(now=0.0)
+    app.stop()
+
+    assert power_manager.enable_watchdog_calls == 1
+    assert power_manager.disable_watchdog_calls == 1
+
+
+def test_poweroff_path_suppresses_watchdog_feed_without_disabling_it() -> None:
+    """Battery-driven poweroff should preserve the watchdog as a recovery backstop."""
+
+    power_manager = FakePowerManager(
+        [_power_snapshot(available=True, battery_percent=8.0)],
+        watchdog_enabled=True,
+        critical_shutdown_percent=10.0,
+        shutdown_delay_seconds=0.0,
+    )
+    app, _, _ = _build_app_with_power(power_manager)
+    app.simulate = False
+    stop_disable_watchdog: list[bool] = []
+
+    def fake_stop(disable_watchdog: bool = True) -> None:
+        stop_disable_watchdog.append(disable_watchdog)
+        app._stopping = True
+        app._stopped = True
+
+    app.stop = fake_stop
+    app._start_watchdog(now=0.0)
+    app._register_power_shutdown_hooks()
+    app._poll_power_status(now=0.0, force=True)
+    app._process_pending_shutdown(app._pending_shutdown.execute_at)
+
+    assert stop_disable_watchdog == [False]
+    assert power_manager.disable_watchdog_calls == 0
+    assert app.get_status()["watchdog_feed_suppressed"] is True

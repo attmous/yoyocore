@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-
 from yoyopy.config import ConfigManager
 from yoyopy.power.manager import PowerManager
 from yoyopy.power.models import BatteryState, PowerConfig, PowerSnapshot, RTCState
@@ -49,6 +48,24 @@ class ExplodingBackend:
 
     def get_snapshot(self) -> PowerSnapshot:
         raise RuntimeError("backend boom")
+
+
+class FakeWatchdog:
+    """Minimal watchdog double for power-manager tests."""
+
+    def __init__(self) -> None:
+        self.enable_calls = 0
+        self.feed_calls = 0
+        self.disable_calls = 0
+
+    def enable(self, timeout_seconds: int | None = None) -> None:
+        self.enable_calls += 1
+
+    def feed(self) -> None:
+        self.feed_calls += 1
+
+    def disable(self) -> None:
+        self.disable_calls += 1
 
 
 def test_power_manager_refresh_caches_latest_snapshot() -> None:
@@ -97,6 +114,10 @@ power:
   critical_shutdown_percent: 7.5
   shutdown_delay_seconds: 20.0
   shutdown_command: "sudo -n poweroff"
+  watchdog_enabled: true
+  watchdog_timeout_seconds: 90
+  watchdog_feed_interval_seconds: 30.0
+  watchdog_i2c_address: 0x58
 """.strip(),
         encoding="utf-8",
     )
@@ -113,6 +134,10 @@ power:
     assert manager.config.critical_shutdown_percent == 7.5
     assert manager.config.shutdown_delay_seconds == 20.0
     assert manager.config.shutdown_command == "sudo -n poweroff"
+    assert manager.config.watchdog_enabled is True
+    assert manager.config.watchdog_timeout_seconds == 90
+    assert manager.config.watchdog_feed_interval_seconds == 30.0
+    assert manager.config.watchdog_i2c_address == 0x58
 
 
 def test_power_manager_runs_shutdown_hooks_and_reports_failures() -> None:
@@ -181,4 +206,26 @@ def test_power_manager_exposes_rtc_sync_and_alarm_helpers() -> None:
     assert backend.disable_alarm_calls == 1
     assert backend.refresh_calls == 4
     assert rtc_state.time == datetime(2026, 4, 4, 12, 0, tzinfo=timezone.utc)
+
+
+def test_power_manager_wraps_watchdog_lifecycle() -> None:
+    """Watchdog enable/feed/disable should delegate to the configured controller."""
+
+    snapshot = PowerSnapshot(
+        available=True,
+        checked_at=datetime(2026, 4, 4, 12, 0, 0),
+    )
+    watchdog = FakeWatchdog()
+    manager = PowerManager(
+        PowerConfig(watchdog_enabled=True),
+        backend=FakeBackend(snapshot),
+        watchdog=watchdog,
+    )
+
+    assert manager.enable_watchdog() is True
+    assert manager.feed_watchdog() is True
+    assert manager.disable_watchdog() is True
+    assert watchdog.enable_calls == 1
+    assert watchdog.feed_calls == 1
+    assert watchdog.disable_calls == 1
 

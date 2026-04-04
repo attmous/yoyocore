@@ -168,6 +168,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Enable verbose RTC helper logging",
     )
 
+    service_parser = subparsers.add_parser(
+        "service",
+        help="Install or inspect the production YoyoPod systemd service",
+    )
+    service_parser.add_argument(
+        "service_action",
+        nargs="?",
+        default="status",
+        choices=["status", "install", "start", "stop", "restart", "logs"],
+        help="Service action to run remotely (default: status)",
+    )
+    service_parser.add_argument(
+        "--lines",
+        type=int,
+        default=100,
+        help="How many journal lines to show for `service logs` (default: 100)",
+    )
+
     preflight_parser = subparsers.add_parser(
         "preflight",
         help="Run local checks, sync the Pi, and execute the Pi smoke pass",
@@ -307,6 +325,12 @@ def build_status_command() -> str:
             "echo '== Mopidy ==' ",
             "systemctl --user is-active mopidy || true",
             "echo",
+            "echo '== YoyoPod Service ==' ",
+            "systemctl is-active \"yoyopod@$(id -un).service\" || true",
+            "echo",
+            "echo '== PiSugar Server ==' ",
+            "systemctl is-active pisugar-server || true",
+            "echo",
             "echo '== Top Processes ==' ",
             "ps -eo pid,comm,%mem,%cpu --sort=-%mem | head -15",
         ]
@@ -376,6 +400,39 @@ def build_rtc_command(args: argparse.Namespace) -> str:
         if args.repeat_mask != 127:
             parts.extend(["--repeat-mask", str(args.repeat_mask)])
     return " ".join(parts)
+
+
+def build_service_command(args: argparse.Namespace) -> str:
+    """Create the remote systemd service command."""
+    service_name = 'yoyopod@"$(id -un)".service'
+
+    if args.service_action == "status":
+        return f"sudo systemctl status {service_name} --no-pager || true"
+
+    if args.service_action == "install":
+        return " && ".join(
+            [
+                "test -f deploy/systemd/yoyopod@.service",
+                "sudo cp deploy/systemd/yoyopod@.service /etc/systemd/system/yoyopod@.service",
+                "sudo systemctl daemon-reload",
+                f"sudo systemctl enable --now {service_name}",
+                f"sudo systemctl status {service_name} --no-pager",
+            ]
+        )
+
+    if args.service_action == "start":
+        return f"sudo systemctl start {service_name} && sudo systemctl status {service_name} --no-pager"
+
+    if args.service_action == "stop":
+        return f"sudo systemctl stop {service_name} && sudo systemctl status {service_name} --no-pager || true"
+
+    if args.service_action == "restart":
+        return f"sudo systemctl restart {service_name} && sudo systemctl status {service_name} --no-pager"
+
+    if args.service_action == "logs":
+        return f"sudo journalctl -u {service_name} -n {args.lines} --no-pager"
+
+    raise SystemExit(f"Unsupported service action: {args.service_action}")
 
 
 def build_run_command(args: argparse.Namespace) -> str:
@@ -457,6 +514,9 @@ def main() -> int:
 
     if args.command == "rtc":
         return run_remote(config, build_rtc_command(args))
+
+    if args.command == "service":
+        return run_remote(config, build_service_command(args))
 
     if args.command == "preflight":
         return run_preflight(config, args)

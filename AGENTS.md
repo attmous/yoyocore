@@ -17,6 +17,13 @@
   - declarative screen routing
   - typed config models with YAML plus env overlay
   - dedicated `yoyopy/voip/` package
+- PiSugar-backed power management is now implemented:
+  - telemetry polling
+  - low-battery warning and graceful shutdown
+  - screen timeout and usage tracking
+  - RTC helpers
+  - PiSugar software watchdog support
+- Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
 - CI validates the Python test suite with `uv sync --extra dev` and `uv run pytest -q`.
 - Raspberry Pi validation has a defined path through `scripts/pi_smoke.py` and `scripts/pi_remote.py`.
 
@@ -34,6 +41,7 @@ When in doubt, trust these files first:
 - `yoyopy/events.py`
 - `yoyopy/coordinators/runtime.py`
 - `yoyopy/voip/`
+- `yoyopy/power/`
 - `yoyopy/ui/display/`
 - `yoyopy/ui/input/`
 - `yoyopy/ui/screens/`
@@ -66,6 +74,9 @@ yoyopod.py / yoyopy.main
      -> MopidyClient
      -> VoIPManager
         -> LinphonecBackend
+     -> PowerManager
+        -> PiSugarBackend
+        -> PiSugarWatchdog
 ```
 
 Key design points:
@@ -102,6 +113,15 @@ Key design points:
 - `yoyopy/voip/manager.py` - app-facing VoIP facade
 - `yoyopy/voip/backend.py` - `VoIPBackend`, `LinphonecBackend`, `MockVoIPBackend`
 - `yoyopy/voip/types.py` - SIP config and typed backend events
+
+### Power
+
+- `yoyopy/power/backend.py` - PiSugar socket/TCP backend for telemetry and RTC control
+- `yoyopy/power/watchdog.py` - PiSugar software watchdog controller over `i2cget`/`i2cset`
+- `yoyopy/power/manager.py` - app-facing power facade
+- `yoyopy/power/policies.py` - low-battery safety policy
+- `scripts/pisugar_rtc.py` - RTC status/sync/alarm helper
+- `deploy/systemd/yoyopod@.service` - production boot-time service unit
 
 ### UI
 
@@ -186,6 +206,7 @@ uv run python scripts/pi_remote.py status --host rpi-zero
 uv run python scripts/pi_remote.py preflight --host rpi-zero --with-mopidy --with-voip
 uv run python scripts/pi_remote.py sync --host rpi-zero --branch main
 uv run python scripts/pi_remote.py smoke --host rpi-zero --with-mopidy --with-voip
+uv run python scripts/pi_remote.py service install --host rpi-zero
 ```
 
 Direct smoke helper on the Pi:
