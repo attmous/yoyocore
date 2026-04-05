@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Iterable
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from PIL import Image
 
 from yoyopy.ui.display import Display
 
@@ -82,6 +85,16 @@ THEMES = {
     "home": SETUP,
 }
 
+ICON_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "phosphor"
+PHOSPHOR_ICON_FILES = {
+    "listen": "headphones.png",
+    "talk": "chat-circle-dots.png",
+    "ask": "microphone.png",
+    "setup": "gear-six.png",
+    "power": "gear-six.png",
+}
+_ICON_CACHE: dict[str, Image.Image] = {}
+
 
 def theme_for(mode: str) -> ModeTheme:
     """Return the palette for a mode key."""
@@ -154,6 +167,13 @@ def _get_draw(display: Display):
 
     adapter = display.get_adapter() if hasattr(display, "get_adapter") else None
     return getattr(adapter, "draw", None)
+
+
+def _get_buffer(display: Display):
+    """Return the underlying PIL image buffer when available."""
+
+    adapter = display.get_adapter() if hasattr(display, "get_adapter") else None
+    return getattr(adapter, "buffer", None)
 
 
 def rounded_panel(
@@ -501,6 +521,9 @@ def _pill(
 def draw_icon(display: Display, icon: str, x: int, y: int, size: int, color: Color) -> None:
     """Draw a lightweight doodle icon."""
 
+    if _paste_phosphor_icon(display, icon, x, y, size, color):
+        return
+
     draw = _get_draw(display)
     if icon == "listen":
         _draw_listen_icon(display, draw, x, y, size, color)
@@ -525,6 +548,46 @@ def draw_icon(display: Display, icon: str, x: int, y: int, size: int, color: Col
         display.circle(x + size - 10, y + 12, 4, fill=color)
     else:
         display.circle(x + (size // 2), y + (size // 2), size // 3, outline=color, width=3)
+
+
+def _paste_phosphor_icon(display: Display, icon: str, x: int, y: int, size: int, color: Color) -> bool:
+    """Paste a tinted Phosphor PNG icon when a PIL buffer is available."""
+
+    filename = PHOSPHOR_ICON_FILES.get(icon)
+    if filename is None:
+        return False
+
+    buffer = _get_buffer(display)
+    if buffer is None:
+        return False
+
+    source = _load_icon_asset(filename)
+    if source is None:
+        return False
+
+    rendered = source.resize((size, size), Image.Resampling.LANCZOS)
+    alpha = rendered.getchannel("A")
+    tinted = Image.new("RGBA", rendered.size, color + (0,))
+    tinted.putalpha(alpha)
+    buffer.paste(tinted, (x, y), tinted)
+    return True
+
+
+def _load_icon_asset(filename: str) -> Image.Image | None:
+    """Load and cache one PNG icon asset from disk."""
+
+    cached = _ICON_CACHE.get(filename)
+    if cached is not None:
+        return cached
+
+    path = ICON_ASSET_DIR / filename
+    if not path.exists():
+        return None
+
+    with Image.open(path) as icon:
+        rgba_icon = icon.convert("RGBA")
+    _ICON_CACHE[filename] = rgba_icon
+    return rgba_icon
 
 
 def _draw_listen_icon(display: Display, draw, x: int, y: int, size: int, color: Color) -> None:
