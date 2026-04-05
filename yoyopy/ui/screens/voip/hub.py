@@ -196,7 +196,7 @@ class CallScreen(Screen):
             target = self.quick_targets[target_index]
             y1 = list_top + (row * item_height)
             y2 = y1 + 42
-            badge = "ALL" if target.kind == "browse_contacts" else "FAV" if target.favorite else None
+            badge = "ALL" if target.kind == "browse_contacts" else None
             draw_list_item(
                 self.display,
                 x1=20,
@@ -238,7 +238,7 @@ class CallScreen(Screen):
 
             target = self.quick_targets[target_index]
             visible_titles.append(target.title)
-            visible_badges.append("ALL" if target.kind == "browse_contacts" else "FAV" if target.favorite else "")
+            visible_badges.append("ALL" if target.kind == "browse_contacts" else "")
             if target_index == self.selected_index:
                 selected_visible_index = row
 
@@ -315,8 +315,8 @@ class CallScreen(Screen):
                 return "Hold back"
 
             if selected_target.kind == "browse_contacts" or not self._is_ready_to_call():
-                return "Tap next / Open / Hold back"
-            return "Tap next / Call / Hold back"
+                return "Tap next / Double open"
+            return "Tap next / Double call"
 
         if not self.quick_targets:
             return "B back"

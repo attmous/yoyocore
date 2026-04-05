@@ -35,7 +35,7 @@ class LvglIncomingCallView:
         if not self._built or self.backend.binding is None:
             return
 
-        footer = "Open answer / Hold reject" if self.screen.is_one_button_mode() else "A answer | B reject"
+        footer = "Open answer / Reject" if self.screen.is_one_button_mode() else "A answer | B reject"
         context = self.screen.context
 
         self.backend.binding.incoming_call_sync(

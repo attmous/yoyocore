@@ -174,8 +174,8 @@ def test_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
         voip_manager=FakeVoipManager(),
         config_manager=FakeConfigManager(
             [
-                FakeContact("Echo Test Service", "sip:echo@sip.linphone.org", True),
                 FakeContact("Hagar", "sip:hagar@example.com", True),
+                FakeContact("Mama", "sip:mama@example.com", True),
             ]
         ),
     )
@@ -185,21 +185,54 @@ def test_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
 
     assert binding.playlist_build_calls == 1
     payload = binding.playlist_sync_payloads[-1]
-    assert payload["title_text"] == "Calls ready"
-    assert payload["page_text"] == "1/2"
-    assert payload["items"] == ["Echo Test Service", "Hagar"]
-    assert payload["badges"] == ["FAV", "FAV"]
+    assert payload["title_text"] == "Calls"
+    assert payload["page_text"] is None
+    assert payload["status_chip_text"] == "Ready"
+    assert payload["status_chip_kind"] == 1
+    assert payload["items"] == ["Hagar", "Mama"]
+    assert payload["badges"] == ["", ""]
     assert payload["selected_visible_index"] == 0
 
     screen.on_advance()
     screen.render()
 
     payload = binding.playlist_sync_payloads[-1]
-    assert payload["page_text"] == "2/2"
+    assert payload["page_text"] is None
     assert payload["selected_visible_index"] == 1
 
     screen.exit()
     assert binding.playlist_destroy_calls == 1
+
+
+def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
+    """Talk should survive repeated enter/render/exit cycles on the LVGL path."""
+
+    binding = FakeLvglBinding()
+    screen = CallScreen(
+        FakeLvglDisplay(binding),
+        make_one_button_context(),
+        voip_manager=FakeVoipManager(),
+        config_manager=FakeConfigManager(
+            [
+                FakeContact("Hagar", "sip:hagar@example.com", True),
+                FakeContact("Mama", "sip:mama@example.com", True),
+            ]
+        ),
+    )
+
+    for expected_index in (0, 1):
+        screen.enter()
+        if expected_index == 1:
+            screen.on_advance()
+        screen.render()
+        payload = binding.playlist_sync_payloads[-1]
+        assert payload["title_text"] == "Calls"
+        assert payload["status_chip_text"] == "Ready"
+        assert payload["selected_visible_index"] == expected_index
+        screen.exit()
+
+    assert binding.playlist_build_calls == 2
+    assert binding.playlist_destroy_calls == 2
 
 
 def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
@@ -225,7 +258,7 @@ def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
     assert binding.playlist_build_calls == 1
     payload = binding.playlist_sync_payloads[-1]
     assert payload["title_text"] == "Contacts"
-    assert payload["page_text"] == "1/3"
+    assert payload["page_text"] is None
     assert payload["items"] == ["Amy", "Mona", "Zed"]
     assert payload["badges"] == ["FAV", "", ""]
 
@@ -284,7 +317,7 @@ def test_in_call_screen_syncs_duration_and_mute_state_through_lvgl() -> None:
     assert payload["duration_text"] == "01:23"
     assert payload["mute_text"] == "Muted"
     assert payload["muted"] is True
-    assert payload["footer"] == "Tap unmute / Hold end"
+    assert payload["footer"] == "Tap unmute / End"
 
     screen.exit()
     assert binding.in_call_destroy_calls == 1
@@ -302,7 +335,7 @@ def test_ask_screen_syncs_minimal_placeholder_through_lvgl() -> None:
     assert binding.ask_build_calls == 1
     payload = binding.ask_sync_payloads[-1]
     assert payload["title_text"] == "Coming soon"
-    assert payload["subtitle_text"] == "Safe questions later."
+    assert payload["subtitle_text"] == "Safe AI later."
     assert payload["footer"] == "Hold back"
 
     screen.exit()
@@ -339,7 +372,7 @@ def test_power_screen_cycles_three_lvgl_pages() -> None:
     assert binding.power_build_calls == 1
     payload = binding.power_sync_payloads[-1]
     assert payload["title_text"] == "Power"
-    assert payload["page_text"] == "1/3"
+    assert payload["page_text"] is None
     assert payload["items"] == [
         "Source: Unavailable",
         "Battery: Unknown",
@@ -350,13 +383,13 @@ def test_power_screen_cycles_three_lvgl_pages() -> None:
     screen.on_advance()
     screen.render()
     assert binding.power_sync_payloads[-1]["title_text"] == "Time"
-    assert binding.power_sync_payloads[-1]["page_text"] == "2/3"
+    assert binding.power_sync_payloads[-1]["page_text"] is None
 
     screen.on_advance()
     screen.render()
     payload = binding.power_sync_payloads[-1]
     assert payload["title_text"] == "Care"
-    assert payload["page_text"] == "3/3"
+    assert payload["page_text"] is None
 
     screen.exit()
     assert binding.power_destroy_calls == 1

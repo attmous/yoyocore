@@ -2,12 +2,6 @@
 # List of contacts for quick dialing
 
 contacts:
-  # Example contacts (replace with your actual contacts)
-  - name: "Echo Test Service"
-    sip_address: "sip:echo@sip.linphone.org"
-    favorite: true
-    notes: "Linphone echo test - your voice will be played back"
-
   - name: "Hagar"
     sip_address: "sip:hagarmo@sip.linphone.org"
     favorite: true
@@ -21,6 +15,5 @@ contacts:
 
 # Speed dial shortcuts (optional)
 speed_dial:
-  1: "sip:echo@sip.linphone.org"  # Speed dial #1
-  2: "sip:hagarmo@sip.linphone.org"
+  1: "sip:hagarmo@sip.linphone.org"
   # 3: "sip:family@example.com"

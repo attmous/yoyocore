@@ -206,17 +206,8 @@ class ConfigManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
         default_contacts = {
-            "contacts": [
-                {
-                    "name": "Echo Test Service",
-                    "sip_address": "sip:echo@sip.linphone.org",
-                    "favorite": True,
-                    "notes": "Linphone echo test",
-                }
-            ],
-            "speed_dial": {
-                1: "sip:echo@sip.linphone.org",
-            },
+            "contacts": [],
+            "speed_dial": {},
         }
 
         with open(self.contacts_file, "w", encoding="utf-8") as handle:

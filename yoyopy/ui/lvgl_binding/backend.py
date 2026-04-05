@@ -131,6 +131,12 @@ class LvglDisplayBackend:
         if self.initialized and self.binding is not None:
             self.binding.clear_screen()
 
+    def force_refresh(self) -> None:
+        """Invalidate and redraw the active LVGL scene immediately."""
+
+        if self.initialized and self.binding is not None:
+            self.binding.force_refresh()
+
     def reset(self) -> None:
         """Clear LVGL-managed content before a hard backend handoff."""
 

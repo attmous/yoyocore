@@ -62,6 +62,7 @@ class Display:
         hardware: str = "auto",
         simulate: bool = False,
         whisplay_renderer: str = "pil",
+        whisplay_lvgl_buffer_lines: int = 40,
     ) -> None:
         """
         Initialize display with hardware abstraction.
@@ -82,6 +83,7 @@ class Display:
             hardware,
             simulate,
             whisplay_renderer=whisplay_renderer,
+            whisplay_lvgl_buffer_lines=whisplay_lvgl_buffer_lines,
         )
 
         # Expose adapter properties as Display properties for backward compatibility

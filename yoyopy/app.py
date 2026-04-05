@@ -339,6 +339,7 @@ class YoyoPodApp:
                 hardware=display_hardware,
                 simulate=self.simulate,
                 whisplay_renderer=whisplay_renderer,
+                whisplay_lvgl_buffer_lines=self.app_settings.display.lvgl_buffer_lines,
             )
             logger.info(f"    Dimensions: {self.display.WIDTH}x{self.display.HEIGHT}")
             logger.info(f"    Orientation: {self.display.ORIENTATION}")
@@ -925,6 +926,9 @@ class YoyoPodApp:
             current_screen = self.screen_manager.get_current_screen()
             if current_screen is not None:
                 current_screen.render()
+
+        if self._lvgl_backend is not None and self._lvgl_backend.initialized:
+            self._lvgl_backend.force_refresh()
 
         self._update_screen_runtime_metrics(now)
         logger.debug("Screen woke from inactivity")

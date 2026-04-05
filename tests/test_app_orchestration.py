@@ -74,6 +74,17 @@ class FakeDisplay:
         self.set_backlight_calls.append(brightness)
 
 
+class FakeLvglBackend:
+    """Minimal LVGL backend double for wake-path tests."""
+
+    def __init__(self) -> None:
+        self.initialized = True
+        self.force_refresh_calls = 0
+
+    def force_refresh(self) -> None:
+        self.force_refresh_calls += 1
+
+
 class FakeScreenManager:
     """Simple stack-based screen manager double."""
 
@@ -810,6 +821,28 @@ def test_user_activity_event_wakes_screen_and_refreshes_current_screen() -> None
     assert app.display.set_backlight_calls[-1] == 0.75
     assert app.context.screen_awake is True
     assert app.menu_screen.render_calls == render_calls_before + 1
+
+
+def test_user_activity_event_wakes_sleeping_lvgl_screen_with_forced_refresh() -> None:
+    """LVGL wake should explicitly refresh the active scene after backlight sleep."""
+
+    app, _, _ = _build_app(playback_state="stopped")
+    app.display = FakeDisplay()
+    app._lvgl_backend = FakeLvglBackend()
+    app.app_settings = SimpleNamespace(
+        ui=SimpleNamespace(screen_timeout_seconds=300),
+        display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
+    )
+
+    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
+    app._active_brightness = app._resolve_active_brightness()
+    app._configure_screen_power(initial_now=0.0)
+    app._sleep_screen(31.0)
+
+    _publish_from_worker(app, UserActivityEvent(action_name=None))
+
+    assert app.event_bus.drain() == 1
+    assert app._lvgl_backend.force_refresh_calls == 1
 
 
 def test_screen_on_time_accumulates_across_sleep_and_wake_cycles() -> None:

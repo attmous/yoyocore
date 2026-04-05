@@ -36,7 +36,7 @@ class LvglPlaylistView:
             return
 
         title_text = audio_source_label(getattr(self.screen.context, "current_audio_source", "local"))
-        footer = "Tap next / Load / Hold back" if self.screen.is_one_button_mode() else "A load | B back | X/Y move"
+        footer = "Tap next / Load" if self.screen.is_one_button_mode() else "A load | B back | X/Y move"
         context = self.screen.context
 
         visible_items, visible_badges, selected_visible_index = self.screen.get_visible_window()
@@ -45,7 +45,7 @@ class LvglPlaylistView:
 
         self.backend.binding.playlist_sync(
             title_text=title_text,
-            page_text=self.screen.get_page_text(),
+            page_text=None,
             footer=footer,
             items=visible_items,
             badges=visible_badges,

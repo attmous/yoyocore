@@ -52,9 +52,7 @@ int yoyopy_lvgl_hub_sync(
     const char * subtitle,
     const char * footer,
     const char * time_text,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     int32_t selected_index,
     int32_t total_cards,
     int32_t voip_state,
@@ -77,9 +75,7 @@ int yoyopy_lvgl_listen_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     const char * empty_title,
     const char * empty_subtitle
 );
@@ -88,6 +84,8 @@ int yoyopy_lvgl_playlist_build(void);
 int yoyopy_lvgl_playlist_sync(
     const char * title_text,
     const char * page_text,
+    const char * status_chip_text,
+    int32_t status_chip_kind,
     const char * footer,
     const char * item_0,
     const char * item_1,
@@ -103,9 +101,7 @@ int yoyopy_lvgl_playlist_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     const char * empty_title,
     const char * empty_subtitle,
     const char * empty_icon_key
@@ -122,9 +118,7 @@ int yoyopy_lvgl_now_playing_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_now_playing_destroy(void);
 int yoyopy_lvgl_incoming_call_build(void);
@@ -136,9 +130,7 @@ int yoyopy_lvgl_incoming_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_incoming_call_destroy(void);
 int yoyopy_lvgl_outgoing_call_build(void);
@@ -150,9 +142,7 @@ int yoyopy_lvgl_outgoing_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_outgoing_call_destroy(void);
 int yoyopy_lvgl_in_call_build(void);
@@ -166,9 +156,7 @@ int yoyopy_lvgl_in_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_in_call_destroy(void);
 int yoyopy_lvgl_ask_build(void);
@@ -180,9 +168,7 @@ int yoyopy_lvgl_ask_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_ask_destroy(void);
 int yoyopy_lvgl_power_build(void);
@@ -199,12 +185,11 @@ int yoyopy_lvgl_power_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_power_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
+void yoyopy_lvgl_force_refresh(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);
 

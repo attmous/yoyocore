@@ -41,7 +41,7 @@ class LvglInCallView:
             is_muted = self.screen.voip_manager.is_muted
 
         footer = (
-            f"Tap {'unmute' if is_muted else 'mute'} / Hold end"
+            f"Tap {'unmute' if is_muted else 'mute'} / End"
             if self.screen.is_one_button_mode()
             else f"X {'unmute' if is_muted else 'mute'} | B end"
         )

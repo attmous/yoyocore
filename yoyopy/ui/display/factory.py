@@ -47,6 +47,7 @@ def get_display(
     simulate: bool = False,
     *,
     whisplay_renderer: str = "pil",
+    whisplay_lvgl_buffer_lines: int = 40,
 ) -> DisplayHAL:
     """Create the appropriate display adapter."""
 
@@ -69,6 +70,7 @@ def get_display(
         return WhisplayDisplayAdapter(
             simulate=simulate,
             renderer=whisplay_renderer,
+            lvgl_buffer_lines=whisplay_lvgl_buffer_lines,
         )
 
     if hardware == "pimoroni":
