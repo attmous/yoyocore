@@ -10,6 +10,9 @@ if(NOT LVGL_SOURCE_DIR)
   message(FATAL_ERROR "LVGL_SOURCE_DIR must point to an LVGL checkout")
 endif()
 
+set(LV_BUILD_EXAMPLES OFF CACHE BOOL "Disable LVGL examples" FORCE)
+set(LV_BUILD_DEMOS OFF CACHE BOOL "Disable LVGL demos" FORCE)
+
 add_subdirectory(${LVGL_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR}/lvgl)
 
 if(TARGET lvgl)
