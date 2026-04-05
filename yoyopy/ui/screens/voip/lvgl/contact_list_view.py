@@ -37,7 +37,7 @@ class LvglContactListView:
         self.backend.binding.playlist_sync(
             title_text="Contacts",
             page_text=self.screen.get_page_text(),
-            footer="Tap next / Call / Hold back" if self.screen.is_one_button_mode() else "A call | B back | X/Y move",
+            footer="Tap next / Call" if self.screen.is_one_button_mode() else "A call | B back | X/Y move",
             items=visible_items,
             badges=visible_badges,
             selected_visible_index=selected_visible_index,

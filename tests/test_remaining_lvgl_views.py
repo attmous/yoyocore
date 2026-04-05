@@ -284,7 +284,7 @@ def test_in_call_screen_syncs_duration_and_mute_state_through_lvgl() -> None:
     assert payload["duration_text"] == "01:23"
     assert payload["mute_text"] == "Muted"
     assert payload["muted"] is True
-    assert payload["footer"] == "Tap unmute / Hold end"
+    assert payload["footer"] == "Tap unmute / End"
 
     screen.exit()
     assert binding.in_call_destroy_calls == 1

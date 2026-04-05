@@ -39,7 +39,7 @@ class LvglListenView:
         page_text = f"{self.screen.selected_index + 1}/{len(sources)}" if sources else None
         items = [source.title for source in sources[:4]]
 
-        footer = "Tap next / Open / Hold back" if self.screen.is_one_button_mode() else "A open | B back | X/Y move"
+        footer = "Tap next / Open" if self.screen.is_one_button_mode() else "A open | B back | X/Y move"
 
         context = self.screen.context
         self.backend.binding.listen_sync(
