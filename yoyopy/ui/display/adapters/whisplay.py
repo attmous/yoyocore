@@ -61,7 +61,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
     ORIENTATION = "portrait"
     STATUS_BAR_HEIGHT = 25  # Slightly taller for portrait mode
 
-    def __init__(self, simulate: bool = False) -> None:
+    def __init__(self, simulate: bool = False, renderer: str = "pil") -> None:
         """
         Initialize the Whisplay HAT display.
 
@@ -72,6 +72,8 @@ class WhisplayDisplayAdapter(DisplayHAL):
         self.buffer: Optional[Image.Image] = None
         self.draw: Optional[ImageDraw.ImageDraw] = None
         self.device = None
+        self.renderer = renderer.lower().strip() or "pil"
+        self.ui_backend = None
 
         # Create PIL drawing buffer
         self._create_buffer()
@@ -91,6 +93,18 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 self.device = None
         else:
             logger.info("Whisplay display adapter running in simulation mode")
+
+        if self.renderer == "lvgl":
+            try:
+                from yoyopy.ui.lvgl_binding import LvglDisplayBackend
+
+                self.ui_backend = LvglDisplayBackend(self)
+                if not self.ui_backend.available:
+                    logger.warning("Whisplay LVGL renderer requested but native shim is unavailable")
+            except Exception as e:
+                logger.warning(f"Failed to prepare LVGL backend: {e}")
+                self.ui_backend = None
+                self.renderer = "pil"
 
     def _create_buffer(self) -> None:
         """Create a new PIL drawing buffer."""
@@ -127,6 +141,47 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 pixel_data.extend([(rgb565 >> 8) & 0xFF, rgb565 & 0xFF])
 
         return bytes(pixel_data)
+
+    def _paste_rgb565_region(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        pixel_data: bytes,
+    ) -> None:
+        """Paste an RGB565 region into the PIL buffer for simulation/debugging."""
+
+        if self.buffer is None:
+            return
+
+        region = Image.new("RGB", (width, height))
+        pixels: list[tuple[int, int, int]] = []
+        for index in range(0, len(pixel_data), 2):
+            rgb565 = (pixel_data[index] << 8) | pixel_data[index + 1]
+            red = ((rgb565 >> 11) & 0x1F) * 255 // 31
+            green = ((rgb565 >> 5) & 0x3F) * 255 // 63
+            blue = (rgb565 & 0x1F) * 255 // 31
+            pixels.append((red, green, blue))
+
+        region.putdata(pixels)
+        self.buffer.paste(region, (x, y))
+
+    def draw_rgb565_region(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        pixel_data: bytes,
+    ) -> None:
+        """Write an RGB565 region to hardware or the simulation buffer."""
+
+        if not self.simulate and self.device:
+            self.device.draw_image(x, y, width, height, pixel_data)
+            return
+
+        self._paste_rgb565_region(x, y, width, height, pixel_data)
 
     def clear(self, color: Optional[Tuple[int, int, int]] = None) -> None:
         """Clear the display with specified color."""
@@ -342,6 +397,28 @@ class WhisplayDisplayAdapter(DisplayHAL):
         else:
             logger.debug("Whisplay display update (simulated)")
 
+    def get_backend_kind(self) -> str:
+        """Return the active UI rendering backend."""
+
+        if (
+            self.ui_backend is not None
+            and self.renderer == "lvgl"
+            and getattr(self.ui_backend, "initialized", False)
+        ):
+            return "lvgl"
+        return "pil"
+
+    def get_ui_backend(self):
+        """Return the optional Whisplay LVGL backend."""
+
+        return self.ui_backend
+
+    def reset_ui_backend(self) -> None:
+        """Reset any active LVGL scene before handing off to another renderer."""
+
+        if self.ui_backend is not None:
+            self.ui_backend.reset()
+
     def set_backlight(self, brightness: float) -> None:
         """
         Set backlight brightness (0.0 to 1.0).
@@ -372,6 +449,12 @@ class WhisplayDisplayAdapter(DisplayHAL):
 
     def cleanup(self) -> None:
         """Cleanup Whisplay display resources."""
+        if self.ui_backend is not None:
+            try:
+                self.ui_backend.cleanup()
+            except Exception as e:
+                logger.error(f"Error during LVGL backend cleanup: {e}")
+
         if self.device:
             try:
                 self.device.set_backlight(0)    # Turn off backlight

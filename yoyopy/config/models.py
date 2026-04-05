@@ -277,6 +277,10 @@ class AppDisplayConfig:
     """Display hardware configuration."""
 
     hardware: str = config_value(default="auto", env="YOYOPOD_DISPLAY")
+    whisplay_renderer: str = config_value(
+        default="pil",
+        env="YOYOPOD_WHISPLAY_RENDERER",
+    )
     brightness: int = 80
     rotation: int = 0
     backlight_timeout_seconds: int = 60

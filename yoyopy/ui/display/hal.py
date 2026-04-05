@@ -10,7 +10,7 @@ Date: 2025-11-30
 """
 
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional
+from typing import Any, Optional, Tuple
 from pathlib import Path
 
 
@@ -257,6 +257,21 @@ class DisplayHAL(ABC):
         - Free any allocated memory
         """
         pass
+
+    def get_backend_kind(self) -> str:
+        """Return the active UI backend kind for this display adapter."""
+
+        return "pil"
+
+    def get_ui_backend(self) -> Any | None:
+        """Return an optional backend-specific UI bridge."""
+
+        return None
+
+    def reset_ui_backend(self) -> None:
+        """Reset backend-specific UI state during renderer handoff."""
+
+        return None
 
     # Helper methods (default implementations, can be overridden)
     def get_orientation(self) -> str:

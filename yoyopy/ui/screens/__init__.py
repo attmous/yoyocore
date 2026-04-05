@@ -11,6 +11,7 @@ Provides screen implementations organized by feature:
 
 # Base screen class
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.view import ScreenView
 
 # Screen manager
 from yoyopy.ui.screens.manager import ScreenManager
@@ -34,6 +35,7 @@ from yoyopy.ui.screens.voip import (
 __all__ = [
     # Base & Manager
     'Screen',
+    'ScreenView',
     'ScreenManager',
     'NavigationRequest',
     'ScreenRouter',

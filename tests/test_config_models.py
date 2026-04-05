@@ -48,6 +48,7 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.power.watchdog_i2c_bus == 1
     assert settings.power.watchdog_i2c_address == 0x57
     assert settings.display.hardware == "auto"
+    assert settings.display.whisplay_renderer == "pil"
 
 
 def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) -> None:
@@ -90,6 +91,7 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_FEED_INTERVAL_SECONDS", "30")
     monkeypatch.setenv("YOYOPOD_POWER_WATCHDOG_I2C_ADDRESS", "0x58")
     monkeypatch.setenv("YOYOPOD_DISPLAY", "whisplay")
+    monkeypatch.setenv("YOYOPOD_WHISPLAY_RENDERER", "lvgl")
 
     config_manager = ConfigManager(config_dir=str(tmp_path))
     settings = config_manager.get_app_settings()
@@ -113,9 +115,11 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert settings.power.watchdog_feed_interval_seconds == 30.0
     assert settings.power.watchdog_i2c_address == 0x58
     assert settings.display.hardware == "whisplay"
+    assert settings.display.whisplay_renderer == "lvgl"
     assert settings.logging.level == "DEBUG"
     assert config_dict["audio"]["mopidy_port"] == 7788
     assert config_dict["display"]["hardware"] == "whisplay"
+    assert config_dict["display"]["whisplay_renderer"] == "lvgl"
 
 
 def test_config_manager_keeps_typed_voip_audio_settings(tmp_path, monkeypatch) -> None:

@@ -17,6 +17,7 @@ classifiers = [
 ]
 
 dependencies = [
+    "cffi>=1.17.0",
     "pillow>=10.0.0",
     "pygame>=2.5.0",
     "requests>=2.31.0",

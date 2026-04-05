@@ -41,6 +41,7 @@ from yoyopy.power import (
 )
 from yoyopy.ui.display import Display
 from yoyopy.ui.input import InputManager, InteractionProfile, get_input_manager
+from yoyopy.ui.lvgl_binding import LvglDisplayBackend, LvglInputBridge
 from yoyopy.ui.screens import (
     AskScreen,
     CallScreen,
@@ -200,6 +201,9 @@ class YoyoPodApp:
         self._watchdog_feed_suppressed = False
         self._next_watchdog_feed_at = 0.0
         self._stopped = False
+        self._lvgl_backend: Optional[LvglDisplayBackend] = None
+        self._lvgl_input_bridge: Optional[LvglInputBridge] = None
+        self._last_lvgl_pump_at = 0.0
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -324,10 +328,28 @@ class YoyoPodApp:
             display_hardware = (
                 self.app_settings.display.hardware if self.app_settings else "auto"
             )
+            whisplay_renderer = (
+                self.app_settings.display.whisplay_renderer
+                if self.app_settings is not None
+                else "pil"
+            )
             logger.info(f"    Hardware: {display_hardware}")
-            self.display = Display(hardware=display_hardware, simulate=self.simulate)
+            logger.info(f"    Whisplay renderer: {whisplay_renderer}")
+            self.display = Display(
+                hardware=display_hardware,
+                simulate=self.simulate,
+                whisplay_renderer=whisplay_renderer,
+            )
             logger.info(f"    Dimensions: {self.display.WIDTH}x{self.display.HEIGHT}")
             logger.info(f"    Orientation: {self.display.ORIENTATION}")
+            self._lvgl_backend = self.display.get_ui_backend()
+            if self._lvgl_backend is not None and self._lvgl_backend.initialize():
+                self.display.refresh_backend_kind()
+                self._last_lvgl_pump_at = time.monotonic()
+            else:
+                self._lvgl_backend = None
+                self.display.refresh_backend_kind()
+            logger.info(f"    Active UI backend: {self.display.backend_kind}")
 
             self.display.clear(self.display.COLOR_BLACK)
             self.display.text(
@@ -369,6 +391,9 @@ class YoyoPodApp:
             if self.input_manager:
                 self.context.interaction_profile = self.input_manager.interaction_profile
                 self.input_manager.on_activity(self._queue_user_activity_event)
+                if self._lvgl_backend is not None:
+                    self._lvgl_input_bridge = LvglInputBridge(self._lvgl_backend)
+                    self.input_manager.on_activity(self._queue_lvgl_input_action)
                 self.input_manager.start()
                 logger.info("    ✓ Input system initialized")
             else:
@@ -611,6 +636,30 @@ class YoyoPodApp:
     def _process_pending_main_thread_actions(self, limit: Optional[int] = None) -> int:
         """Drain queued typed events scheduled by worker threads."""
         return self.event_bus.drain(limit)
+
+    def _queue_lvgl_input_action(self, action, _data: Optional[Any] = None) -> None:
+        """Queue semantic actions for LVGL from input polling threads."""
+
+        if self._lvgl_input_bridge is None:
+            return
+        self._lvgl_input_bridge.enqueue_action(action)
+
+    def _pump_lvgl_backend(self, now: float | None = None) -> None:
+        """Pump LVGL timers and queued input on the coordinator thread."""
+
+        if self._lvgl_backend is None or not self._lvgl_backend.initialized:
+            return
+
+        monotonic_now = time.monotonic() if now is None else now
+        if self._last_lvgl_pump_at <= 0.0:
+            delta_ms = 0
+        else:
+            delta_ms = int(max(0.0, monotonic_now - self._last_lvgl_pump_at) * 1000.0)
+        self._last_lvgl_pump_at = monotonic_now
+
+        if self._lvgl_input_bridge is not None:
+            self._lvgl_input_bridge.process_pending()
+        self._lvgl_backend.pump(delta_ms)
 
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
         """Apply queued screen-change state sync on the coordinator thread."""
@@ -1254,6 +1303,13 @@ class YoyoPodApp:
         else:
             logger.info("  Power backend not configured")
         logger.info("")
+        logger.info("Display Status:")
+        if self.display is not None:
+            logger.info(f"  Backend: {self.display.backend_kind}")
+            logger.info(f"  Orientation: {self.display.ORIENTATION}")
+        else:
+            logger.info("  Display not initialized")
+        logger.info("")
         logger.info("Integration Settings:")
         logger.info(f"  Auto-resume after call: {self.auto_resume_after_call}")
         logger.info("")
@@ -1284,6 +1340,7 @@ class YoyoPodApp:
                 self._attempt_manager_recovery()
                 self._poll_power_status()
                 monotonic_now = time.monotonic()
+                self._pump_lvgl_backend(monotonic_now)
                 self._feed_watchdog_if_due(monotonic_now)
                 self._process_pending_shutdown(monotonic_now)
                 if self._shutdown_completed:
@@ -1403,6 +1460,11 @@ class YoyoPodApp:
                 else None
             ),
             "screen_timeout_seconds": self._screen_timeout_seconds,
+            "display_backend": (
+                getattr(self.display, "backend_kind", "pil")
+                if self.display is not None
+                else "unknown"
+            ),
             "power_model": power_snapshot.device.model if power_snapshot is not None else None,
             "power_error": power_snapshot.error if power_snapshot is not None else None,
             "power_voltage_volts": (

@@ -7,12 +7,14 @@ from typing import TYPE_CHECKING, Optional
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.navigation.lvgl import LvglHubView
 from yoyopy.ui.screens.theme import BACKGROUND, INK, SURFACE, draw_icon, format_battery_compact, mix, render_backdrop, render_footer, render_status_bar, rounded_panel, text_fit, theme_for
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
     from yoyopy.audio.mopidy_client import MopidyClient
     from yoyopy.voip import VoIPManager
+    from yoyopy.ui.screens import ScreenView
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,11 +42,36 @@ class HubScreen(Screen):
         self.voip_manager = voip_manager
         self.selected_index = 0
         self._playlist_count: int | None = None
+        self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
         """Refresh lightweight summaries when the hub becomes active."""
         super().enter()
         self._refresh_playlist_count()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving the hub."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglHubView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def _refresh_playlist_count(self) -> None:
         """Refresh the cached playlist count for the Listen card."""
@@ -137,6 +164,11 @@ class HubScreen(Screen):
 
     def render(self) -> None:
         """Render the selected root card."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         cards = self._cards()
         self.selected_index %= len(cards)
         selected_card = cards[self.selected_index]

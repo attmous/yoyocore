@@ -31,6 +31,18 @@ This file should reflect the repo as it exists on `main`. Older milestone notes 
 
 ---
 
+## Active LVGL Migration
+
+- Whisplay is beginning a rendering migration from PIL drawing to LVGL-backed widgets.
+- The migration plan lives in `docs/LVGL_MIGRATION_PLAN.md`.
+- Until cutover is complete:
+  - Whisplay defaults to `display.whisplay_renderer: pil`
+  - Pimoroni and simulation remain on the PIL path
+  - current screens, routes, coordinators, FSMs, and input grammar stay intact
+- Raw LVGL usage should remain confined to `yoyopy/ui/lvgl_binding/` and related display-layer code.
+
+---
+
 ## Source Of Truth
 
 When in doubt, trust these files first:

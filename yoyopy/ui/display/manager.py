@@ -15,7 +15,7 @@ Date: 2025-11-30
 """
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 from yoyopy.ui.display.factory import get_display
 from yoyopy.ui.display.hal import DisplayHAL
@@ -57,7 +57,12 @@ class Display:
         >>> display.update()
     """
 
-    def __init__(self, hardware: str = "auto", simulate: bool = False) -> None:
+    def __init__(
+        self,
+        hardware: str = "auto",
+        simulate: bool = False,
+        whisplay_renderer: str = "pil",
+    ) -> None:
         """
         Initialize display with hardware abstraction.
 
@@ -73,7 +78,11 @@ class Display:
             ValueError: If hardware type is unknown
         """
         # Create appropriate adapter using factory
-        self._adapter: DisplayHAL = get_display(hardware, simulate)
+        self._adapter: DisplayHAL = get_display(
+            hardware,
+            simulate,
+            whisplay_renderer=whisplay_renderer,
+        )
 
         # Expose adapter properties as Display properties for backward compatibility
         self.WIDTH = self._adapter.WIDTH
@@ -95,6 +104,7 @@ class Display:
 
         # Expose simulate flag for compatibility
         self.simulate = self._adapter.simulate
+        self.backend_kind = self._adapter.get_backend_kind()
 
     # Delegate all methods to adapter
     def clear(self, color: Optional[Tuple[int, int, int]] = None) -> None:
@@ -229,3 +239,19 @@ class Display:
             DisplayHAL: The hardware adapter instance
         """
         return self._adapter
+
+    def get_ui_backend(self) -> Any | None:
+        """Return the optional backend-specific UI bridge."""
+
+        return self._adapter.get_ui_backend()
+
+    def reset_ui_backend(self) -> None:
+        """Reset backend-specific UI state during renderer handoff."""
+
+        self._adapter.reset_ui_backend()
+
+    def refresh_backend_kind(self) -> str:
+        """Refresh and return the active backend kind from the adapter."""
+
+        self.backend_kind = self._adapter.get_backend_kind()
+        return self.backend_kind
