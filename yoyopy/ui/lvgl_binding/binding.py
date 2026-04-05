@@ -51,6 +51,27 @@ int yoyopy_lvgl_hub_sync(
     int32_t power_available
 );
 void yoyopy_lvgl_hub_destroy(void);
+int yoyopy_lvgl_listen_build(void);
+int yoyopy_lvgl_listen_sync(
+    const char * page_text,
+    const char * footer,
+    const char * item_0,
+    const char * item_1,
+    const char * item_2,
+    const char * item_3,
+    int32_t item_count,
+    int32_t selected_index,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b,
+    const char * empty_title,
+    const char * empty_subtitle
+);
+void yoyopy_lvgl_listen_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);
@@ -209,6 +230,67 @@ class LvglBinding:
 
     def hub_destroy(self) -> None:
         self.lib.yoyopy_lvgl_hub_destroy()
+
+    def listen_build(self) -> None:
+        if self.lib.yoyopy_lvgl_listen_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def listen_sync(
+        self,
+        *,
+        page_text: str | None,
+        footer: str,
+        items: list[str],
+        selected_index: int,
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+        accent: tuple[int, int, int],
+        empty_title: str,
+        empty_subtitle: str,
+    ) -> None:
+        normalized_items = list(items[:4])
+        while len(normalized_items) < 4:
+            normalized_items.append("")
+
+        page_text_raw = (
+            self.ffi.new("char[]", page_text.encode("utf-8"))
+            if page_text
+            else self.ffi.NULL
+        )
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        item_0_raw = self.ffi.new("char[]", normalized_items[0].encode("utf-8"))
+        item_1_raw = self.ffi.new("char[]", normalized_items[1].encode("utf-8"))
+        item_2_raw = self.ffi.new("char[]", normalized_items[2].encode("utf-8"))
+        item_3_raw = self.ffi.new("char[]", normalized_items[3].encode("utf-8"))
+        empty_title_raw = self.ffi.new("char[]", empty_title.encode("utf-8"))
+        empty_subtitle_raw = self.ffi.new("char[]", empty_subtitle.encode("utf-8"))
+
+        result = self.lib.yoyopy_lvgl_listen_sync(
+            page_text_raw,
+            footer_raw,
+            item_0_raw,
+            item_1_raw,
+            item_2_raw,
+            item_3_raw,
+            len(items),
+            selected_index,
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+            accent[0],
+            accent[1],
+            accent[2],
+            empty_title_raw,
+            empty_subtitle_raw,
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def listen_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_listen_destroy()
 
     def clear_screen(self) -> None:
         self.lib.yoyopy_lvgl_clear_screen()
