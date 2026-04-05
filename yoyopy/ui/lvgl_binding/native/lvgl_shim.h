@@ -45,6 +45,24 @@ void yoyopy_lvgl_tick_inc(uint32_t ms);
 uint32_t yoyopy_lvgl_timer_handler(void);
 int yoyopy_lvgl_queue_key_event(int32_t key, int32_t pressed);
 int yoyopy_lvgl_show_probe_scene(int32_t scene_id);
+int yoyopy_lvgl_hub_build(void);
+int yoyopy_lvgl_hub_sync(
+    const char * icon_key,
+    const char * title,
+    const char * subtitle,
+    const char * footer,
+    const char * time_text,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b,
+    int32_t selected_index,
+    int32_t total_cards,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available
+);
+void yoyopy_lvgl_hub_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);

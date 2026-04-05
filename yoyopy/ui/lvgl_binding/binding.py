@@ -33,6 +33,24 @@ void yoyopy_lvgl_tick_inc(uint32_t ms);
 uint32_t yoyopy_lvgl_timer_handler(void);
 int yoyopy_lvgl_queue_key_event(int32_t key, int32_t pressed);
 int yoyopy_lvgl_show_probe_scene(int32_t scene_id);
+int yoyopy_lvgl_hub_build(void);
+int yoyopy_lvgl_hub_sync(
+    const char * icon_key,
+    const char * title,
+    const char * subtitle,
+    const char * footer,
+    const char * time_text,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b,
+    int32_t selected_index,
+    int32_t total_cards,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available
+);
+void yoyopy_lvgl_hub_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);
@@ -140,6 +158,57 @@ class LvglBinding:
     def show_probe_scene(self, scene_id: int) -> None:
         if self.lib.yoyopy_lvgl_show_probe_scene(scene_id) != 0:
             raise LvglBindingError(self.last_error())
+
+    def hub_build(self) -> None:
+        if self.lib.yoyopy_lvgl_hub_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def hub_sync(
+        self,
+        *,
+        icon_key: str,
+        title: str,
+        subtitle: str,
+        footer: str,
+        time_text: str | None,
+        accent: tuple[int, int, int],
+        selected_index: int,
+        total_cards: int,
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+    ) -> None:
+        icon_key_raw = self.ffi.new("char[]", icon_key.encode("utf-8"))
+        title_raw = self.ffi.new("char[]", title.encode("utf-8"))
+        subtitle_raw = self.ffi.new("char[]", subtitle.encode("utf-8"))
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        if time_text:
+            time_raw = self.ffi.new("char[]", time_text.encode("utf-8"))
+        else:
+            time_raw = self.ffi.NULL
+
+        result = self.lib.yoyopy_lvgl_hub_sync(
+            icon_key_raw,
+            title_raw,
+            subtitle_raw,
+            footer_raw,
+            time_raw,
+            accent[0],
+            accent[1],
+            accent[2],
+            selected_index,
+            total_cards,
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def hub_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_hub_destroy()
 
     def clear_screen(self) -> None:
         self.lib.yoyopy_lvgl_clear_screen()

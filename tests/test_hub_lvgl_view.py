@@ -1,0 +1,99 @@
+"""Focused tests for the LVGL-backed Hub screen delegation."""
+
+from __future__ import annotations
+
+from yoyopy.app_context import AppContext
+from yoyopy.ui.input import InteractionProfile
+from yoyopy.ui.screens import HubScreen
+
+
+class FakeLvglBinding:
+    """Small native-binding double for Hub view tests."""
+
+    def __init__(self) -> None:
+        self.hub_build_calls = 0
+        self.hub_destroy_calls = 0
+        self.hub_sync_payloads: list[dict] = []
+
+    def hub_build(self) -> None:
+        self.hub_build_calls += 1
+
+    def hub_sync(self, **payload) -> None:
+        self.hub_sync_payloads.append(payload)
+
+    def hub_destroy(self) -> None:
+        self.hub_destroy_calls += 1
+
+
+class FakeLvglBackend:
+    """Minimal LVGL backend double exposed through Display.get_ui_backend()."""
+
+    def __init__(self, binding: FakeLvglBinding) -> None:
+        self.binding = binding
+        self.initialized = True
+
+
+class FakeLvglDisplay:
+    """Tiny Display double for LVGL Hub delegation tests."""
+
+    backend_kind = "lvgl"
+
+    def __init__(self, binding: FakeLvglBinding) -> None:
+        self._ui_backend = FakeLvglBackend(binding)
+
+    def get_ui_backend(self) -> FakeLvglBackend:
+        return self._ui_backend
+
+
+def test_hub_screen_builds_syncs_and_destroys_lvgl_view() -> None:
+    """HubScreen should delegate its lifecycle to an LVGL view when available."""
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+    context = AppContext(interaction_profile=InteractionProfile.ONE_BUTTON)
+    context.update_voip_status(configured=True, ready=True)
+    context.battery_percent = 77
+    context.battery_charging = True
+    context.power_available = True
+
+    screen = HubScreen(display, context)
+
+    screen.enter()
+    screen.render()
+
+    assert binding.hub_build_calls == 1
+    assert len(binding.hub_sync_payloads) == 1
+    first_payload = binding.hub_sync_payloads[-1]
+    assert first_payload["title"] == "Listen"
+    assert first_payload["selected_index"] == 0
+    assert first_payload["total_cards"] == 4
+    assert first_payload["voip_state"] == 1
+    assert first_payload["battery_percent"] == 77
+    assert first_payload["charging"] is True
+    assert first_payload["power_available"] is True
+
+    screen.on_advance()
+    screen.render()
+
+    second_payload = binding.hub_sync_payloads[-1]
+    assert second_payload["title"] == "Talk"
+    assert second_payload["selected_index"] == 1
+
+    screen.exit()
+    assert binding.hub_destroy_calls == 1
+
+
+def test_hub_screen_falls_back_cleanly_when_lvgl_backend_is_unavailable() -> None:
+    """Missing LVGL backend state should leave the Hub without a delegated view."""
+
+    class MissingBackendDisplay:
+        backend_kind = "lvgl"
+
+        def get_ui_backend(self):
+            return None
+
+    screen = HubScreen(MissingBackendDisplay(), AppContext(interaction_profile=InteractionProfile.ONE_BUTTON))
+
+    screen.enter()
+
+    assert screen._lvgl_view is None
