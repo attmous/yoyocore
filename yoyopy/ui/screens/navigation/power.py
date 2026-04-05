@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.navigation.lvgl import LvglPowerView
 from yoyopy.ui.screens.theme import INK, MUTED, SETUP, SURFACE_RAISED, render_footer, render_header, rounded_panel, text_fit
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
     from yoyopy.power import PowerManager, PowerSnapshot
+    from yoyopy.ui.screens import ScreenView
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,9 +40,43 @@ class PowerScreen(Screen):
         self.power_manager = power_manager
         self.status_provider = status_provider or (lambda: {})
         self.page_index = 0
+        self._lvgl_view: "ScreenView | None" = None
+
+    def enter(self) -> None:
+        """Create the LVGL view when the screen becomes active."""
+        super().enter()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving Setup."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglPowerView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def render(self) -> None:
         """Render the active Setup page."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         snapshot = self._get_snapshot()
         status = self._get_status()
         pages = self.build_pages(snapshot=snapshot, status=status)
@@ -288,11 +324,11 @@ class PowerScreen(Screen):
 
     def _next_page(self) -> None:
         """Advance to the next page with wraparound."""
-        self.page_index = (self.page_index + 1) % 2
+        self.page_index = (self.page_index + 1) % 3
 
     def _previous_page(self) -> None:
         """Return to the previous page with wraparound."""
-        self.page_index = (self.page_index - 1) % 2
+        self.page_index = (self.page_index - 1) % 3
 
     def on_advance(self, data=None) -> None:
         """Single-button tap cycles pages."""

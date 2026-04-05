@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING, Optional
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.navigation.lvgl import LvglAskView
 from yoyopy.ui.screens.theme import ASK, INK, MUTED, draw_icon, render_footer, render_header, rounded_panel, wrap_text
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
+    from yoyopy.ui.screens import ScreenView
 
 
 class AskScreen(Screen):
@@ -17,9 +19,43 @@ class AskScreen(Screen):
 
     def __init__(self, display: Display, context: Optional["AppContext"] = None) -> None:
         super().__init__(display, context, "Ask")
+        self._lvgl_view: "ScreenView | None" = None
+
+    def enter(self) -> None:
+        """Create the LVGL view when the screen becomes active."""
+        super().enter()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving Ask."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglAskView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def render(self) -> None:
         """Render the future Ask mode preview."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         content_top = render_header(
             self.display,
             self.context,
@@ -50,29 +86,16 @@ class AskScreen(Screen):
 
         copy_lines = wrap_text(
             self.display,
-            "Safe questions and calm answers will live here soon.",
+            "Safe questions will live here soon.",
             self.display.WIDTH - 52,
             12,
-            max_lines=2,
+            max_lines=1,
         )
         line_y = panel_top + 108
         for line in copy_lines:
             line_width, _ = self.display.get_text_size(line, 12)
             self.display.text(line, (self.display.WIDTH - line_width) // 2, line_y, color=INK, font_size=12)
             line_y += 15
-
-        note_lines = wrap_text(
-            self.display,
-            "Voice prompts and guided asks are next.",
-            self.display.WIDTH - 56,
-            10,
-            max_lines=2,
-        )
-        line_y += 10
-        for line in note_lines:
-            line_width, _ = self.display.get_text_size(line, 10)
-            self.display.text(line, (self.display.WIDTH - line_width) // 2, line_y, color=MUTED, font_size=10)
-            line_y += 13
 
         help_text = "Hold back" if self.is_one_button_mode() else "B back"
         render_footer(self.display, help_text, mode="ask")

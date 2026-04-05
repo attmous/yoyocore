@@ -129,6 +129,69 @@ int yoyopy_lvgl_incoming_call_sync(
     uint8_t accent_b
 );
 void yoyopy_lvgl_incoming_call_destroy(void);
+int yoyopy_lvgl_outgoing_call_build(void);
+int yoyopy_lvgl_outgoing_call_sync(
+    const char * callee_name,
+    const char * callee_address,
+    const char * footer,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_outgoing_call_destroy(void);
+int yoyopy_lvgl_in_call_build(void);
+int yoyopy_lvgl_in_call_sync(
+    const char * caller_name,
+    const char * duration_text,
+    const char * mute_text,
+    const char * footer,
+    int32_t muted,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_in_call_destroy(void);
+int yoyopy_lvgl_ask_build(void);
+int yoyopy_lvgl_ask_sync(
+    const char * title_text,
+    const char * subtitle_text,
+    const char * footer,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_ask_destroy(void);
+int yoyopy_lvgl_power_build(void);
+int yoyopy_lvgl_power_sync(
+    const char * title_text,
+    const char * page_text,
+    const char * footer,
+    const char * item_0,
+    const char * item_1,
+    const char * item_2,
+    const char * item_3,
+    int32_t item_count,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_power_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);
@@ -509,6 +572,173 @@ class LvglBinding:
 
     def incoming_call_destroy(self) -> None:
         self.lib.yoyopy_lvgl_incoming_call_destroy()
+
+    def outgoing_call_build(self) -> None:
+        if self.lib.yoyopy_lvgl_outgoing_call_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def outgoing_call_sync(
+        self,
+        *,
+        callee_name: str,
+        callee_address: str,
+        footer: str,
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+        accent: tuple[int, int, int],
+    ) -> None:
+        callee_name_raw = self.ffi.new("char[]", callee_name.encode("utf-8"))
+        callee_address_raw = self.ffi.new("char[]", callee_address.encode("utf-8"))
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        result = self.lib.yoyopy_lvgl_outgoing_call_sync(
+            callee_name_raw,
+            callee_address_raw,
+            footer_raw,
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+            accent[0],
+            accent[1],
+            accent[2],
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def outgoing_call_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_outgoing_call_destroy()
+
+    def in_call_build(self) -> None:
+        if self.lib.yoyopy_lvgl_in_call_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def in_call_sync(
+        self,
+        *,
+        caller_name: str,
+        duration_text: str,
+        mute_text: str,
+        footer: str,
+        muted: bool,
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+        accent: tuple[int, int, int],
+    ) -> None:
+        caller_name_raw = self.ffi.new("char[]", caller_name.encode("utf-8"))
+        duration_raw = self.ffi.new("char[]", duration_text.encode("utf-8"))
+        mute_raw = self.ffi.new("char[]", mute_text.encode("utf-8"))
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        result = self.lib.yoyopy_lvgl_in_call_sync(
+            caller_name_raw,
+            duration_raw,
+            mute_raw,
+            footer_raw,
+            1 if muted else 0,
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+            accent[0],
+            accent[1],
+            accent[2],
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def in_call_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_in_call_destroy()
+
+    def ask_build(self) -> None:
+        if self.lib.yoyopy_lvgl_ask_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def ask_sync(
+        self,
+        *,
+        title_text: str,
+        subtitle_text: str,
+        footer: str,
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+        accent: tuple[int, int, int],
+    ) -> None:
+        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
+        subtitle_raw = self.ffi.new("char[]", subtitle_text.encode("utf-8"))
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        result = self.lib.yoyopy_lvgl_ask_sync(
+            title_raw,
+            subtitle_raw,
+            footer_raw,
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+            accent[0],
+            accent[1],
+            accent[2],
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def ask_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_ask_destroy()
+
+    def power_build(self) -> None:
+        if self.lib.yoyopy_lvgl_power_build() != 0:
+            raise LvglBindingError(self.last_error())
+
+    def power_sync(
+        self,
+        *,
+        title_text: str,
+        page_text: str | None,
+        footer: str,
+        items: list[str],
+        voip_state: int,
+        battery_percent: int,
+        charging: bool,
+        power_available: bool,
+        accent: tuple[int, int, int],
+    ) -> None:
+        normalized_items = list(items[:4])
+        while len(normalized_items) < 4:
+            normalized_items.append("")
+
+        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
+        page_text_raw = self.ffi.new("char[]", page_text.encode("utf-8")) if page_text else self.ffi.NULL
+        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
+        item_0_raw = self.ffi.new("char[]", normalized_items[0].encode("utf-8"))
+        item_1_raw = self.ffi.new("char[]", normalized_items[1].encode("utf-8"))
+        item_2_raw = self.ffi.new("char[]", normalized_items[2].encode("utf-8"))
+        item_3_raw = self.ffi.new("char[]", normalized_items[3].encode("utf-8"))
+        result = self.lib.yoyopy_lvgl_power_sync(
+            title_raw,
+            page_text_raw,
+            footer_raw,
+            item_0_raw,
+            item_1_raw,
+            item_2_raw,
+            item_3_raw,
+            len(items),
+            voip_state,
+            battery_percent,
+            1 if charging else 0,
+            1 if power_available else 0,
+            accent[0],
+            accent[1],
+            accent[2],
+        )
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
+    def power_destroy(self) -> None:
+        self.lib.yoyopy_lvgl_power_destroy()
 
     def clear_screen(self) -> None:
         self.lib.yoyopy_lvgl_clear_screen()

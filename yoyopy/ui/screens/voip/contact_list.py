@@ -8,10 +8,12 @@ from loguru import logger
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.voip.lvgl import LvglContactListView
 from yoyopy.ui.screens.theme import SURFACE, draw_empty_state, draw_list_item, render_footer, render_header, rounded_panel, text_fit
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
+    from yoyopy.ui.screens import ScreenView
 
 
 class ContactListScreen(Screen):
@@ -31,11 +33,36 @@ class ContactListScreen(Screen):
         self.selected_index = 0
         self.scroll_offset = 0
         self.max_visible_items = 4 if display.is_portrait() else 5
+        self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
         """Load contacts when the screen becomes active."""
         super().enter()
         self.load_contacts()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving contacts."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglContactListView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def load_contacts(self) -> None:
         """Load contacts from config manager."""
@@ -49,6 +76,11 @@ class ContactListScreen(Screen):
 
     def render(self) -> None:
         """Render the contact list."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         page_text = None
         if self.contacts:
             page_text = f"{self.selected_index + 1}/{len(self.contacts)}"
@@ -120,6 +152,38 @@ class ContactListScreen(Screen):
         help_text = "Tap next / Call / Hold back" if self.is_one_button_mode() else "A call | B back | X/Y move"
         render_footer(self.display, help_text, mode="talk")
         self.display.update()
+
+    def get_page_text(self) -> str | None:
+        """Return the compact page indicator for the current contact selection."""
+        if not self.contacts:
+            return None
+        return f"{self.selected_index + 1}/{len(self.contacts)}"
+
+    def get_visible_window(self) -> tuple[list[str], list[str], int]:
+        """Return the visible contact titles, badges, and selected row index."""
+        if not self.contacts:
+            return [], [], 0
+
+        if self.selected_index < self.scroll_offset:
+            self.scroll_offset = self.selected_index
+        elif self.selected_index >= self.scroll_offset + self.max_visible_items:
+            self.scroll_offset = self.selected_index - self.max_visible_items + 1
+
+        visible_titles: list[str] = []
+        visible_badges: list[str] = []
+        selected_visible_index = 0
+        for row in range(self.max_visible_items):
+            contact_index = self.scroll_offset + row
+            if contact_index >= len(self.contacts):
+                break
+
+            contact = self.contacts[contact_index]
+            visible_titles.append(contact.name)
+            visible_badges.append("FAV" if contact.favorite else "")
+            if contact_index == self.selected_index:
+                selected_visible_index = row
+
+        return visible_titles, visible_badges, selected_visible_index
 
     def select_next(self) -> None:
         """Move selection to next contact."""

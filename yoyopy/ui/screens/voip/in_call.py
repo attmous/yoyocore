@@ -8,10 +8,12 @@ from loguru import logger
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.voip.lvgl import LvglInCallView
 from yoyopy.ui.screens.theme import INK, MUTED, TALK, draw_icon, render_footer, render_header, rounded_panel
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
+    from yoyopy.ui.screens import ScreenView
 
 
 class InCallScreen(Screen):
@@ -25,6 +27,35 @@ class InCallScreen(Screen):
     ) -> None:
         super().__init__(display, context, "InCall")
         self.voip_manager = voip_manager
+        self._lvgl_view: "ScreenView | None" = None
+
+    def enter(self) -> None:
+        """Create the LVGL view when the screen becomes active."""
+        super().enter()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving the live call."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglInCallView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     @staticmethod
     def format_duration(seconds: int) -> str:
@@ -35,6 +66,11 @@ class InCallScreen(Screen):
 
     def render(self) -> None:
         """Render the active-call screen."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         caller_info = {"display_name": "Unknown", "address": ""}
         duration = 0
         is_muted = False
@@ -47,7 +83,7 @@ class InCallScreen(Screen):
             self.display,
             self.context,
             mode="talk",
-            title="On call",
+            title="Talk",
             show_time=False,
             show_mode_chip=False,
         )

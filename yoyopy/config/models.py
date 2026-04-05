@@ -278,7 +278,7 @@ class AppDisplayConfig:
 
     hardware: str = config_value(default="auto", env="YOYOPOD_DISPLAY")
     whisplay_renderer: str = config_value(
-        default="pil",
+        default="lvgl",
         env="YOYOPOD_WHISPLAY_RENDERER",
     )
     brightness: int = 80

@@ -8,10 +8,12 @@ from loguru import logger
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.voip.lvgl import LvglOutgoingCallView
 from yoyopy.ui.screens.theme import INK, MUTED, TALK, draw_icon, render_footer, render_header, rounded_panel, text_fit, wrap_text
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
+    from yoyopy.ui.screens import ScreenView
 
 
 class OutgoingCallScreen(Screen):
@@ -30,9 +32,43 @@ class OutgoingCallScreen(Screen):
         self.callee_address = callee_address
         self.callee_name = callee_name
         self.ring_animation_frame = 0
+        self._lvgl_view: "ScreenView | None" = None
+
+    def enter(self) -> None:
+        """Create the LVGL view when the screen becomes active."""
+        super().enter()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving outgoing call."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglOutgoingCallView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def render(self) -> None:
         """Render the outgoing-call screen."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         callee_name = self.callee_name
         callee_address = self.callee_address
         if self.voip_manager:
@@ -79,7 +115,7 @@ class OutgoingCallScreen(Screen):
             self.display.text(line, (self.display.WIDTH - width) // 2, line_y, color=MUTED, font_size=11)
             line_y += 13
 
-        status_text = "Connecting..."
+        status_text = "Calling"
         status_width, _ = self.display.get_text_size(status_text, 13)
         self.display.text(status_text, (self.display.WIDTH - status_width) // 2, panel_bottom - 58, color=TALK.accent, font_size=13)
 

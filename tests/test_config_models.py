@@ -48,7 +48,7 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.power.watchdog_i2c_bus == 1
     assert settings.power.watchdog_i2c_address == 0x57
     assert settings.display.hardware == "auto"
-    assert settings.display.whisplay_renderer == "pil"
+    assert settings.display.whisplay_renderer == "lvgl"
 
 
 def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) -> None:

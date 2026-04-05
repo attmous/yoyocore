@@ -24,6 +24,7 @@
   - RTC helpers
   - PiSugar software watchdog support
 - Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
+- Whisplay now has an in-progress LVGL rendering path under `yoyopy/ui/lvgl_binding/`, and the Whisplay renderer default is `lvgl`.
 - CI validates the Python test suite with `uv sync --extra dev` and `uv run pytest -q`.
 - Raspberry Pi validation has a defined path through `scripts/pi_smoke.py` and `scripts/pi_remote.py`.
 
@@ -55,11 +56,13 @@ When in doubt, trust these files first:
 - `yoyopy/voip/`
 - `yoyopy/power/`
 - `yoyopy/ui/display/`
+- `yoyopy/ui/lvgl_binding/`
 - `yoyopy/ui/input/`
 - `yoyopy/ui/screens/`
 - `README.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/POWER_MODULE.md`
+- `docs/LVGL_MIGRATION_PLAN.md`
 
 ---
 
@@ -140,6 +143,7 @@ Key design points:
 ### UI
 
 - `yoyopy/ui/display/` - display HAL, factory, facade, and adapters
+- `yoyopy/ui/lvgl_binding/` - native LVGL shim, CPython binding, backend bridge, and input bridge
 - `yoyopy/ui/input/` - input HAL, factory, manager, and adapters
 - `yoyopy/ui/screens/manager.py` - stack navigation and input binding
 - `yoyopy/ui/screens/router.py` - declarative route resolution

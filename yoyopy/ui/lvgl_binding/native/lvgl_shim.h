@@ -141,6 +141,69 @@ int yoyopy_lvgl_incoming_call_sync(
     uint8_t accent_b
 );
 void yoyopy_lvgl_incoming_call_destroy(void);
+int yoyopy_lvgl_outgoing_call_build(void);
+int yoyopy_lvgl_outgoing_call_sync(
+    const char * callee_name,
+    const char * callee_address,
+    const char * footer,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_outgoing_call_destroy(void);
+int yoyopy_lvgl_in_call_build(void);
+int yoyopy_lvgl_in_call_sync(
+    const char * caller_name,
+    const char * duration_text,
+    const char * mute_text,
+    const char * footer,
+    int32_t muted,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_in_call_destroy(void);
+int yoyopy_lvgl_ask_build(void);
+int yoyopy_lvgl_ask_sync(
+    const char * title_text,
+    const char * subtitle_text,
+    const char * footer,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_ask_destroy(void);
+int yoyopy_lvgl_power_build(void);
+int yoyopy_lvgl_power_sync(
+    const char * title_text,
+    const char * page_text,
+    const char * footer,
+    const char * item_0,
+    const char * item_1,
+    const char * item_2,
+    const char * item_3,
+    int32_t item_count,
+    int32_t voip_state,
+    int32_t battery_percent,
+    int32_t charging,
+    int32_t power_available,
+    uint8_t accent_r,
+    uint8_t accent_g,
+    uint8_t accent_b
+);
+void yoyopy_lvgl_power_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
 const char * yoyopy_lvgl_last_error(void);
 const char * yoyopy_lvgl_version(void);

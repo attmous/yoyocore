@@ -9,11 +9,13 @@ from loguru import logger
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.voip.lvgl import LvglCallView
 from yoyopy.ui.screens.theme import INK, MUTED, SURFACE, TALK, draw_empty_state, draw_list_item, render_footer, render_header, rounded_panel, text_fit
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
     from yoyopy.config import ConfigManager, Contact
+    from yoyopy.ui.screens import ScreenView
     from yoyopy.voip import VoIPManager
 
 
@@ -47,11 +49,36 @@ class CallScreen(Screen):
         self.selected_index = 0
         self.scroll_offset = 0
         self.max_visible_items = 3 if display.is_portrait() else 4
+        self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
         """Refresh quick-call shortcuts whenever the screen becomes active."""
         super().enter()
         self._load_quick_targets()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving Talk."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglCallView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def _load_quick_targets(self) -> None:
         """Load favorite or regular contacts for quick calling."""
@@ -100,6 +127,11 @@ class CallScreen(Screen):
 
     def render(self) -> None:
         """Render the Talk hub with status and quick-call cards."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         status = self._get_status_snapshot()
         status_text, _status_color, _detail_text = self._status_lines(status)
         call_state_text, caller_text = self._call_context_lines(status)
@@ -180,6 +212,37 @@ class CallScreen(Screen):
 
         render_footer(self.display, self._instruction_text(), mode="talk")
         self.display.update()
+
+    def get_page_text(self) -> str | None:
+        """Return the compact page indicator for the current quick target."""
+        if not self.quick_targets:
+            return None
+        return f"{self.selected_index + 1}/{len(self.quick_targets)}"
+
+    def get_visible_window(self) -> tuple[list[str], list[str], int]:
+        """Return the visible quick-target titles, badges, and selected row index."""
+        if not self.quick_targets:
+            return [], [], 0
+
+        visible_items = max(1, min(self.max_visible_items, len(self.quick_targets)))
+        self._ensure_selection_visible(visible_items)
+
+        visible_titles: list[str] = []
+        visible_badges: list[str] = []
+        selected_visible_index = 0
+
+        for row in range(visible_items):
+            target_index = self.scroll_offset + row
+            if target_index >= len(self.quick_targets):
+                break
+
+            target = self.quick_targets[target_index]
+            visible_titles.append(target.title)
+            visible_badges.append("ALL" if target.kind == "browse_contacts" else "FAV" if target.favorite else "")
+            if target_index == self.selected_index:
+                selected_visible_index = row
+
+        return visible_titles, visible_badges, selected_visible_index
 
     def _get_status_snapshot(self) -> dict:
         """Return a stable VoIP status dict for rendering and actions."""
