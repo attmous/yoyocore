@@ -69,6 +69,11 @@ class ScreenRouter:
                 "select:Talk": NavigationRequest.push("call"),
                 "select:Ask": NavigationRequest.push("ask"),
                 "select:Setup": NavigationRequest.push("power"),
+                # Legacy aliases from the pre-overhaul Whisplay hub.
+                "select:Now Playing": NavigationRequest.push("now_playing"),
+                "select:Playlists": NavigationRequest.push("playlists"),
+                "select:Calls": NavigationRequest.push("call"),
+                "select:Power": NavigationRequest.push("power"),
             },
             "home": {
                 "select": NavigationRequest.push("menu"),

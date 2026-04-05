@@ -8,6 +8,12 @@ The current codebase supports three display/input modes:
 - PiSugar Whisplay HAT: 240x280 portrait display with a single PTT-style button
 - Simulation mode: browser display plus keyboard and web-button input
 
+On Whisplay, the one-button root hub currently exposes four cards:
+- `Now Playing`
+- `Playlists`
+- `Calls`
+- `Power`
+
 ## Current Status
 
 - VoIP and music integration is implemented in the production app
@@ -227,6 +233,7 @@ yoyopy/
 - `docs/INTEGRATION_PLAN.md`: integration completion record and remaining cleanup
 - `docs/DISPLAY_HAL_ARCHITECTURE.md`: current display HAL design
 - `docs/INPUT_HAL_ARCHITECTURE.md`: current input HAL design and compatibility notes
+- `docs/POWER_MODULE.md`: PiSugar power architecture, config, safety, RTC, watchdog, and diagnostics
 - `docs/RPI_SMOKE_VALIDATION.md`: Raspberry Pi smoke checklist and manual follow-up drills
 - `docs/PI_DEV_WORKFLOW.md`: SSH-based Raspberry Pi sync/run workflow and release checklist
 - `docs/UI_RESTRUCTURE_PROPOSAL.md`: refactor status and remaining cleanup

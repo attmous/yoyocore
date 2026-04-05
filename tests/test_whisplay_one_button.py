@@ -220,6 +220,23 @@ def test_listen_screen_select_sets_source_and_routes_to_playlists(
         payload="local",
     )
 
+def test_hub_select_requests_setup_route_for_setup_card(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """The Whisplay hub should open Setup from its fourth root card."""
+    hub = HubScreen(
+        display,
+        one_button_context,
+        mopidy_client=FakeMopidyClient(),
+        voip_manager=FakeVoIPManager(),
+    )
+
+    hub.selected_index = 3
+    hub.on_select()
+
+    assert hub.consume_navigation_request() == NavigationRequest.route("select", payload="Setup")
+
 
 def test_now_playing_advance_and_select_follow_one_button_mapping(
     display: Display,

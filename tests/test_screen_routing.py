@@ -83,6 +83,7 @@ def test_screen_router_covers_whisplay_hub_routes() -> None:
     assert router.resolve("hub", "select", payload="Talk") == NavigationRequest.push("call")
     assert router.resolve("hub", "select", payload="Ask") == NavigationRequest.push("ask")
     assert router.resolve("hub", "select", payload="Setup") == NavigationRequest.push("power")
+    assert router.resolve("hub", "select", payload="Power") == NavigationRequest.push("power")
 
 
 def test_screen_manager_routes_menu_labels_through_stack(display: Display) -> None:
