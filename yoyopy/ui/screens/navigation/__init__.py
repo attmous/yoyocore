@@ -5,6 +5,5 @@ from yoyopy.ui.screens.navigation.home import HomeScreen
 from yoyopy.ui.screens.navigation.listen import ListenScreen
 from yoyopy.ui.screens.navigation.menu import MenuScreen
 from yoyopy.ui.screens.navigation.ask import AskScreen
-from yoyopy.ui.screens.navigation.power import PowerScreen
 
-__all__ = ['HubScreen', 'HomeScreen', 'ListenScreen', 'MenuScreen', 'AskScreen', 'PowerScreen']
+__all__ = ['HubScreen', 'HomeScreen', 'ListenScreen', 'MenuScreen', 'AskScreen']

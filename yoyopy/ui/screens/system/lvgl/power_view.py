@@ -10,7 +10,7 @@ from yoyopy.ui.screens.theme import SETUP
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
-    from yoyopy.ui.screens.navigation.power import PowerScreen
+    from yoyopy.ui.screens.system.power import PowerScreen
 
 
 @dataclass(slots=True)

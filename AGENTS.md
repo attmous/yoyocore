@@ -128,7 +128,7 @@ Key design points:
 - `yoyopy/audio/mopidy_client.py` - Mopidy JSON-RPC client
 - `yoyopy/voip/manager.py` - app-facing VoIP facade
 - `yoyopy/voip/backend.py` - `VoIPBackend`, `LinphonecBackend`, `MockVoIPBackend`
-- `yoyopy/voip/types.py` - SIP config and typed backend events
+- `yoyopy/voip/models.py` - SIP config and typed backend events
 
 ### Power
 
@@ -150,8 +150,8 @@ Key design points:
 - `yoyopy/ui/screens/theme.py` - Graffiti Buddy shared chrome, colors, icons, and status-bar renderer
 - `yoyopy/ui/screens/navigation/listen.py` - source chooser for the `Listen` root mode
 - `yoyopy/ui/screens/navigation/ask.py` - future-safe `Ask` mode placeholder
-- `yoyopy/ui/screens/navigation/power.py` - `Setup` screen with power and care pages
-- `yoyopy/ui/screens/voip/hub.py` - `Talk` quick-call hub
+- `yoyopy/ui/screens/system/power.py` - `Setup` screen with power and care pages
+- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` quick-call hub
 
 ### Configuration
 
@@ -159,7 +159,7 @@ Key design points:
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
 - `yoyopy/config/models.py` - typed config models
-- `yoyopy/config/config_manager.py` - current config facade used by the app
+- `yoyopy/config/manager.py` - current config facade used by the app
 
 ---
 
@@ -296,7 +296,7 @@ These old names are no longer correct:
 - `yoyopy/connectivity/` -> use `yoyopy/voip/`
 - `yoyopy/connectivity/voip_manager.py` -> use `yoyopy/voip/manager.py`
 - `yoyopy/connectivity/voip_backend.py` -> use `yoyopy/voip/backend.py`
-- `yoyopy/connectivity/voip_types.py` -> use `yoyopy/voip/types.py`
+- `yoyopy/connectivity/voip_types.py` -> use `yoyopy/voip/models.py`
 - `state_machine.py` -> removed; use `yoyopy/fsm.py` and `yoyopy/coordinators/runtime.py`
 - `demo_yoyopod_phase1.py` -> removed
 - `tests/test_phase1_state_machine.py` -> replaced by `tests/test_fsm_runtime.py`

@@ -10,7 +10,7 @@ from typing import Callable, Optional, Protocol
 
 from loguru import logger
 
-from yoyopy.voip.types import (
+from yoyopy.voip.models import (
     BackendStopped,
     CallState,
     CallStateChanged,

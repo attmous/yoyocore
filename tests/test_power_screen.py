@@ -7,7 +7,7 @@ from datetime import datetime
 from yoyopy.app_context import AppContext
 from yoyopy.power import BatteryState, PowerDeviceInfo, PowerSnapshot, RTCState, ShutdownState
 from yoyopy.ui.display import Display
-from yoyopy.ui.screens.navigation.power import PowerScreen
+from yoyopy.ui.screens.system.power import PowerScreen
 
 
 class StubPowerManager:

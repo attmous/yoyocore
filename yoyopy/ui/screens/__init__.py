@@ -4,7 +4,8 @@ Screens module for YoyoPod UI.
 Provides screen implementations organized by feature:
 - base: Screen base class
 - manager: ScreenManager for navigation
-- navigation: Home and Menu screens
+- navigation: Home, hub, and route-selection screens
+- system: Device status and setup screens
 - music: Now Playing and Playlist screens
 - voip: Call-related screens
 """
@@ -17,8 +18,9 @@ from yoyopy.ui.screens.view import ScreenView
 from yoyopy.ui.screens.manager import ScreenManager
 from yoyopy.ui.screens.router import NavigationRequest, ScreenRouter
 
-# Navigation screens
-from yoyopy.ui.screens.navigation import AskScreen, HubScreen, HomeScreen, ListenScreen, MenuScreen, PowerScreen
+# Navigation and system screens
+from yoyopy.ui.screens.navigation import AskScreen, HubScreen, HomeScreen, ListenScreen, MenuScreen
+from yoyopy.ui.screens.system import PowerScreen
 
 # Music screens
 from yoyopy.ui.screens.music import NowPlayingScreen, PlaylistScreen

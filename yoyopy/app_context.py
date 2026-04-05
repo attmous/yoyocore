@@ -15,7 +15,7 @@ from loguru import logger
 from yoyopy.ui.input.hal import InteractionProfile
 
 if TYPE_CHECKING:
-    from yoyopy.audio.audio_manager import AudioManager
+    from yoyopy.audio.manager import AudioManager
     from yoyopy.power import PowerSnapshot
 
 
