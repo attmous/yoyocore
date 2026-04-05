@@ -7,11 +7,13 @@ from typing import TYPE_CHECKING, Optional
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
+from yoyopy.ui.screens.navigation.lvgl import LvglListenView
 from yoyopy.ui.screens.theme import LISTEN, MUTED, SURFACE, audio_source_label, audio_source_subtitle, draw_empty_state, draw_list_item, render_footer, render_header, rounded_panel
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
     from yoyopy.config import ConfigManager
+    from yoyopy.ui.screens import ScreenView
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,11 +39,36 @@ class ListenScreen(Screen):
         self.config_manager = config_manager
         self.sources: list[ListenSource] = []
         self.selected_index = 0
+        self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
         """Refresh configured sources when entering the screen."""
         super().enter()
         self._load_sources()
+        self._ensure_lvgl_view()
+
+    def exit(self) -> None:
+        """Tear down any active LVGL view when leaving Listen."""
+        if self._lvgl_view is not None:
+            self._lvgl_view.destroy()
+            self._lvgl_view = None
+        super().exit()
+
+    def _ensure_lvgl_view(self) -> "ScreenView | None":
+        """Create an LVGL view when the Whisplay renderer is active."""
+        if self._lvgl_view is not None:
+            return self._lvgl_view
+
+        if getattr(self.display, "backend_kind", "pil") != "lvgl":
+            return None
+
+        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        if ui_backend is None or not getattr(ui_backend, "initialized", False):
+            return None
+
+        self._lvgl_view = LvglListenView(self, ui_backend)
+        self._lvgl_view.build()
+        return self._lvgl_view
 
     def _load_sources(self) -> None:
         """Load configured music sources from the app config."""
@@ -78,6 +105,11 @@ class ListenScreen(Screen):
 
     def render(self) -> None:
         """Render the configured Listen sources."""
+        lvgl_view = self._ensure_lvgl_view()
+        if lvgl_view is not None:
+            lvgl_view.sync()
+            return
+
         position_text = None
         if self.sources:
             position_text = f"{self.selected_index + 1}/{len(self.sources)}"
