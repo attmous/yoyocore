@@ -139,3 +139,50 @@ def test_lvgl_backend_pump_advances_time_and_runs_timers() -> None:
 
     assert backend.pump(16) == 7
     assert binding.tick_calls == [16]
+
+
+def test_lvgl_backend_reset_clears_the_active_scene() -> None:
+    """Reset should issue a clear to the active LVGL backend."""
+
+    binding = FakeBinding()
+    target = FakeFlushTarget()
+    backend = LvglDisplayBackend(target, binding=binding)
+    backend.initialize()
+
+    backend.reset()
+
+    assert binding.clear_calls == 1
+
+
+def test_lvgl_backend_cleanup_shuts_down_the_native_binding() -> None:
+    """Cleanup should shut down the shim and mark the backend inactive."""
+
+    binding = FakeBinding()
+    target = FakeFlushTarget()
+    backend = LvglDisplayBackend(target, binding=binding)
+    backend.initialize()
+
+    backend.cleanup()
+
+    assert binding.shutdown_calls == 1
+    assert backend.initialized is False
+
+
+def test_lvgl_input_bridge_ignores_queued_actions_until_backend_is_ready() -> None:
+    """Queued LVGL actions should not dispatch before backend initialization."""
+
+    binding = FakeBinding()
+    target = FakeFlushTarget()
+    backend = LvglDisplayBackend(target, binding=binding)
+    bridge = LvglInputBridge(backend)
+
+    assert bridge.enqueue_action(InputAction.SELECT) is True
+    assert bridge.process_pending() == 0
+    assert binding.key_events == []
+
+    backend.initialize()
+    assert bridge.process_pending() == 1
+    assert binding.key_events == [
+        (binding.KEY_ENTER, True),
+        (binding.KEY_ENTER, False),
+    ]

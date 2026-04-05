@@ -61,7 +61,12 @@ class WhisplayDisplayAdapter(DisplayHAL):
     ORIENTATION = "portrait"
     STATUS_BAR_HEIGHT = 25  # Slightly taller for portrait mode
 
-    def __init__(self, simulate: bool = False, renderer: str = "pil") -> None:
+    def __init__(
+        self,
+        simulate: bool = False,
+        renderer: str = "pil",
+        lvgl_buffer_lines: int = 40,
+    ) -> None:
         """
         Initialize the Whisplay HAT display.
 
@@ -73,6 +78,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         self.draw: Optional[ImageDraw.ImageDraw] = None
         self.device = None
         self.renderer = renderer.lower().strip() or "pil"
+        self.lvgl_buffer_lines = max(1, int(lvgl_buffer_lines))
         self.ui_backend = None
 
         # Create PIL drawing buffer
@@ -98,7 +104,10 @@ class WhisplayDisplayAdapter(DisplayHAL):
             try:
                 from yoyopy.ui.lvgl_binding import LvglDisplayBackend
 
-                self.ui_backend = LvglDisplayBackend(self)
+                self.ui_backend = LvglDisplayBackend(
+                    self,
+                    buffer_lines=self.lvgl_buffer_lines,
+                )
                 if not self.ui_backend.available:
                     logger.warning("Whisplay LVGL renderer requested but native shim is unavailable")
             except Exception as e:

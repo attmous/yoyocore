@@ -204,6 +204,37 @@ def test_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert binding.playlist_destroy_calls == 1
 
 
+def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
+    """Talk should survive repeated enter/render/exit cycles on the LVGL path."""
+
+    binding = FakeLvglBinding()
+    screen = CallScreen(
+        FakeLvglDisplay(binding),
+        make_one_button_context(),
+        voip_manager=FakeVoipManager(),
+        config_manager=FakeConfigManager(
+            [
+                FakeContact("Hagar", "sip:hagar@example.com", True),
+                FakeContact("Mama", "sip:mama@example.com", True),
+            ]
+        ),
+    )
+
+    for expected_index in (0, 1):
+        screen.enter()
+        if expected_index == 1:
+            screen.on_advance()
+        screen.render()
+        payload = binding.playlist_sync_payloads[-1]
+        assert payload["title_text"] == "Calls"
+        assert payload["status_chip_text"] == "Ready"
+        assert payload["selected_visible_index"] == expected_index
+        screen.exit()
+
+    assert binding.playlist_build_calls == 2
+    assert binding.playlist_destroy_calls == 2
+
+
 def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
     """ContactListScreen should delegate its visible list window to LVGL."""
 

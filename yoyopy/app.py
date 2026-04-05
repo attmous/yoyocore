@@ -339,6 +339,7 @@ class YoyoPodApp:
                 hardware=display_hardware,
                 simulate=self.simulate,
                 whisplay_renderer=whisplay_renderer,
+                whisplay_lvgl_buffer_lines=self.app_settings.display.lvgl_buffer_lines,
             )
             logger.info(f"    Dimensions: {self.display.WIDTH}x{self.display.HEIGHT}")
             logger.info(f"    Orientation: {self.display.ORIENTATION}")

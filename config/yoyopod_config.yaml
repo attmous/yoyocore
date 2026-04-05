@@ -67,6 +67,7 @@ power:
 display:
   hardware: "auto"                # auto, whisplay, pimoroni, simulation
   whisplay_renderer: "lvgl"       # pil, lvgl (Whisplay defaults to LVGL; PIL remains for fallback/debug)
+  lvgl_buffer_lines: 40           # Partial flush buffer height in lines for Whisplay LVGL
   brightness: 80                  # 0-100
   rotation: 0                     # 0, 90, 180, 270
   backlight_timeout_seconds: 60   # Turn off backlight after 1 min

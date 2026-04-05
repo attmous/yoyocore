@@ -281,6 +281,10 @@ class AppDisplayConfig:
         default="lvgl",
         env="YOYOPOD_WHISPLAY_RENDERER",
     )
+    lvgl_buffer_lines: int = config_value(
+        default=40,
+        env="YOYOPOD_LVGL_BUFFER_LINES",
+    )
     brightness: int = 80
     rotation: int = 0
     backlight_timeout_seconds: int = 60

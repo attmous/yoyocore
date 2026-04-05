@@ -40,9 +40,7 @@ int yoyopy_lvgl_hub_sync(
     const char * subtitle,
     const char * footer,
     const char * time_text,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     int32_t selected_index,
     int32_t total_cards,
     int32_t voip_state,
@@ -65,9 +63,7 @@ int yoyopy_lvgl_listen_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     const char * empty_title,
     const char * empty_subtitle
 );
@@ -93,9 +89,7 @@ int yoyopy_lvgl_playlist_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b,
+    uint32_t accent_rgb,
     const char * empty_title,
     const char * empty_subtitle,
     const char * empty_icon_key
@@ -112,9 +106,7 @@ int yoyopy_lvgl_now_playing_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_now_playing_destroy(void);
 int yoyopy_lvgl_incoming_call_build(void);
@@ -126,9 +118,7 @@ int yoyopy_lvgl_incoming_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_incoming_call_destroy(void);
 int yoyopy_lvgl_outgoing_call_build(void);
@@ -140,9 +130,7 @@ int yoyopy_lvgl_outgoing_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_outgoing_call_destroy(void);
 int yoyopy_lvgl_in_call_build(void);
@@ -156,9 +144,7 @@ int yoyopy_lvgl_in_call_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_in_call_destroy(void);
 int yoyopy_lvgl_ask_build(void);
@@ -170,9 +156,7 @@ int yoyopy_lvgl_ask_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_ask_destroy(void);
 int yoyopy_lvgl_power_build(void);
@@ -189,9 +173,7 @@ int yoyopy_lvgl_power_sync(
     int32_t battery_percent,
     int32_t charging,
     int32_t power_available,
-    uint8_t accent_r,
-    uint8_t accent_g,
-    uint8_t accent_b
+    uint32_t accent_rgb
 );
 void yoyopy_lvgl_power_destroy(void);
 void yoyopy_lvgl_clear_screen(void);
@@ -260,6 +242,11 @@ class LvglBinding:
             if candidate.exists():
                 return candidate
         return None
+
+    @staticmethod
+    def _pack_rgb(color: tuple[int, int, int]) -> int:
+        red, green, blue = color
+        return ((int(red) & 0xFF) << 16) | ((int(green) & 0xFF) << 8) | (int(blue) & 0xFF)
 
     def init(self) -> None:
         if self.lib.yoyopy_lvgl_init() != 0:
@@ -337,9 +324,7 @@ class LvglBinding:
             subtitle_raw,
             footer_raw,
             time_raw,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
             selected_index,
             total_cards,
             voip_state,
@@ -402,9 +387,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
             empty_title_raw,
             empty_subtitle_raw,
         )
@@ -490,9 +473,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
             empty_title_raw,
             empty_subtitle_raw,
             empty_icon_raw,
@@ -536,9 +517,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
@@ -574,9 +553,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
@@ -611,9 +588,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
@@ -653,9 +628,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
@@ -690,9 +663,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
@@ -741,9 +712,7 @@ class LvglBinding:
             battery_percent,
             1 if charging else 0,
             1 if power_available else 0,
-            accent[0],
-            accent[1],
-            accent[2],
+            self._pack_rgb(accent),
         )
         if result != 0:
             raise LvglBindingError(self.last_error())
