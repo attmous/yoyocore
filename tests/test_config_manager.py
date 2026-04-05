@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Tests for portable audio/device configuration helpers."""
 
-from yoyopy.config.config_manager import ConfigManager
-from yoyopy.ui.display.whisplay_paths import find_whisplay_driver
+from yoyopy.config.manager import ConfigManager
+from yoyopy.ui.display.adapters.whisplay_paths import find_whisplay_driver
 
 
 def test_audio_device_defaults(tmp_path, monkeypatch) -> None:

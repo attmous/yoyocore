@@ -12,7 +12,7 @@ import os
 from loguru import logger
 
 from yoyopy.ui.display.hal import DisplayHAL
-from yoyopy.ui.display.whisplay_paths import find_whisplay_driver
+from yoyopy.ui.display.adapters.whisplay_paths import find_whisplay_driver
 
 
 def detect_hardware() -> str:

@@ -8,8 +8,17 @@ from typing import TYPE_CHECKING, Callable, Optional
 
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens.base import Screen
-from yoyopy.ui.screens.navigation.lvgl import LvglPowerView
-from yoyopy.ui.screens.theme import INK, MUTED, SETUP, SURFACE_RAISED, render_footer, render_header, rounded_panel, text_fit
+from yoyopy.ui.screens.system.lvgl import LvglPowerView
+from yoyopy.ui.screens.theme import (
+    INK,
+    MUTED,
+    SETUP,
+    SURFACE_RAISED,
+    render_footer,
+    render_header,
+    rounded_panel,
+    text_fit,
+)
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext

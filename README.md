@@ -192,14 +192,14 @@ yoyopy/
   app_context.py
   coordinators/
   audio/
-    audio_manager.py
+    manager.py
     mopidy_client.py
   config/
-    config_manager.py
+    manager.py
   voip/
     backend.py
     manager.py
-    types.py
+    models.py
   ui/
     __init__.py
     web_server.py

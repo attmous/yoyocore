@@ -10,7 +10,7 @@ from yoyopy.ui.screens.theme import TALK
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
-    from yoyopy.ui.screens.voip.hub import CallScreen
+    from yoyopy.ui.screens.voip.quick_call import CallScreen
 
 
 @dataclass(slots=True)

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from yoyopy.audio.audio_manager import AudioManager
+from yoyopy.audio.manager import AudioManager
 from yoyopy.ui.display import Display
 from yoyopy.ui.input import InputAction, get_input_manager
 

@@ -27,7 +27,7 @@ Main files:
 - `yoyopy/power/watchdog.py`
 - `yoyopy/power/events.py`
 - `yoyopy/coordinators/power.py`
-- `yoyopy/ui/screens/navigation/power.py`
+- `yoyopy/ui/screens/system/power.py`
 - `scripts/pisugar_power.py`
 - `scripts/pisugar_rtc.py`
 
@@ -247,7 +247,7 @@ Current production unit:
 There is now a dedicated `Power Status` screen in the standard menu flow.
 
 Implementation:
-- `yoyopy/ui/screens/navigation/power.py`
+- `yoyopy/ui/screens/system/power.py`
 
 Current screen design:
 - page 1: battery / charging / external power / voltage / RTC / alarm

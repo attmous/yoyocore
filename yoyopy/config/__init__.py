@@ -3,7 +3,7 @@ Configuration management for YoyoPod.
 Handles VoIP settings and contacts.
 """
 
-from yoyopy.config.config_manager import ConfigManager, Contact
+from yoyopy.config.manager import ConfigManager, Contact
 from yoyopy.config.models import (
     AppPowerConfig,
     VoIPFileConfig,

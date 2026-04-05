@@ -11,7 +11,7 @@ from yoyopy.voip.backend import (
     VoIPBackend,
 )
 from yoyopy.voip.manager import VoIPManager
-from yoyopy.voip.types import (
+from yoyopy.voip.models import (
     BackendStopped,
     CallState,
     CallStateChanged,
