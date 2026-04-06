@@ -59,6 +59,7 @@ from yoyopy.ui.screens import (
     PlaylistScreen,
     PowerScreen,
     ScreenManager,
+    TalkContactScreen,
     VoiceNoteScreen,
 )
 from yoyopy.voip import CallHistoryStore, VoIPConfig, VoIPManager
@@ -137,9 +138,9 @@ class YoyoPodApp:
         self.now_playing_screen: Optional[NowPlayingScreen] = None
         self.playlist_screen: Optional[PlaylistScreen] = None
         self.call_screen: Optional[CallScreen] = None
+        self.talk_contact_screen: Optional[TalkContactScreen] = None
         self.call_history_screen: Optional[CallHistoryScreen] = None
         self.contact_list_screen: Optional[ContactListScreen] = None
-        self.voice_note_contacts_screen: Optional[ContactListScreen] = None
         self.voice_note_screen: Optional[VoiceNoteScreen] = None
         self.incoming_call_screen: Optional[IncomingCallScreen] = None
         self.outgoing_call_screen: Optional[OutgoingCallScreen] = None
@@ -552,18 +553,16 @@ class YoyoPodApp:
                 voip_manager=self.voip_manager,
                 call_history_store=self.call_history_store,
             )
+            self.talk_contact_screen = TalkContactScreen(
+                self.display,
+                self.context,
+                voip_manager=self.voip_manager,
+            )
             self.contact_list_screen = ContactListScreen(
                 self.display,
                 self.context,
                 voip_manager=self.voip_manager,
                 config_manager=self.config_manager,
-            )
-            self.voice_note_contacts_screen = ContactListScreen(
-                self.display,
-                self.context,
-                voip_manager=self.voip_manager,
-                config_manager=self.config_manager,
-                action_mode="voice_note",
             )
             self.voice_note_screen = VoiceNoteScreen(
                 self.display,
@@ -598,9 +597,9 @@ class YoyoPodApp:
             self.screen_manager.register_screen("now_playing", self.now_playing_screen)
             self.screen_manager.register_screen("playlists", self.playlist_screen)
             self.screen_manager.register_screen("call", self.call_screen)
+            self.screen_manager.register_screen("talk_contact", self.talk_contact_screen)
             self.screen_manager.register_screen("call_history", self.call_history_screen)
             self.screen_manager.register_screen("contacts", self.contact_list_screen)
-            self.screen_manager.register_screen("voice_note_contacts", self.voice_note_contacts_screen)
             self.screen_manager.register_screen("voice_note", self.voice_note_screen)
             self.screen_manager.register_screen("incoming_call", self.incoming_call_screen)
             self.screen_manager.register_screen("outgoing_call", self.outgoing_call_screen)
@@ -611,7 +610,7 @@ class YoyoPodApp:
             logger.info("    - Listen flow: listen, playlists, now_playing")
             logger.info("    - Ask flow: ask")
             logger.info("    - Power screen: power")
-            logger.info("    - VoIP screens: call, call_history, contacts, voice_note_contacts, voice_note, incoming_call, outgoing_call, in_call")
+            logger.info("    - VoIP screens: call, talk_contact, call_history, contacts, voice_note, incoming_call, outgoing_call, in_call")
             logger.info("    - Navigation: home, menu")
 
             initial_screen = self._get_initial_screen_name()

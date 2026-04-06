@@ -18,6 +18,7 @@ from yoyopy.ui.screens import (
     NowPlayingScreen,
     OutgoingCallScreen,
     PlaylistScreen,
+    TalkContactScreen,
 )
 
 
@@ -95,10 +96,15 @@ class FakeMopidyClient:
 class FakeContact:
     """Minimal contact record for VoIP screen tests."""
 
-    def __init__(self, name: str, sip_address: str, favorite: bool = False) -> None:
+    def __init__(self, name: str, sip_address: str, favorite: bool = False, notes: str = "") -> None:
         self.name = name
         self.sip_address = sip_address
         self.favorite = favorite
+        self.notes = notes
+
+    @property
+    def display_name(self) -> str:
+        return self.notes or self.name
 
 
 class FakeConfigManager:
@@ -298,11 +304,11 @@ def test_playlist_advance_wraps_and_select_loads_playlist(
     assert screen.consume_navigation_request() == NavigationRequest.route("playlist_loaded")
 
 
-def test_call_screen_advance_wraps_through_quick_targets(
+def test_call_screen_advance_wraps_through_contacts(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """The call hub should wrap through quick-call targets on ADVANCE."""
+    """The Talk deck should wrap through contacts on ADVANCE."""
     contacts = [
         FakeContact("Alice", "sip:alice@example.com", favorite=True),
         FakeContact("Bob", "sip:bob@example.com", favorite=False),
@@ -315,10 +321,54 @@ def test_call_screen_advance_wraps_through_quick_targets(
     )
 
     screen.enter()
-    screen.selected_index = len(screen.quick_targets) - 1
+    screen.selected_index = len(screen.people) - 1
     screen.on_advance()
 
     assert screen.selected_index == 0
+
+
+def test_call_screen_select_routes_to_contact_actions(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """Selecting from Talk should open the contact action screen."""
+
+    contacts = [
+        FakeContact("Alice", "sip:alice@example.com", favorite=True, notes="Mama"),
+    ]
+    screen = CallScreen(
+        display,
+        one_button_context,
+        voip_manager=FakeVoIPManager(),
+        config_manager=FakeConfigManager(contacts),
+    )
+
+    screen.enter()
+    screen.on_select()
+
+    assert one_button_context.talk_contact_name == "Mama"
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_contact")
+
+
+def test_talk_contact_screen_advance_and_select_follow_one_button_mapping(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """The contact action screen should cycle actions and open voice notes."""
+
+    one_button_context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    screen = TalkContactScreen(
+        display,
+        one_button_context,
+        voip_manager=FakeVoIPManager(),
+    )
+
+    screen.enter()
+    screen.on_advance()
+    screen.on_select()
+
+    assert one_button_context.voice_note_recipient_name == "Mama"
+    assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
 
 
 def test_contact_list_advance_wraps_and_select_calls_contact(

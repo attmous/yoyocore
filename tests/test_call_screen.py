@@ -1,4 +1,4 @@
-"""Focused tests for the VoIP call hub screen."""
+"""Focused tests for the reworked Talk flow screens."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ import pytest
 from yoyopy.app_context import AppContext
 from yoyopy.config import Contact
 from yoyopy.ui.display import Display
-from yoyopy.ui.screens import CallScreen, NavigationRequest
+from yoyopy.ui.screens import CallScreen, NavigationRequest, TalkContactScreen, VoiceNoteScreen
 
 
 class FakeConfigManager:
-    """Minimal contact source for call-screen tests."""
+    """Minimal contact source for Talk tests."""
 
     def __init__(self, contacts: list[Contact]) -> None:
         self._contacts = contacts
@@ -21,39 +21,11 @@ class FakeConfigManager:
 
 
 class FakeVoIPManager:
-    """Minimal VoIP manager double for call-screen actions."""
+    """Minimal VoIP manager double for Talk actions."""
 
-    def __init__(
-        self,
-        *,
-        running: bool = True,
-        registered: bool = True,
-        registration_state: str = "ok",
-        call_state: str = "idle",
-        make_call_result: bool = True,
-        caller_name: str = "Unknown",
-        caller_address: str = "",
-    ) -> None:
-        self.status = {
-            "running": running,
-            "registered": registered,
-            "registration_state": registration_state,
-            "call_state": call_state,
-            "sip_identity": "sip:test@example.com",
-        }
+    def __init__(self, *, make_call_result: bool = True) -> None:
         self.make_call_result = make_call_result
         self.make_calls: list[tuple[str, str | None]] = []
-        self.caller_name = caller_name
-        self.caller_address = caller_address
-
-    def get_status(self) -> dict:
-        return dict(self.status)
-
-    def get_caller_info(self) -> dict:
-        return {
-            "display_name": self.caller_name,
-            "address": self.caller_address,
-        }
 
     def make_call(self, sip_address: str, contact_name: str | None = None) -> bool:
         self.make_calls.append((sip_address, contact_name))
@@ -63,6 +35,7 @@ class FakeVoIPManager:
 @pytest.fixture
 def display() -> Display:
     """Create a simulation display and clean it up after the test."""
+
     test_display = Display(simulate=True)
     try:
         yield test_display
@@ -70,11 +43,12 @@ def display() -> Display:
         test_display.cleanup()
 
 
-def test_call_screen_prefers_favorites_and_adds_contacts_shortcut(display: Display) -> None:
-    """The VoIP hub should highlight favorite quick calls before the full list."""
+def test_call_screen_builds_people_deck_from_contacts(display: Display) -> None:
+    """Talk should show one person at a time with favorites first and notes as labels."""
+
     contacts = [
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
+        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False, notes="Dad"),
+        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True, notes="Mama"),
         Contact(name="Carol", sip_address="sip:carol@example.com", favorite=True),
     ]
     screen = CallScreen(
@@ -86,159 +60,75 @@ def test_call_screen_prefers_favorites_and_adds_contacts_shortcut(display: Displ
 
     screen.enter()
 
-    assert [target.title for target in screen.quick_targets] == [
-        "Alice",
-        "Carol",
-        "Voice Note",
-        "All Contacts",
-    ]
+    assert [person.title for person in screen.people] == ["Mama", "Carol", "Dad"]
 
 
-def test_call_screen_falls_back_to_all_contacts_when_no_favorites(display: Display) -> None:
-    """The VoIP hub should still offer quick calls when favorites are not configured."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=False),
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-    ]
+def test_call_screen_select_opens_selected_contact(display: Display) -> None:
+    """Selecting from Talk should store the contact and route to the action screen."""
+
+    contacts = [Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True, notes="Mama")]
+    context = AppContext()
     screen = CallScreen(
         display,
-        AppContext(),
+        context,
         voip_manager=FakeVoIPManager(),
         config_manager=FakeConfigManager(contacts),
     )
 
     screen.enter()
-
-    assert [target.title for target in screen.quick_targets] == [
-        "Alice",
-        "Bob",
-        "Voice Note",
-        "All Contacts",
-    ]
-
-
-def test_call_screen_select_calls_selected_quick_contact(display: Display) -> None:
-    """Selecting a ready quick contact should place the call and route to outgoing."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    voip_manager = FakeVoIPManager(running=True, registered=True)
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=voip_manager,
-        config_manager=FakeConfigManager(contacts),
-    )
-
-    screen.enter()
-    screen.render()
     screen.on_select()
 
-    assert voip_manager.make_calls == [("sip:alice@example.com", "Alice")]
+    assert context.talk_contact_name == "Mama"
+    assert context.talk_contact_address == "sip:alice@example.com"
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_contact")
+
+
+def test_talk_contact_screen_calls_selected_person(display: Display) -> None:
+    """The contact action screen should call the selected person when Call is chosen."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    screen = TalkContactScreen(display, context, voip_manager=voip_manager)
+
+    screen.enter()
+    screen.on_select()
+
+    assert voip_manager.make_calls == [("sip:alice@example.com", "Mama")]
     assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
 
 
-def test_call_screen_select_opens_contacts_when_voip_is_not_ready(display: Display) -> None:
-    """Selecting from the VoIP hub while SIP is down should still open the contact list."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(running=False, registered=False, registration_state="failed"),
-        config_manager=FakeConfigManager(contacts),
-    )
+def test_talk_contact_screen_routes_to_voice_note(display: Display) -> None:
+    """The second action should open the voice-note flow for the selected contact."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    screen = TalkContactScreen(display, context, voip_manager=FakeVoIPManager())
 
     screen.enter()
+    screen.on_advance()
     screen.on_select()
 
-    assert screen.consume_navigation_request() == NavigationRequest.route("browse_contacts")
+    assert context.voice_note_recipient_name == "Mama"
+    assert context.voice_note_recipient_address == "sip:alice@example.com"
+    assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
 
 
-def test_call_screen_browse_target_routes_to_full_contacts(display: Display) -> None:
-    """The explicit All Contacts shortcut should route to the full contact list."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(),
-        config_manager=FakeConfigManager(contacts),
-    )
+def test_voice_note_screen_cycles_record_review_and_queue_states(display: Display) -> None:
+    """Voice notes should move through record, review, and queued states."""
+
+    context = AppContext()
+    context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    screen = VoiceNoteScreen(display, context)
 
     screen.enter()
-    screen.selected_index = len(screen.quick_targets) - 1
-    screen.render()
+    assert screen.current_view_model()[0] == "Voice Note"
+
     screen.on_select()
+    assert screen.current_view_model()[0] == "Recording"
 
-    assert screen.quick_targets[-1].title == "All Contacts"
-    assert screen.consume_navigation_request() == NavigationRequest.route("browse_contacts")
-
-
-def test_call_screen_voice_note_target_routes_to_voice_note_contacts(display: Display) -> None:
-    """Selecting the Voice Note action should open the recipient picker."""
-
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(),
-        config_manager=FakeConfigManager(contacts),
-    )
-
-    screen.enter()
-    screen.selected_index = 1
     screen.on_select()
+    assert screen.current_view_model()[0] == "Send"
 
-    assert screen.quick_targets[1].title == "Voice Note"
-    assert screen.consume_navigation_request() == NavigationRequest.route("voice_notes")
-
-
-def test_call_screen_render_smoke_includes_active_call_context(display: Display) -> None:
-    """Rendering should stay stable when the VoIP hub reflects an active call state."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    voip_manager = FakeVoIPManager(
-        running=True,
-        registered=True,
-        call_state="connected",
-        caller_name="Alice",
-        caller_address="sip:alice@example.com",
-    )
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=voip_manager,
-        config_manager=FakeConfigManager(contacts),
-    )
-
-    screen.enter()
-    screen.render()
-
-    assert screen._call_context_lines(voip_manager.get_status()) == ("In call", "Alice")
-
-
-def test_call_screen_hides_released_call_context(display: Display) -> None:
-    """Released calls should not leave stale context copy on the Talk hub."""
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(
-            running=True,
-            registered=True,
-            call_state="released",
-            caller_name="Alice",
-            caller_address="sip:alice@example.com",
-        ),
-        config_manager=FakeConfigManager([]),
-    )
-
-    screen.enter()
-
-    assert screen._call_context_lines(screen.voip_manager.get_status()) == ("", "")
+    screen.on_select()
+    assert screen.current_view_model()[0] == "Queued"

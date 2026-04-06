@@ -30,6 +30,13 @@ class Contact:
     favorite: bool = False
     notes: str = ""
 
+    @property
+    def display_name(self) -> str:
+        """Return the kid-facing label for the contact."""
+
+        label = self.notes.strip()
+        return label or self.name
+
     def __str__(self) -> str:
         return f"{self.name} ({self.sip_address})"
 

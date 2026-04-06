@@ -1,4 +1,4 @@
-"""LVGL-backed view for the Talk contact deck."""
+"""LVGL-backed view for the Talk contact action screen."""
 
 from __future__ import annotations
 
@@ -10,48 +10,52 @@ from yoyopy.ui.screens.theme import TALK
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
-    from yoyopy.ui.screens.voip.quick_call import CallScreen
+    from yoyopy.ui.screens.voip.talk_contact import TalkContactScreen
 
 
 @dataclass(slots=True)
-class LvglCallView:
-    """Own the LVGL object lifecycle for the people-first Talk screen."""
+class LvglTalkContactView:
+    """Own the LVGL object lifecycle for TalkContactScreen."""
 
-    screen: "CallScreen"
+    screen: "TalkContactScreen"
     backend: LvglDisplayBackend
     _built: bool = False
 
     def build(self) -> None:
         if self._built or self.backend.binding is None:
             return
-        self.backend.binding.hub_build()
+        self.backend.binding.playlist_build()
         self._built = True
 
     def sync(self) -> None:
         if not self._built or self.backend.binding is None:
             return
 
-        title_text, subtitle_text, selected_index, total_cards = self.screen.current_card_model()
+        visible_items, visible_badges, selected_visible_index = self.screen.get_visible_actions()
         context = self.screen.context
-        self.backend.binding.hub_sync(
-            icon_key="talk",
-            title=title_text or "Talk",
-            subtitle=subtitle_text or "Call or voice note",
-            footer="Tap next / Double open",
-            time_text=None,
-            accent=TALK.accent,
-            selected_index=selected_index,
-            total_cards=max(1, total_cards),
+        self.backend.binding.playlist_sync(
+            title_text=self.screen.current_contact_name(),
+            page_text=None,
+            status_chip_text=None,
+            status_chip_kind=0,
+            footer="Tap next / Double choose",
+            items=visible_items,
+            badges=visible_badges,
+            selected_visible_index=selected_visible_index,
             voip_state=self._voip_state(context),
             battery_percent=self._battery_percent(context),
             charging=bool(getattr(context, "battery_charging", False)) if context is not None else False,
             power_available=bool(getattr(context, "power_available", True)) if context is not None else True,
+            accent=TALK.accent,
+            empty_title="No actions",
+            empty_subtitle="",
+            empty_icon_key="talk",
         )
 
     def destroy(self) -> None:
         if not self._built or self.backend.binding is None:
             return
-        self.backend.binding.hub_destroy()
+        self.backend.binding.playlist_destroy()
         self._built = False
 
     @staticmethod

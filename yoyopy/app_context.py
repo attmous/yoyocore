@@ -136,6 +136,8 @@ class AppContext:
         self.current_audio_source: str = "local"
         self.missed_calls: int = 0
         self.recent_calls: List[str] = []
+        self.talk_contact_name: str = ""
+        self.talk_contact_address: str = ""
         self.voice_note_recipient_name: str = ""
         self.voice_note_recipient_address: str = ""
 
@@ -387,6 +389,12 @@ class AppContext:
 
         self.missed_calls = max(0, int(missed_calls))
         self.recent_calls = list(recent_calls)
+
+    def set_talk_contact(self, *, name: str, sip_address: str) -> None:
+        """Store the currently selected Talk contact."""
+
+        self.talk_contact_name = name
+        self.talk_contact_address = sip_address
 
     def set_voice_note_recipient(self, *, name: str, sip_address: str) -> None:
         """Store the currently selected voice-note recipient."""

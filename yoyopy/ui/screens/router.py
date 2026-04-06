@@ -120,18 +120,17 @@ class ScreenRouter:
             },
             "call": {
                 "back": NavigationRequest.pop(),
-                "browse_contacts": NavigationRequest.push("contacts"),
-                "browse_history": NavigationRequest.push("call_history"),
-                "voice_notes": NavigationRequest.push("voice_note_contacts"),
+                "open_contact": NavigationRequest.push("talk_contact"),
                 "call_started": NavigationRequest.push("outgoing_call"),
+            },
+            "talk_contact": {
+                "back": NavigationRequest.pop(),
+                "call_started": NavigationRequest.push("outgoing_call"),
+                "voice_note": NavigationRequest.push("voice_note"),
             },
             "contacts": {
                 "back": NavigationRequest.pop(),
                 "call_started": NavigationRequest.push("outgoing_call"),
-            },
-            "voice_note_contacts": {
-                "back": NavigationRequest.pop(),
-                "voice_note_selected": NavigationRequest.push("voice_note"),
             },
             "call_history": {
                 "back": NavigationRequest.pop(),

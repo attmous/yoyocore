@@ -70,13 +70,13 @@ def test_screen_router_covers_live_menu_labels() -> None:
 
 
 def test_screen_router_covers_call_hub_routes() -> None:
-    """The VoIP hub should resolve its quick-call routes through the router."""
+    """The Talk flow should resolve its people-first routes through the router."""
     router = ScreenRouter()
 
-    assert router.resolve("call", "browse_contacts") == NavigationRequest.push("contacts")
-    assert router.resolve("call", "browse_history") == NavigationRequest.push("call_history")
-    assert router.resolve("call", "voice_notes") == NavigationRequest.push("voice_note_contacts")
+    assert router.resolve("call", "open_contact") == NavigationRequest.push("talk_contact")
     assert router.resolve("call", "call_started") == NavigationRequest.push("outgoing_call")
+    assert router.resolve("talk_contact", "voice_note") == NavigationRequest.push("voice_note")
+    assert router.resolve("talk_contact", "call_started") == NavigationRequest.push("outgoing_call")
 
 
 def test_screen_router_covers_whisplay_hub_routes() -> None:

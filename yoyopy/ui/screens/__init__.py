@@ -33,6 +33,7 @@ from yoyopy.ui.screens.voip import (
     OutgoingCallScreen,
     InCallScreen,
     ContactListScreen,
+    TalkContactScreen,
     VoiceNoteScreen,
 )
 
@@ -60,5 +61,6 @@ __all__ = [
     'OutgoingCallScreen',
     'InCallScreen',
     'ContactListScreen',
+    'TalkContactScreen',
     'VoiceNoteScreen',
 ]

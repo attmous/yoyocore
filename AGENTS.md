@@ -149,7 +149,8 @@ Key design points:
 - `yoyopy/ui/screens/navigation/listen.py` - source chooser for the `Listen` root mode
 - `yoyopy/ui/screens/navigation/ask.py` - staged `Ask` shell with idle/listening/thinking/response states
 - `yoyopy/ui/screens/system/power.py` - `Setup` screen with power and care pages
-- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` quick-call hub with favorites, recents, and voice-note entry
+- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` people-first contact deck for calls and voice notes
+- `yoyopy/ui/screens/voip/talk_contact.py` - selected-contact action screen with `Call` and `Voice Note`
 - `yoyopy/ui/screens/voip/call_history.py` - Talk recents and missed-call screen
 - `yoyopy/ui/screens/voip/voice_note.py` - voice-note shell for the Talk flow
 
