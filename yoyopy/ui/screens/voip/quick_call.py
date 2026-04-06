@@ -146,9 +146,16 @@ class CallScreen(Screen):
         selected_person = self._selected_person()
         if selected_person is None:
             return ("", "", 0, 0)
+        subtitle = selected_person.subtitle
+        if self.context is not None:
+            latest_note = self.context.latest_voice_note_by_contact.get(selected_person.sip_address, {})
+            if latest_note.get("unread"):
+                subtitle = "New voice note"
+            elif latest_note.get("local_file_path"):
+                subtitle = "Play latest note"
         return (
             selected_person.title,
-            selected_person.subtitle,
+            subtitle,
             self.selected_index,
             len(self.people),
         )

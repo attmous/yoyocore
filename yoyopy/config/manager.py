@@ -272,10 +272,35 @@ class ConfigManager:
 
         return self.voip_settings.network.stun_server
 
-    def get_linphonec_path(self) -> str:
-        """Get linphonec executable path."""
+    def get_file_transfer_server_url(self) -> str:
+        """Get the configured Liblinphone file transfer server URL."""
 
-        return self.voip_settings.linphonec_path
+        return self.voip_settings.messaging.file_transfer_server_url
+
+    def get_voip_iterate_interval_ms(self) -> int:
+        """Get the Liblinphone iterate cadence in milliseconds."""
+
+        return self.voip_settings.messaging.iterate_interval_ms
+
+    def get_message_store_dir(self) -> str:
+        """Get the persistent VoIP message metadata directory."""
+
+        return self.voip_settings.messaging.message_store_dir
+
+    def get_voice_note_store_dir(self) -> str:
+        """Get the directory used to store local voice-note files."""
+
+        return self.voip_settings.messaging.voice_note_store_dir
+
+    def get_voice_note_max_duration_seconds(self) -> int:
+        """Get the maximum allowed voice-note duration in seconds."""
+
+        return self.voip_settings.messaging.voice_note_max_duration_seconds
+
+    def get_auto_download_incoming_voice_recordings(self) -> bool:
+        """Return whether incoming voice-note attachments should auto-download."""
+
+        return self.voip_settings.messaging.auto_download_incoming_voice_recordings
 
     def get_auto_answer(self) -> bool:
         """Get auto-answer setting."""

@@ -405,8 +405,8 @@ def test_voice_note_screen_reuses_lvgl_card_scene_with_talk_copy() -> None:
     payload = binding.ask_sync_payloads[-1]
     assert payload["icon_key"] == "voice_note"
     assert payload["title_text"] == "Voice Note"
-    assert payload["subtitle_text"] == "Record something for Hagar."
-    assert payload["footer"] == "Double record / Hold back"
+    assert payload["subtitle_text"] == "Hold to record for Hagar."
+    assert payload["footer"] == "Hold record / Double back"
 
     screen.exit()
 

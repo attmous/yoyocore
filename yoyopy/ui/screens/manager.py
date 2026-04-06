@@ -214,6 +214,8 @@ class ScreenManager:
             logger.warning("InputAction not available - cannot connect inputs")
             return
 
+        self._configure_screen_input_modes()
+
         # Helper function to dispatch an action and then refresh or route
         def dispatch_action(action: "InputAction", data=None) -> None:
             previous_screen = self.current_screen
@@ -255,6 +257,28 @@ class ScreenManager:
         self.input_manager.clear_callbacks()
 
         logger.debug(f"Disconnected input actions for {self.current_screen.name}")
+
+    def _configure_screen_input_modes(self) -> None:
+        """Adjust adapter-specific modes based on the active screen."""
+        if not self.input_manager or not self.current_screen:
+            return
+
+        wants_raw_ptt = False
+        raw_ptt_hook = getattr(self.current_screen, "wants_ptt_passthrough", None)
+        if callable(raw_ptt_hook):
+            wants_raw_ptt = bool(raw_ptt_hook())
+
+        for adapter in getattr(self.input_manager, "adapters", []):
+            configure_passthrough = getattr(adapter, "set_raw_ptt_passthrough", None)
+            if callable(configure_passthrough):
+                configure_passthrough(wants_raw_ptt)
+
+    def rebind_current_screen_inputs(self) -> None:
+        """Re-apply input bindings for the active screen after its mode changes."""
+        if self.current_screen is None:
+            return
+        self._disconnect_inputs()
+        self._connect_inputs()
 
     # Legacy method names for backward compatibility
     def _connect_buttons(self) -> None:

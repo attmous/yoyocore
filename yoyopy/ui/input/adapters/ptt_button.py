@@ -63,6 +63,8 @@ class PTTInputAdapter(InputHAL):
         self.press_start_time: Optional[float] = None
         self.pending_single_tap_time: Optional[float] = None
         self.double_tap_candidate = False
+        self.raw_ptt_passthrough = False
+        self.raw_hold_started = False
 
         logger.debug(f"PTTInputAdapter initialized (navigation: {enable_navigation})")
 
@@ -113,16 +115,26 @@ class PTTInputAdapter(InputHAL):
     def get_capabilities(self) -> List[InputAction]:
         """Return supported actions for the current mode."""
         if self.enable_navigation:
-            return [
+            actions = [
                 InputAction.ADVANCE,
                 InputAction.SELECT,
                 InputAction.BACK,
             ]
+            if self.raw_ptt_passthrough:
+                actions.extend([InputAction.PTT_PRESS, InputAction.PTT_RELEASE])
+            return actions
 
         return [
             InputAction.PTT_PRESS,
             InputAction.PTT_RELEASE,
         ]
+
+    def set_raw_ptt_passthrough(self, enabled: bool) -> None:
+        """Enable or disable raw PTT press/release passthrough while in navigation mode."""
+        self.raw_ptt_passthrough = bool(enabled)
+        self.raw_hold_started = False
+        self.pending_single_tap_time = None
+        self.double_tap_candidate = False
 
     def _get_button_state(self) -> bool:
         """Return True when the physical button is pressed."""
@@ -183,6 +195,16 @@ class PTTInputAdapter(InputHAL):
             self._emit_pending_navigation(current_time)
         self.button_pressed = True
         self.press_start_time = current_time
+        self.raw_hold_started = False
+
+        if self.raw_ptt_passthrough:
+            self._fire_action(
+                InputAction.PTT_PRESS,
+                {
+                    "timestamp": current_time,
+                    "stage": "pressed",
+                },
+            )
 
         if not self.enable_navigation:
             self._fire_action(InputAction.PTT_PRESS, {"timestamp": current_time})
@@ -195,6 +217,16 @@ class PTTInputAdapter(InputHAL):
         if self.press_start_time is not None:
             press_duration = current_time - self.press_start_time
 
+        if self.raw_ptt_passthrough:
+            self._fire_action(
+                InputAction.PTT_RELEASE,
+                {
+                    "timestamp": current_time,
+                    "duration": press_duration,
+                    "hold_started": self.raw_hold_started,
+                },
+            )
+
         if not self.enable_navigation:
             self._fire_action(
                 InputAction.PTT_RELEASE,
@@ -205,6 +237,14 @@ class PTTInputAdapter(InputHAL):
             )
             self.press_start_time = None
             self.double_tap_candidate = False
+            self.raw_hold_started = False
+            return
+
+        if self.raw_ptt_passthrough and self.raw_hold_started:
+            self.pending_single_tap_time = None
+            self.double_tap_candidate = False
+            self.press_start_time = None
+            self.raw_hold_started = False
             return
 
         if press_duration >= self.long_press_time:
@@ -218,6 +258,7 @@ class PTTInputAdapter(InputHAL):
                 },
             )
             self.press_start_time = None
+            self.raw_hold_started = False
             return
 
         if self.double_tap_candidate:
@@ -231,11 +272,13 @@ class PTTInputAdapter(InputHAL):
                 },
             )
             self.press_start_time = None
+            self.raw_hold_started = False
             return
 
         self.double_tap_candidate = False
         self.pending_single_tap_time = current_time
         self.press_start_time = None
+        self.raw_hold_started = False
 
     def _emit_pending_navigation(self, current_time: float) -> None:
         """Emit ADVANCE once the double-tap window has expired."""
@@ -274,6 +317,24 @@ class PTTInputAdapter(InputHAL):
                 current_state = self._get_button_state()
                 if current_state:
                     self._handle_button_press(press_detected_at)
+
+            elif (
+                current_state
+                and previous_state
+                and self.raw_ptt_passthrough
+                and not self.raw_hold_started
+                and self.press_start_time is not None
+                and (current_time - self.press_start_time) >= self.long_press_time
+            ):
+                self.raw_hold_started = True
+                self._fire_action(
+                    InputAction.PTT_PRESS,
+                    {
+                        "timestamp": current_time,
+                        "stage": "hold_started",
+                        "duration": current_time - self.press_start_time,
+                    },
+                )
 
             elif not current_state and previous_state:
                 self._handle_button_release(time.time())

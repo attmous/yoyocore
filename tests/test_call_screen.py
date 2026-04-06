@@ -1,4 +1,4 @@
-"""Focused tests for the reworked Talk flow screens."""
+"""Focused tests for the Talk flow screens."""
 
 from __future__ import annotations
 
@@ -8,6 +8,13 @@ from yoyopy.app_context import AppContext
 from yoyopy.config import Contact
 from yoyopy.ui.display import Display
 from yoyopy.ui.screens import CallScreen, NavigationRequest, TalkContactScreen, VoiceNoteScreen
+from yoyopy.voip.manager import VoiceNoteDraft
+from yoyopy.voip.models import (
+    MessageDeliveryState,
+    MessageDirection,
+    MessageKind,
+    VoIPMessageRecord,
+)
 
 
 class FakeConfigManager:
@@ -26,10 +33,64 @@ class FakeVoIPManager:
     def __init__(self, *, make_call_result: bool = True) -> None:
         self.make_call_result = make_call_result
         self.make_calls: list[tuple[str, str | None]] = []
+        self.started_recordings: list[tuple[str, str]] = []
+        self.send_attempts = 0
+        self.played_notes: list[str] = []
+        self.seen_contacts: list[str] = []
+        self.active_voice_note: VoiceNoteDraft | None = None
+        self.latest_notes: dict[str, VoIPMessageRecord] = {}
 
     def make_call(self, sip_address: str, contact_name: str | None = None) -> bool:
         self.make_calls.append((sip_address, contact_name))
         return self.make_call_result
+
+    def latest_voice_note_for_contact(self, sip_address: str) -> VoIPMessageRecord | None:
+        return self.latest_notes.get(sip_address)
+
+    def play_latest_voice_note(self, sip_address: str) -> bool:
+        self.played_notes.append(sip_address)
+        return True
+
+    def mark_voice_notes_seen(self, sip_address: str) -> None:
+        self.seen_contacts.append(sip_address)
+
+    def start_voice_note_recording(self, recipient_address: str, recipient_name: str = "") -> bool:
+        self.started_recordings.append((recipient_address, recipient_name))
+        self.active_voice_note = VoiceNoteDraft(
+            recipient_address=recipient_address,
+            recipient_name=recipient_name,
+            file_path="data/voice_notes/test.wav",
+            send_state="recording",
+            status_text="Recording...",
+        )
+        return True
+
+    def stop_voice_note_recording(self) -> VoiceNoteDraft | None:
+        if self.active_voice_note is None:
+            return None
+        self.active_voice_note.duration_ms = 3200
+        self.active_voice_note.send_state = "review"
+        self.active_voice_note.status_text = "Ready to send"
+        return self.active_voice_note
+
+    def cancel_voice_note_recording(self) -> bool:
+        self.active_voice_note = None
+        return True
+
+    def discard_active_voice_note(self) -> None:
+        self.active_voice_note = None
+
+    def send_active_voice_note(self) -> bool:
+        self.send_attempts += 1
+        if self.active_voice_note is None:
+            return False
+        self.active_voice_note.message_id = "note-1"
+        self.active_voice_note.send_state = "sending"
+        self.active_voice_note.status_text = "Sending..."
+        return True
+
+    def get_active_voice_note(self) -> VoiceNoteDraft | None:
+        return self.active_voice_note
 
 
 @pytest.fixture
@@ -114,21 +175,56 @@ def test_talk_contact_screen_routes_to_voice_note(display: Display) -> None:
     assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
 
 
-def test_voice_note_screen_cycles_record_review_and_queue_states(display: Display) -> None:
-    """Voice notes should move through record, review, and queued states."""
+def test_talk_contact_screen_adds_play_note_action_when_latest_note_exists(display: Display) -> None:
+    """Contacts with a stored incoming voice note should expose Play Note."""
 
     context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    voip_manager.latest_notes["sip:alice@example.com"] = VoIPMessageRecord(
+        id="note-1",
+        peer_sip_address="sip:alice@example.com",
+        sender_sip_address="sip:alice@example.com",
+        recipient_sip_address="sip:kid@example.com",
+        kind=MessageKind.VOICE_NOTE,
+        direction=MessageDirection.INCOMING,
+        delivery_state=MessageDeliveryState.DELIVERED,
+        created_at="2026-04-06T00:00:00+00:00",
+        updated_at="2026-04-06T00:00:00+00:00",
+        local_file_path="data/voice_notes/incoming.wav",
+        duration_ms=2100,
+        unread=True,
+    )
+    screen = TalkContactScreen(display, context, voip_manager=voip_manager)
+
+    assert [action.title for action in screen.actions()] == ["Call", "Voice Note", "Play Note"]
+
+    screen.selected_index = 2
+    screen.on_select()
+
+    assert voip_manager.played_notes == ["sip:alice@example.com"]
+    assert voip_manager.seen_contacts == ["sip:alice@example.com"]
+
+
+def test_voice_note_screen_records_reviews_and_sends(display: Display) -> None:
+    """Voice notes should move through record, review, and sending states."""
+
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
     context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
-    screen = VoiceNoteScreen(display, context)
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
 
     screen.enter()
     assert screen.current_view_model()[0] == "Voice Note"
 
-    screen.on_select()
+    screen.on_ptt_press({"stage": "hold_started"})
     assert screen.current_view_model()[0] == "Recording"
+    assert voip_manager.started_recordings == [("sip:alice@example.com", "Mama")]
 
-    screen.on_select()
+    screen.on_ptt_release({"hold_started": True})
     assert screen.current_view_model()[0] == "Send"
+    assert context.voice_note_duration_ms == 3200
 
     screen.on_select()
-    assert screen.current_view_model()[0] == "Queued"
+    assert screen.current_view_model()[0] == "Sending"
+    assert voip_manager.send_attempts == 1

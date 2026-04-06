@@ -46,7 +46,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - `yoyopy/fsm.py`: split `MusicFSM`, `CallFSM`, and call interruption policy
 - `yoyopy/coordinators/runtime.py`: derived `AppRuntimeState` over music, call, and UI state
 - `yoyopy/audio/mopidy_client.py`: Mopidy JSON-RPC client
-- `yoyopy/voip/manager.py`: `linphonec` subprocess integration
+- `yoyopy/voip/manager.py`: Liblinphone-backed call and message facade
 - `yoyopy/ui/display/`: display HAL, factory, and adapters
 - `yoyopy/ui/input/`: input HAL, manager, and adapters
 - `yoyopy/ui/screens/`: screen base class, navigation manager, and feature screens
@@ -56,7 +56,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 The current implementation assumes a Raspberry Pi environment, but the main hardware-specific paths and audio devices can now be overridden:
 
 - Whisplay driver discovery can be overridden with `YOYOPOD_WHISPLAY_DRIVER`
-- Linphone audio devices can be overridden with `YOYOPOD_PLAYBACK_DEVICE`, `YOYOPOD_RINGER_DEVICE`, `YOYOPOD_CAPTURE_DEVICE`, and `YOYOPOD_MEDIA_DEVICE`
+- Liblinphone audio devices can be overridden with `YOYOPOD_PLAYBACK_DEVICE`, `YOYOPOD_RINGER_DEVICE`, `YOYOPOD_CAPTURE_DEVICE`, and `YOYOPOD_MEDIA_DEVICE`
 - Ring tone output can be overridden with `YOYOPOD_RING_OUTPUT_DEVICE` or `config/yoyopod_config.yaml`
 - Simulation mode starts a Flask-SocketIO web server on `http://localhost:5000`
 
@@ -70,10 +70,12 @@ uv sync --extra dev
 
 ### System Dependencies
 
-YoyoPod expects these external tools on Raspberry Pi OS:
+YoyoPod expects these external packages on Raspberry Pi OS:
 
 - `mopidy`
-- `linphone-cli`
+- `liblinphone-dev`
+- `pkg-config`
+- `cmake`
 - `alsa-utils` for `speaker-test`
 - `i2c-tools` for PiSugar watchdog control
 - `pisugar-server` for PiSugar power/RTC telemetry via PiSugar's official installer
@@ -81,7 +83,8 @@ YoyoPod expects these external tools on Raspberry Pi OS:
 Example:
 
 ```bash
-sudo apt install mopidy linphone-cli alsa-utils i2c-tools
+sudo apt install mopidy liblinphone-dev pkg-config cmake alsa-utils i2c-tools
+uv run python scripts/liblinphone_build.py
 ```
 
 ### Configuration
@@ -102,7 +105,7 @@ Important settings:
 - `config/yoyopod_config.yaml`: `power.watchdog_*` controls the PiSugar app heartbeat watchdog
 - `config/yoyopod_config.yaml`: `power.*` also controls low-battery warning, graceful shutdown, and PiSugar polling
 - `config/yoyopod_config.yaml`: `logging.*` controls file rotation, retention, error-only logs, PID file location, and traceback detail
-- `config/voip_config.yaml`: SIP account, transport, STUN, `linphonec` path
+- `config/voip_config.yaml`: SIP account, transport, STUN, Liblinphone messaging/file-transfer settings
 - `config/contacts.yaml`: contact list and speed dial entries
 
 ### Verification

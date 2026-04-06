@@ -213,6 +213,8 @@ class YoyoPodApp:
         self._lvgl_backend: Optional[LvglDisplayBackend] = None
         self._lvgl_input_bridge: Optional[LvglInputBridge] = None
         self._last_lvgl_pump_at = 0.0
+        self._next_voip_iterate_at = 0.0
+        self._voip_iterate_interval_seconds = 0.02
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -341,6 +343,11 @@ class YoyoPodApp:
             missed_calls=self.call_history_store.missed_count(),
             recent_calls=self.call_history_store.recent_preview(),
         )
+        if self.voip_manager is not None:
+            self.context.update_voice_note_summary(
+                unread_voice_notes=self.voip_manager.unread_voice_note_count(),
+                latest_voice_note_by_contact=self.voip_manager.latest_voice_note_summary(),
+            )
 
     def _init_core_components(self) -> bool:
         """Initialize display, context, orchestration models, input, and screen manager."""
@@ -459,6 +466,10 @@ class YoyoPodApp:
             logger.info("  - VoIPManager")
             voip_config = VoIPConfig.from_config_manager(self.config_manager)
             self.voip_manager = VoIPManager(voip_config, config_manager=self.config_manager)
+            self._voip_iterate_interval_seconds = max(
+                0.01,
+                float(voip_config.iterate_interval_ms) / 1000.0,
+            )
             if self.voip_manager.start():
                 logger.info("    ✓ VoIP started successfully")
             else:
@@ -567,6 +578,7 @@ class YoyoPodApp:
             self.voice_note_screen = VoiceNoteScreen(
                 self.display,
                 self.context,
+                voip_manager=self.voip_manager,
             )
             self.incoming_call_screen = IncomingCallScreen(
                 self.display,
@@ -657,6 +669,69 @@ class YoyoPodApp:
         self.voip_manager.on_call_state_change(self.call_coordinator.publish_call_state_events)
         self.voip_manager.on_registration_change(self.call_coordinator.publish_registration_change)
         self.voip_manager.on_availability_change(self.call_coordinator.publish_availability_change)
+        self.voip_manager.on_message_summary_change(self._handle_voice_note_summary_changed)
+        self.voip_manager.on_message_received(self._handle_voice_note_activity_changed)
+        self.voip_manager.on_message_delivery_change(self._handle_voice_note_activity_changed)
+        self.voip_manager.on_message_failure(self._handle_voice_note_failure)
+        self._refresh_talk_summary()
+        self._sync_active_voice_note_context()
+        logger.info("  VoIP callbacks registered")
+
+    def _handle_voice_note_summary_changed(
+        self,
+        unread_voice_notes: int,
+        latest_voice_note_by_contact: dict[str, dict[str, object]],
+    ) -> None:
+        """Keep Talk voice-note summary state in sync with the VoIP manager."""
+
+        if self.context is None:
+            return
+        self.context.update_voice_note_summary(
+            unread_voice_notes=unread_voice_notes,
+            latest_voice_note_by_contact=latest_voice_note_by_contact,
+        )
+        self._refresh_talk_related_screen()
+
+    def _handle_voice_note_activity_changed(self, *_args) -> None:
+        """Refresh active draft state after a message or delivery update."""
+
+        self._sync_active_voice_note_context()
+        self._refresh_talk_summary()
+        self._refresh_talk_related_screen()
+
+    def _handle_voice_note_failure(self, *_args) -> None:
+        """Refresh draft state after a failed message operation."""
+
+        self._sync_active_voice_note_context()
+        self._refresh_talk_related_screen()
+
+    def _sync_active_voice_note_context(self) -> None:
+        """Mirror the active voice-note draft into the shared app context."""
+
+        if self.context is None or self.voip_manager is None:
+            return
+        draft = self.voip_manager.get_active_voice_note()
+        if draft is None:
+            self.context.update_active_voice_note(send_state="idle")
+            return
+        self.context.update_active_voice_note(
+            send_state=draft.send_state,
+            status_text=draft.status_text,
+            file_path=draft.file_path,
+            duration_ms=draft.duration_ms,
+        )
+
+    def _refresh_talk_related_screen(self) -> None:
+        """Re-render Talk screens when their message state changes."""
+
+        if self.screen_manager is None:
+            return
+        current_screen = self.screen_manager.get_current_screen()
+        if current_screen is None:
+            return
+        if current_screen.route_name in {"call", "talk_contact", "voice_note"}:
+            self.screen_manager.refresh_current_screen()
+        return
         logger.info("  ✓ VoIP callbacks registered")
 
     def _setup_music_callbacks(self) -> None:
@@ -729,6 +804,22 @@ class YoyoPodApp:
         if self._lvgl_input_bridge is not None:
             self._lvgl_input_bridge.process_pending()
         self._lvgl_backend.pump(delta_ms)
+
+    def _iterate_voip_backend_if_due(self, now: float | None = None) -> None:
+        """Advance the Liblinphone core on the coordinator thread at its configured cadence."""
+
+        if self.voip_manager is None or not self.voip_manager.running:
+            return
+
+        monotonic_now = time.monotonic() if now is None else now
+        if self._next_voip_iterate_at <= 0.0:
+            self._next_voip_iterate_at = monotonic_now
+
+        if monotonic_now < self._next_voip_iterate_at:
+            return
+
+        self.voip_manager.iterate()
+        self._next_voip_iterate_at = monotonic_now + self._voip_iterate_interval_seconds
 
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
         """Apply queued screen-change state sync on the coordinator thread."""
@@ -1408,11 +1499,12 @@ class YoyoPodApp:
                 logger.info("")
 
             while not self._stopping:
-                time.sleep(0.1)
+                time.sleep(min(0.05, self._voip_iterate_interval_seconds))
+                monotonic_now = time.monotonic()
+                self._iterate_voip_backend_if_due(monotonic_now)
                 self._process_pending_main_thread_actions()
                 self._attempt_manager_recovery()
                 self._poll_power_status()
-                monotonic_now = time.monotonic()
                 self._pump_lvgl_backend(monotonic_now)
                 self._feed_watchdog_if_due(monotonic_now)
                 self._process_pending_shutdown(monotonic_now)

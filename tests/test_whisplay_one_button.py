@@ -19,7 +19,9 @@ from yoyopy.ui.screens import (
     OutgoingCallScreen,
     PlaylistScreen,
     TalkContactScreen,
+    VoiceNoteScreen,
 )
+from yoyopy.voip.manager import VoiceNoteDraft
 
 
 class FakeTrack:
@@ -133,6 +135,10 @@ class FakeVoIPManager:
         self.toggle_mute_calls = 0
         self.is_muted = False
         self.make_calls: list[tuple[str, str | None]] = []
+        self.latest_notes: dict[str, object] = {}
+        self.active_voice_note: VoiceNoteDraft | None = None
+        self.started_recordings: list[tuple[str, str]] = []
+        self.send_attempts = 0
 
     def get_status(self) -> dict:
         return {
@@ -169,6 +175,52 @@ class FakeVoIPManager:
 
     def get_call_duration(self) -> int:
         return 42
+
+    def latest_voice_note_for_contact(self, sip_address: str):
+        return self.latest_notes.get(sip_address)
+
+    def play_latest_voice_note(self, sip_address: str) -> bool:
+        return True
+
+    def mark_voice_notes_seen(self, sip_address: str) -> None:
+        return
+
+    def start_voice_note_recording(self, recipient_address: str, recipient_name: str = "") -> bool:
+        self.started_recordings.append((recipient_address, recipient_name))
+        self.active_voice_note = VoiceNoteDraft(
+            recipient_address=recipient_address,
+            recipient_name=recipient_name,
+            file_path="data/voice_notes/test.wav",
+            send_state="recording",
+            status_text="Recording...",
+        )
+        return True
+
+    def stop_voice_note_recording(self) -> VoiceNoteDraft | None:
+        if self.active_voice_note is None:
+            return None
+        self.active_voice_note.duration_ms = 2500
+        self.active_voice_note.send_state = "review"
+        self.active_voice_note.status_text = "Ready to send"
+        return self.active_voice_note
+
+    def cancel_voice_note_recording(self) -> bool:
+        self.active_voice_note = None
+        return True
+
+    def discard_active_voice_note(self) -> None:
+        self.active_voice_note = None
+
+    def send_active_voice_note(self) -> bool:
+        self.send_attempts += 1
+        if self.active_voice_note is None:
+            return False
+        self.active_voice_note.send_state = "sending"
+        self.active_voice_note.status_text = "Sending..."
+        return True
+
+    def get_active_voice_note(self) -> VoiceNoteDraft | None:
+        return self.active_voice_note
 
 
 @pytest.fixture
@@ -369,6 +421,30 @@ def test_talk_contact_screen_advance_and_select_follow_one_button_mapping(
 
     assert one_button_context.voice_note_recipient_name == "Mama"
     assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
+
+
+def test_voice_note_screen_uses_hold_to_record_in_one_button_mode(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """Voice notes should start on raw hold and stop on release in one-button mode."""
+
+    one_button_context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    screen = VoiceNoteScreen(display, one_button_context, voip_manager=voip_manager)
+
+    screen.enter()
+    assert screen.wants_ptt_passthrough()
+
+    screen.on_ptt_press({"stage": "hold_started"})
+    assert screen.current_view_model()[0] == "Recording"
+
+    screen.on_ptt_release({"hold_started": True})
+    assert screen.current_view_model()[0] == "Send"
+
+    screen.on_select()
+    assert screen.current_view_model()[0] == "Sending"
+    assert voip_manager.send_attempts == 1
 
 
 def test_contact_list_advance_wraps_and_select_calls_contact(

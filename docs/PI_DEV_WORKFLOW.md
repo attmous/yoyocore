@@ -230,5 +230,5 @@ run, use:
 - `pi_remote.py run` uses an interactive SSH session so you can stop the remote app with `Ctrl+C`.
 - `pi_remote.py preflight` is intentionally non-interactive. It validates but does not launch the app.
 - `pi_remote.py service install` expects passwordless `sudo` or an interactive sudo policy on the Pi.
-- The helper does not kill existing remote processes for you. If the Pi already has a stale YoyoPod or `linphonec` process, stop it first.
+- The helper does not kill existing remote processes for you. If the Pi already has a stale YoyoPod process, stop it first.
 - For deeper hardware debugging, use `docs/RPI_SMOKE_VALIDATION.md`.

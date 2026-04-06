@@ -21,6 +21,7 @@ from yoyopy.audio.mopidy_client import MopidyClient
 from yoyopy.config import ConfigManager, YoyoPodConfig, config_to_dict, load_config_model_from_yaml
 from yoyopy.power import PowerManager
 from yoyopy.voip import VoIPConfig, VoIPManager
+from yoyopy.voip.liblinphone_binding import LiblinphoneBinding
 from yoyopy.ui.display import Display, detect_hardware
 from yoyopy.ui.input import get_input_manager
 from scripts.lvgl_soak import run_lvgl_soak
@@ -275,16 +276,15 @@ def mopidy_check(app_config: dict[str, Any], timeout_seconds: int) -> CheckResul
 
 
 def voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
-    """Validate linphone startup and SIP registration."""
+    """Validate Liblinphone startup and SIP registration."""
     config_manager = ConfigManager(config_dir=str(config_dir))
     voip_config = VoIPConfig.from_config_manager(config_manager)
-    linphonec_path = Path(voip_config.linphonec_path)
-
-    if not linphonec_path.exists():
+    binding = LiblinphoneBinding.try_load()
+    if binding is None:
         return CheckResult(
             name="voip",
             status="fail",
-            details=f"linphonec path does not exist: {linphonec_path}",
+            details="Liblinphone shim is unavailable; run scripts/liblinphone_build.py on the Pi",
         )
 
     if not voip_config.sip_identity:
@@ -307,6 +307,7 @@ def voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
         last_status = manager.get_status()
 
         while time.time() < deadline:
+            manager.iterate()
             last_status = manager.get_status()
             if last_status["registered"]:
                 return CheckResult(
@@ -387,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--with-voip",
         action="store_true",
-        help="Also validate linphone startup and SIP registration",
+        help="Also validate Liblinphone startup and SIP registration",
     )
     parser.add_argument(
         "--with-lvgl-soak",

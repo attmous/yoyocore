@@ -99,10 +99,18 @@ class TalkContactScreen(Screen):
     def actions(self) -> list[TalkAction]:
         """Return the available actions for the selected contact."""
 
-        return [
+        actions = [
             TalkAction("call", "Call"),
             TalkAction("voice_note", "Voice Note"),
         ]
+        latest_note = None
+        if self.voip_manager is not None and hasattr(self.voip_manager, "latest_voice_note_for_contact"):
+            latest_note = self.voip_manager.latest_voice_note_for_contact(
+                self.current_contact_address(),
+            )
+        if latest_note is not None and latest_note.local_file_path:
+            actions.append(TalkAction("play_note", "Play Note"))
+        return actions
 
     def get_visible_actions(self) -> tuple[list[str], list[str], int]:
         """Return visible action rows for the LVGL playlist-style scene."""
@@ -190,6 +198,15 @@ class TalkContactScreen(Screen):
             )
         self.request_route("voice_note")
 
+    def _play_latest_voice_note(self) -> None:
+        """Play the latest available voice note for the selected contact."""
+
+        if self.voip_manager is None:
+            return
+        address = self.current_contact_address()
+        if self.voip_manager.play_latest_voice_note(address):
+            self.voip_manager.mark_voice_notes_seen(address)
+
     def on_select(self, data=None) -> None:
         """Trigger the selected contact action."""
 
@@ -197,7 +214,10 @@ class TalkContactScreen(Screen):
         if selected_action.kind == "call":
             self._start_call()
             return
-        self._open_voice_note()
+        if selected_action.kind == "voice_note":
+            self._open_voice_note()
+            return
+        self._play_latest_voice_note()
 
     def on_back(self, data=None) -> None:
         """Return to the contact deck."""
