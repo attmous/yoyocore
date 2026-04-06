@@ -80,7 +80,6 @@ class WhisplayDisplayAdapter(DisplayHAL):
         self.renderer = renderer.lower().strip() or "pil"
         self.lvgl_buffer_lines = max(1, int(lvgl_buffer_lines))
         self.ui_backend = None
-        self.shadow_buffer_sync_enabled = self.simulate or self.renderer != "lvgl"
 
         # Create PIL drawing buffer
         self._create_buffer()
@@ -115,6 +114,21 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 logger.warning(f"Failed to prepare LVGL backend: {e}")
                 self.ui_backend = None
                 self.renderer = "pil"
+
+    @property
+    def shadow_buffer_sync_enabled(self) -> bool:
+        """Return True when screenshots should rely on the PIL shadow buffer.
+
+        This must follow the adapter's effective runtime mode instead of the
+        initial constructor arguments, because hardware/LVGL setup can fall
+        back to simulation or PIL later in __init__.
+        """
+
+        if self.simulate or self.renderer != "lvgl":
+            return True
+        if self.ui_backend is None:
+            return True
+        return not bool(getattr(self.ui_backend, "available", False))
 
     def _create_buffer(self) -> None:
         """Create a new PIL drawing buffer."""

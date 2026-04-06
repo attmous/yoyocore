@@ -27,7 +27,7 @@ def test_hardware_lvgl_flush_skips_shadow_buffer_sync(monkeypatch) -> None:
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
     adapter.simulate = False
-    adapter.shadow_buffer_sync_enabled = False
+    adapter.ui_backend = type("Backend", (), {"available": True})()
     adapter.device = FakeDevice()
 
     mirrored: list[tuple[int, int, int, int, bytes]] = []
@@ -67,7 +67,7 @@ def test_shadow_screenshot_falls_back_to_lvgl_readback_when_shadow_sync_is_disab
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
     adapter.simulate = False
-    adapter.shadow_buffer_sync_enabled = False
+    adapter.ui_backend = type("Backend", (), {"available": True})()
 
     readback_calls: list[str] = []
     monkeypatch.setattr(
@@ -78,3 +78,23 @@ def test_shadow_screenshot_falls_back_to_lvgl_readback_when_shadow_sync_is_disab
 
     assert adapter.save_screenshot("/tmp/test.png") is True
     assert readback_calls == ["/tmp/test.png"]
+
+
+def test_shadow_sync_mode_tracks_runtime_fallback_state_changes() -> None:
+    """The sync mode should follow later renderer/simulation fallback changes."""
+
+    adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
+
+    assert adapter.shadow_buffer_sync_enabled is True
+
+    adapter.simulate = False
+    adapter.renderer = "lvgl"
+    adapter.ui_backend = type("Backend", (), {"available": True})()
+    assert adapter.shadow_buffer_sync_enabled is False
+
+    adapter.renderer = "pil"
+    assert adapter.shadow_buffer_sync_enabled is True
+
+    adapter.renderer = "lvgl"
+    adapter.ui_backend = type("Backend", (), {"available": False})()
+    assert adapter.shadow_buffer_sync_enabled is True
