@@ -1,6 +1,6 @@
 # YoyoPod System Architecture
 
-**Last updated:** 2026-04-02
+**Last updated:** 2026-04-06
 **Status:** Current implementation
 
 This document describes the architecture that exists on `main` after the UI HAL refactor.
@@ -57,6 +57,7 @@ yoyopod.py / yoyopy.main
 - `yoyopy/audio/mopidy_client.py`: playlist loading, playback control, polling callbacks
 - `yoyopy/voip/manager.py`: call, message, and voice-note facade
 - `yoyopy/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
+- `config/liblinphone_factory.conf`: repo-managed Liblinphone factory config for media, codec, and network defaults
 
 ### UI Layer
 
@@ -176,6 +177,7 @@ The current code still includes a few environment-specific assumptions:
 - Whisplay driver path: `/home/tifo/Whisplay/Driver/WhisPlay.py`
 - audio device defaults for Liblinphone and ringing: `ALSA: wm8960-soundcard`
 - simulation server defaults to port `5000`
+- call negotiation on the Pi currently depends on the tracked Liblinphone factory config at `config/liblinphone_factory.conf`
 
 These are known implementation constraints, not architecture goals.
 

@@ -93,6 +93,7 @@ The repo already ships tracked config files in `config/`.
 Edit these in place for your environment:
 
 - `config/voip_config.yaml`
+- `config/liblinphone_factory.conf`
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
 
@@ -106,6 +107,7 @@ Important settings:
 - `config/yoyopod_config.yaml`: `power.*` also controls low-battery warning, graceful shutdown, and PiSugar polling
 - `config/yoyopod_config.yaml`: `logging.*` controls file rotation, retention, error-only logs, PID file location, and traceback detail
 - `config/voip_config.yaml`: SIP account, transport, STUN, Liblinphone messaging/file-transfer settings
+- `config/liblinphone_factory.conf`: repo-managed Liblinphone media, codec, and network defaults used for outbound-call parity on Raspberry Pi
 - `config/contacts.yaml`: contact list and speed dial entries
 
 ### Verification

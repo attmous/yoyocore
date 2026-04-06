@@ -155,11 +155,12 @@ Key design points:
 - `yoyopy/ui/screens/voip/quick_call.py` - `Talk` people-first contact deck for calls and voice notes
 - `yoyopy/ui/screens/voip/talk_contact.py` - selected-contact action screen with `Call` and `Voice Note`
 - `yoyopy/ui/screens/voip/call_history.py` - Talk recents and missed-call screen
-- `yoyopy/ui/screens/voip/voice_note.py` - voice-note shell for the Talk flow
+- `yoyopy/ui/screens/voip/voice_note.py` - voice-note record/review/send flow for the Talk experience
 
 ### Configuration
 
 - `config/voip_config.yaml`
+- `config/liblinphone_factory.conf`
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
 - `yoyopy/config/models.py` - typed config models

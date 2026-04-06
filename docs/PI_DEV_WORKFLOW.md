@@ -163,6 +163,11 @@ stable Pi contract for:
 
 Use this during on-device tuning when the Whisplay button feels too eager or too sluggish. The helper runs interactively over SSH, prints every semantic gesture event, and accepts temporary timing overrides without modifying the tracked config file.
 
+Liblinphone note:
+
+- keep `config/liblinphone_factory.conf` tracked and synced with the branch when debugging outbound-call negotiation on the Pi
+- if registration works but calls fail during setup, compare the active branch's factory config before changing SIP credentials
+
 ### Run the full preflight in one command
 
 ```bash
