@@ -53,7 +53,7 @@ def _exercise_sleep_wake(app: YoyoPodApp) -> tuple[bool, str]:
     if app.context is None or app.context.screen_awake:
         return False, "screen did not enter sleep during soak"
 
-    app.event_bus.publish(UserActivityEvent(source="lvgl_soak"))
+    app.event_bus.publish(UserActivityEvent(action_name="lvgl_soak"))
     _pump_app(app, 0.35)
     if app.context is None or not app.context.screen_awake:
         return False, "screen did not wake after simulated activity"
