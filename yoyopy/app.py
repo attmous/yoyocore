@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 import threading
 import time
+from queue import SimpleQueue
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from loguru import logger
 
@@ -160,6 +161,7 @@ class YoyoPodApp:
         # Main-thread event bus
         self._main_thread_id = threading.get_ident()
         self.event_bus = EventBus(main_thread_id=self._main_thread_id)
+        self._pending_main_thread_callbacks: SimpleQueue[Callable[[], None]] = SimpleQueue()
         self.event_bus.subscribe(ScreenChangedEvent, self._handle_screen_changed_event)
         self.event_bus.subscribe(UserActivityEvent, self._handle_user_activity_event)
         self.event_bus.subscribe(
@@ -422,7 +424,16 @@ class YoyoPodApp:
                 logger.info("    → No input hardware available")
 
             logger.info("  - ScreenManager")
-            self.screen_manager = ScreenManager(self.display, self.input_manager)
+            action_scheduler = (
+                self._queue_main_thread_callback
+                if getattr(self.display, "backend_kind", "pil") == "lvgl"
+                else None
+            )
+            self.screen_manager = ScreenManager(
+                self.display,
+                self.input_manager,
+                action_scheduler=action_scheduler,
+            )
             return True
         except Exception as exc:
             logger.error(f"Failed to initialize core components: {exc}")
@@ -678,7 +689,20 @@ class YoyoPodApp:
 
     def _process_pending_main_thread_actions(self, limit: Optional[int] = None) -> int:
         """Drain queued typed events scheduled by worker threads."""
-        return self.event_bus.drain(limit)
+        processed = 0
+        while not self._pending_main_thread_callbacks.empty():
+            callback = self._pending_main_thread_callbacks.get()
+            callback()
+            processed += 1
+            if limit is not None and processed >= limit:
+                return processed
+
+        remaining_limit = None if limit is None else max(0, limit - processed)
+        return processed + self.event_bus.drain(remaining_limit)
+
+    def _queue_main_thread_callback(self, callback: Callable[[], None]) -> None:
+        """Schedule a callback to run on the coordinator thread."""
+        self._pending_main_thread_callbacks.put(callback)
 
     def _queue_lvgl_input_action(self, action, _data: Optional[Any] = None) -> None:
         """Queue semantic actions for LVGL from input polling threads."""
