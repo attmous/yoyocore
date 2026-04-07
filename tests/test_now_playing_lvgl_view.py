@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from yoyopy.app_context import AppContext
+from yoyopy.audio import MockMusicBackend, Track
 from yoyopy.ui.input import InteractionProfile
 from yoyopy.ui.screens import NowPlayingScreen
 
@@ -45,44 +46,6 @@ class FakeLvglDisplay:
         return self._ui_backend
 
 
-class FakeTrack:
-    """Minimal Mopidy track used by the now-playing tests."""
-
-    def __init__(self, name: str, artist: str, length: int) -> None:
-        self.name = name
-        self._artist = artist
-        self.length = length
-
-    def get_artist_string(self) -> str:
-        return self._artist
-
-
-class FakeMopidyClient:
-    """Minimal Mopidy client for now-playing view tests."""
-
-    def __init__(
-        self,
-        track: FakeTrack | None,
-        *,
-        playback_state: str = "playing",
-        position: int = 0,
-        is_connected: bool = True,
-    ) -> None:
-        self.track = track
-        self.playback_state = playback_state
-        self.position = position
-        self.is_connected = is_connected
-
-    def get_current_track(self) -> FakeTrack | None:
-        return self.track
-
-    def get_playback_state(self) -> str:
-        return self.playback_state
-
-    def get_time_position(self) -> int:
-        return self.position
-
-
 def test_now_playing_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     """NowPlayingScreen should delegate lifecycle and playback state to LVGL."""
 
@@ -94,12 +57,17 @@ def test_now_playing_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     context.battery_charging = True
     context.power_available = True
 
-    mopidy = FakeMopidyClient(
-        FakeTrack("Adventure Song", "Kid Band", 200000),
-        playback_state="playing",
-        position=50000,
+    backend = MockMusicBackend()
+    backend.start()
+    backend.current_track = Track(
+        uri="/music/adventure-song.mp3",
+        name="Adventure Song",
+        artists=["Kid Band"],
+        length=200000,
     )
-    screen = NowPlayingScreen(display, context, mopidy_client=mopidy)
+    backend.time_position = 50000
+    backend.play()
+    screen = NowPlayingScreen(display, context, music_backend=backend)
 
     screen.enter()
     screen.render()
@@ -130,7 +98,7 @@ def test_now_playing_screen_syncs_offline_state_through_lvgl() -> None:
     screen = NowPlayingScreen(
         display,
         context,
-        mopidy_client=FakeMopidyClient(None, is_connected=False),
+        music_backend=MockMusicBackend(),
     )
 
     screen.enter()

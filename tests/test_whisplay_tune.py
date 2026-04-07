@@ -8,7 +8,7 @@ from scripts.whisplay_tune import apply_timing_overrides, summarize_timings
 def test_apply_timing_overrides_updates_input_section() -> None:
     """Temporary CLI overrides should land in the input config only."""
     app_config = {
-        "audio": {"mopidy_host": "localhost"},
+        "audio": {"music_dir": "/srv/music"},
         "input": {
             "whisplay_debounce_ms": 50,
             "whisplay_double_tap_ms": 300,
@@ -23,7 +23,7 @@ def test_apply_timing_overrides_updates_input_section() -> None:
         long_hold_ms=920,
     )
 
-    assert merged["audio"]["mopidy_host"] == "localhost"
+    assert merged["audio"]["music_dir"] == "/srv/music"
     assert merged["input"]["whisplay_debounce_ms"] == 70
     assert merged["input"]["whisplay_double_tap_ms"] == 260
     assert merged["input"]["whisplay_long_hold_ms"] == 920

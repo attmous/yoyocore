@@ -17,7 +17,7 @@ def _build_runtime() -> CoordinatorRuntime:
         call_fsm=CallFSM(),
         call_interruption_policy=CallInterruptionPolicy(),
         screen_manager=None,
-        mopidy_client=None,
+        music_backend=None,
         power_manager=None,
         now_playing_screen=None,
         call_screen=None,

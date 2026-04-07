@@ -16,7 +16,6 @@ audio:
   preferred_codec: opus
   echo_cancellation: true
   mic_gain: 80
-  speaker_volume: 80
   playback_device_id: "ALSA: wm8960-soundcard"
   ringer_device_id: "ALSA: wm8960-soundcard"
   capture_device_id: "ALSA: wm8960-soundcard"

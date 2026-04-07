@@ -7,7 +7,7 @@ from __future__ import annotations
 from loguru import logger
 
 from yoyopy.audio.local_service import LocalMusicService
-from yoyopy.audio.mopidy_client import MopidyTrack
+from yoyopy.audio.music.models import Track
 from yoyopy.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
 from yoyopy.coordinators.screen import ScreenCoordinator
 from yoyopy.event_bus import EventBus
@@ -44,22 +44,22 @@ class PlaybackCoordinator:
         event_bus.subscribe(MusicAvailabilityChangedEvent, self._on_availability_changed_event)
         self._bound = True
 
-    def publish_track_change(self, track: MopidyTrack | None) -> None:
-        """Publish a Mopidy track change from the poller thread."""
+    def publish_track_change(self, track: Track | None) -> None:
+        """Publish a music track change from the poller thread."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
         self._event_bus.publish(TrackChangedEvent(track=track))
 
     def publish_playback_state_change(self, playback_state: str) -> None:
-        """Publish a Mopidy playback-state change from the poller thread."""
+        """Publish a playback-state change from the poller thread."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
         self._event_bus.publish(PlaybackStateChangedEvent(state=playback_state))
 
     def publish_availability_change(self, available: bool, reason: str = "") -> None:
-        """Publish Mopidy connectivity changes from worker threads."""
+        """Publish music-backend connectivity changes from worker threads."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
@@ -82,7 +82,7 @@ class PlaybackCoordinator:
     def _on_availability_changed_event(self, event: MusicAvailabilityChangedEvent) -> None:
         self.handle_availability_change(event.available, event.reason)
 
-    def handle_track_change(self, track: MopidyTrack | None) -> None:
+    def handle_track_change(self, track: Track | None) -> None:
         """Handle track changes and refresh the active screen when needed."""
         if track:
             logger.info(f"Track changed: {track.name} - {track.get_artist_string()}")
@@ -97,7 +97,7 @@ class PlaybackCoordinator:
         self.screen_coordinator.refresh_now_playing_screen()
 
     def handle_playback_state_change(self, playback_state: str) -> None:
-        """Sync the playback FSM with Mopidy state when not in a call."""
+        """Sync the playback FSM with music-backend state when not in a call."""
         logger.info(f"Playback state changed: {playback_state}")
 
         if self.runtime.call_fsm.is_active:
@@ -117,7 +117,7 @@ class PlaybackCoordinator:
         self.screen_coordinator.refresh_now_playing_screen()
 
     def handle_availability_change(self, available: bool, reason: str) -> None:
-        """Keep playback state aligned with Mopidy connectivity."""
+        """Keep playback state aligned with music-backend connectivity."""
         if available:
             logger.info(f"Music backend connected ({reason or 'ready'})")
             self.screen_coordinator.refresh_now_playing_screen()

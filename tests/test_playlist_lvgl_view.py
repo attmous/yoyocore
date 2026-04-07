@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from yoyopy.app_context import AppContext
-from yoyopy.audio import LocalMusicService
+from yoyopy.audio import LocalMusicService, MockMusicBackend
 from yoyopy.ui.input import InteractionProfile
 from yoyopy.ui.screens import PlaylistScreen
 
@@ -49,31 +51,20 @@ class FakeLvglDisplay:
         return True
 
 
-class FakePlaylist:
-    """Minimal playlist record with track count metadata."""
-
-    def __init__(self, name: str, uri: str, track_count: int = 0) -> None:
-        self.name = name
-        self.uri = uri
-        self.track_count = track_count
+def _write_playlist(path: Path, track_count: int) -> None:
+    lines = ["#EXTM3U", *[f"track-{index}.mp3" for index in range(track_count)]]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-class FakeMopidyClient:
-    """Minimal Mopidy client for playlist view tests."""
-
-    def __init__(self, playlists: list[FakePlaylist], *, is_connected: bool = True) -> None:
-        self.playlists = playlists
-        self.is_connected = is_connected
-
-    def get_playlists(self, fetch_track_counts: bool = True) -> list[FakePlaylist]:
-        return list(self.playlists)
-
-    def load_playlist(self, playlist_uri: str) -> bool:
-        return True
-
-
-def test_playlist_screen_builds_syncs_and_destroys_lvgl_view() -> None:
+def test_playlist_screen_builds_syncs_and_destroys_lvgl_view(tmp_path: Path) -> None:
     """PlaylistScreen should delegate lifecycle and visible-window state to LVGL."""
+
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    _write_playlist(music_dir / "Alpha.m3u", 12)
+    _write_playlist(music_dir / "Beta.m3u", 4)
+    _write_playlist(music_dir / "Gamma.m3u", 0)
+    _write_playlist(music_dir / "Delta.m3u", 9)
 
     binding = FakeLvglBinding()
     display = FakeLvglDisplay(binding)
@@ -83,16 +74,13 @@ def test_playlist_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     context.battery_charging = False
     context.power_available = True
 
-    mopidy = FakeMopidyClient(
-        [
-            FakePlaylist("Alpha", "m3u:alpha", 12),
-            FakePlaylist("Beta", "m3u:beta", 4),
-            FakePlaylist("Gamma", "m3u:gamma", 0),
-            FakePlaylist("Cloud", "spotify:cloud", 99),
-            FakePlaylist("Delta", "m3u:delta", 9),
-        ]
+    backend = MockMusicBackend()
+    backend.start()
+    screen = PlaylistScreen(
+        display,
+        context,
+        music_service=LocalMusicService(backend, music_dir=music_dir),
     )
-    screen = PlaylistScreen(display, context, music_service=LocalMusicService(mopidy))
 
     screen.enter()
 
@@ -102,8 +90,8 @@ def test_playlist_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     final_payload = binding.playlist_sync_payloads[-1]
     assert final_payload["title_text"] == "Playlists"
     assert final_payload["page_text"] is None
-    assert final_payload["items"] == ["Alpha", "Beta", "Gamma"]
-    assert final_payload["badges"] == ["12", "4", ""]
+    assert final_payload["items"] == ["Alpha", "Beta", "Delta"]
+    assert final_payload["badges"] == ["12", "4", "9"]
     assert final_payload["selected_visible_index"] == 0
     assert final_payload["voip_state"] == 1
     assert final_payload["battery_percent"] == 61
@@ -113,15 +101,15 @@ def test_playlist_screen_builds_syncs_and_destroys_lvgl_view() -> None:
 
     scrolled_payload = binding.playlist_sync_payloads[-1]
     assert scrolled_payload["page_text"] is None
-    assert scrolled_payload["items"] == ["Beta", "Gamma", "Delta"]
-    assert scrolled_payload["badges"] == ["4", "", "9"]
+    assert scrolled_payload["items"] == ["Beta", "Delta", "Gamma"]
+    assert scrolled_payload["badges"] == ["4", "9", ""]
     assert scrolled_payload["selected_visible_index"] == 2
 
     screen.exit()
     assert binding.playlist_destroy_calls == 1
 
 
-def test_playlist_screen_syncs_error_state_through_lvgl() -> None:
+def test_playlist_screen_syncs_error_state_through_lvgl(tmp_path: Path) -> None:
     """PlaylistScreen should send the music-offline empty state through LVGL."""
 
     binding = FakeLvglBinding()
@@ -130,7 +118,7 @@ def test_playlist_screen_syncs_error_state_through_lvgl() -> None:
     screen = PlaylistScreen(
         display,
         context,
-        music_service=LocalMusicService(FakeMopidyClient([], is_connected=False)),
+        music_service=LocalMusicService(MockMusicBackend(), music_dir=tmp_path / "Music"),
     )
 
     screen.enter()

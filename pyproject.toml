@@ -29,6 +29,7 @@ dependencies = [
     "flask-cors>=4.0.0",
     "python-socketio>=5.11.0",
     "pynput>=1.7.0",
+    "tinytag>=2.2.1",
 ]
 
 [project.optional-dependencies]

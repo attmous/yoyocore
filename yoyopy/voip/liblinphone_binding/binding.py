@@ -50,7 +50,7 @@ int yoyopy_liblinphone_start(
     const char * media_device_id,
     int32_t echo_cancellation,
     int32_t mic_gain,
-    int32_t speaker_volume,
+    int32_t output_volume,
     const char * voice_note_store_dir
 );
 void yoyopy_liblinphone_stop(void);
@@ -182,7 +182,7 @@ class LiblinphoneBinding:
         media_device_id: str,
         echo_cancellation: bool,
         mic_gain: int,
-        speaker_volume: int,
+        output_volume: int,
         voice_note_store_dir: str,
     ) -> None:
         result = self.lib.yoyopy_liblinphone_start(
@@ -204,7 +204,7 @@ class LiblinphoneBinding:
             self._char_arg(media_device_id),
             1 if echo_cancellation else 0,
             int(mic_gain),
-            int(speaker_volume),
+            int(output_volume),
             self._char_arg(voice_note_store_dir),
         )
         if result != 0:

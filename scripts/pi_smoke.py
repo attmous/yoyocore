@@ -17,13 +17,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from yoyopy.audio.mopidy_client import MopidyClient
+from yoyopy.audio.music import MpvBackend, MusicConfig
 from yoyopy.config import ConfigManager, YoyoPodConfig, config_to_dict, load_config_model_from_yaml
 from yoyopy.power import PowerManager
-from yoyopy.voip import VoIPConfig, VoIPManager
-from yoyopy.voip.liblinphone_binding import LiblinphoneBinding
 from yoyopy.ui.display import Display, detect_hardware
 from yoyopy.ui.input import get_input_manager
+from yoyopy.voip import VoIPConfig, VoIPManager
+from yoyopy.voip.liblinphone_binding import LiblinphoneBinding
 from scripts.lvgl_soak import run_lvgl_soak
 
 
@@ -245,34 +245,54 @@ def rtc_check(config_dir: Path) -> CheckResult:
     return CheckResult(name="rtc", status="pass", details=details)
 
 
-def mopidy_check(app_config: dict[str, Any], timeout_seconds: int) -> CheckResult:
-    """Validate Mopidy reachability and basic state queries."""
+def music_check(app_config: dict[str, Any], timeout_seconds: int) -> CheckResult:
+    """Validate music-backend startup and basic state queries."""
     audio_config = app_config.get("audio", {})
-    host = audio_config.get("mopidy_host", "localhost")
-    port = int(audio_config.get("mopidy_port", 6680))
-
-    client = MopidyClient(host=host, port=port, timeout=timeout_seconds)
+    config = MusicConfig(
+        music_dir=Path(str(audio_config.get("music_dir", "/home/pi/Music"))),
+        mpv_socket=str(audio_config.get("mpv_socket", "")),
+        mpv_binary=str(audio_config.get("mpv_binary", "mpv")),
+        alsa_device=str(audio_config.get("alsa_device", "default")),
+    )
+    backend = MpvBackend(config)
     try:
-        if not client.connect():
+        started_at = time.monotonic()
+        if not backend.start():
             return CheckResult(
-                name="mopidy",
+                name="music",
                 status="fail",
-                details=f"could not connect to Mopidy at {host}:{port}",
+                details=(
+                    "could not start the mpv music backend "
+                    f"(binary={config.mpv_binary}, socket={config.mpv_socket})"
+                ),
             )
 
-        playback_state = client.get_playback_state()
-        track = client.get_current_track()
+        while not backend.is_connected and (time.monotonic() - started_at) < timeout_seconds:
+            time.sleep(0.1)
+
+        if not backend.is_connected:
+            return CheckResult(
+                name="music",
+                status="fail",
+                details=f"music backend did not report ready within {timeout_seconds}s",
+            )
+
+        playback_state = backend.get_playback_state()
+        track = backend.get_current_track()
         track_name = track.name if track else "none"
 
         return CheckResult(
-            name="mopidy",
+            name="music",
             status="pass",
-            details=f"host={host}:{port}, state={playback_state}, track={track_name}",
+            details=(
+                f"binary={config.mpv_binary}, socket={config.mpv_socket}, "
+                f"state={playback_state}, track={track_name}"
+            ),
         )
     except Exception as exc:
-        return CheckResult(name="mopidy", status="fail", details=str(exc))
+        return CheckResult(name="music", status="fail", details=str(exc))
     finally:
-        client.cleanup()
+        backend.stop()
 
 
 def voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
@@ -362,7 +382,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Run Raspberry Pi smoke validation for YoyoPod hardware, "
-            "with optional Mopidy and SIP registration checks."
+            "with optional music-backend and SIP registration checks."
         )
     )
     parser.add_argument(
@@ -371,9 +391,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Configuration directory to use (default: config)",
     )
     parser.add_argument(
-        "--with-mopidy",
+        "--with-music",
         action="store_true",
-        help="Also validate Mopidy connectivity from yoyopod_config.yaml",
+        help="Also validate music-backend startup from yoyopod_config.yaml",
     )
     parser.add_argument(
         "--with-power",
@@ -396,10 +416,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Also run a short LVGL transition and sleep/wake soak",
     )
     parser.add_argument(
-        "--mopidy-timeout",
+        "--music-timeout",
         type=int,
         default=5,
-        help="Request timeout in seconds for Mopidy checks (default: 5)",
+        help="Startup timeout in seconds for music checks (default: 5)",
     )
     parser.add_argument(
         "--voip-timeout",
@@ -460,8 +480,8 @@ def main() -> int:
         if args.with_rtc:
             results.append(rtc_check(config_dir))
 
-        if args.with_mopidy:
-            results.append(mopidy_check(app_config, args.mopidy_timeout))
+        if args.with_music:
+            results.append(music_check(app_config, args.music_timeout))
 
         if args.with_voip:
             results.append(voip_check(config_dir, args.voip_timeout))

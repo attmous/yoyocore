@@ -20,7 +20,7 @@ from yoyopy.fsm import (
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
-    from yoyopy.audio.mopidy_client import MopidyClient
+    from yoyopy.audio.music.backend import MusicBackend
     from yoyopy.config import ConfigManager
     from yoyopy.power import PowerManager, PowerSnapshot
     from yoyopy.ui.screens import (
@@ -83,7 +83,6 @@ class CoordinatorRuntime:
     call_fsm: CallFSM
     call_interruption_policy: CallInterruptionPolicy
     screen_manager: ScreenManager | None
-    mopidy_client: MopidyClient | None
     power_manager: PowerManager | None
     now_playing_screen: NowPlayingScreen | None
     call_screen: CallScreen | None
@@ -93,6 +92,7 @@ class CoordinatorRuntime:
     in_call_screen: InCallScreen | None
     config: dict[str, Any]
     config_manager: ConfigManager | None
+    music_backend: MusicBackend | None = None
     context: AppContext | None = None
     ui_state: AppRuntimeState = AppRuntimeState.IDLE
     voip_ready: bool = False

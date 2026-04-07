@@ -289,7 +289,7 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
 
     subparsers.add_parser(
         "status",
-        help="Show remote repo, Mopidy, and process status",
+        help="Show remote repo, music backend, and process status",
     )
 
     sync_parser = subparsers.add_parser(
@@ -347,9 +347,9 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         help="Include PiSugar RTC checks",
     )
     smoke_parser.add_argument(
-        "--with-mopidy",
+        "--with-music",
         action="store_true",
-        help="Include Mopidy connectivity checks",
+        help="Include music-backend startup checks",
     )
     smoke_parser.add_argument(
         "--with-voip",
@@ -367,10 +367,10 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         help="Enable verbose smoke-script logging",
     )
     smoke_parser.add_argument(
-        "--mopidy-timeout",
+        "--music-timeout",
         type=int,
         default=5,
-        help="Mopidy request timeout in seconds (default: 5)",
+        help="Music-backend startup timeout in seconds (default: 5)",
     )
     smoke_parser.add_argument(
         "--voip-timeout",
@@ -552,9 +552,9 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         help="Include PiSugar RTC checks in the remote smoke pass",
     )
     preflight_parser.add_argument(
-        "--with-mopidy",
+        "--with-music",
         action="store_true",
-        help="Include Mopidy connectivity checks in the remote smoke pass",
+        help="Include music-backend startup checks in the remote smoke pass",
     )
     preflight_parser.add_argument(
         "--with-voip",
@@ -572,10 +572,10 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         help="Enable verbose smoke-script logging",
     )
     preflight_parser.add_argument(
-        "--mopidy-timeout",
+        "--music-timeout",
         type=int,
         default=5,
-        help="Mopidy request timeout in seconds (default: 5)",
+        help="Music-backend startup timeout in seconds (default: 5)",
     )
     preflight_parser.add_argument(
         "--voip-timeout",
@@ -715,8 +715,8 @@ def build_status_command(deploy_config: PiDeployConfig | None = None) -> str:
             "git rev-parse --short HEAD",
             "git status --short",
             "echo",
-            "echo '== Mopidy ==' ",
-            "systemctl --user is-active mopidy || true",
+            "echo '== Music Backend ==' ",
+            "pgrep -af mpv || true",
             "echo",
             "echo '== YoyoPod Service ==' ",
             "systemctl is-active \"yoyopod@$(id -un).service\" || true",
@@ -797,16 +797,16 @@ def build_smoke_command(args: argparse.Namespace) -> str:
         parts.append("--with-power")
     if getattr(args, "with_rtc", False):
         parts.append("--with-rtc")
-    if getattr(args, "with_mopidy", False):
-        parts.append("--with-mopidy")
+    if getattr(args, "with_music", False):
+        parts.append("--with-music")
     if getattr(args, "with_voip", False):
         parts.append("--with-voip")
     if getattr(args, "with_lvgl_soak", False):
         parts.append("--with-lvgl-soak")
     if getattr(args, "verbose", False):
         parts.append("--verbose")
-    if getattr(args, "mopidy_timeout", 5) != 5:
-        parts.extend(["--mopidy-timeout", str(args.mopidy_timeout)])
+    if getattr(args, "music_timeout", 5) != 5:
+        parts.extend(["--music-timeout", str(args.music_timeout)])
     if getattr(args, "voip_timeout", 10.0) != 10.0:
         parts.extend(["--voip-timeout", str(args.voip_timeout)])
     return " ".join(parts)

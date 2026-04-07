@@ -4,49 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yoyopy.audio import LocalMusicService, MopidyTrack, RecentTrackHistoryStore
+from yoyopy.audio import LocalMusicService, MockMusicBackend, RecentTrackHistoryStore, Track
 from yoyopy.coordinators.playback import PlaybackCoordinator
-
-
-class FakePlaylist:
-    def __init__(self, name: str, uri: str, track_count: int = 0) -> None:
-        self.name = name
-        self.uri = uri
-        self.track_count = track_count
-
-
-class FakeMopidyClient:
-    def __init__(self) -> None:
-        self.is_connected = True
-        self.loaded_playlist_uri: str | None = None
-        self.loaded_track_uris: list[str] = []
-        self.playlists = [
-            FakePlaylist("Local Mix", "m3u:local-mix", 8),
-            FakePlaylist("Cloud Mix", "spotify:cloud-mix", 99),
-        ]
-        self.browse_map: dict[str, list[dict[str, object]]] = {
-            "file:": [
-                {"uri": "file:Albums", "type": "directory", "name": "Albums"},
-                {"uri": "file:///music/track-a.flac", "type": "track", "name": "Track A"},
-            ],
-            "file:Albums": [
-                {"uri": "file:///music/track-b.flac", "type": "track", "name": "Track B"},
-            ],
-        }
-
-    def get_playlists(self, fetch_track_counts: bool = False) -> list[FakePlaylist]:
-        return list(self.playlists)
-
-    def load_playlist(self, playlist_uri: str) -> bool:
-        self.loaded_playlist_uri = playlist_uri
-        return True
-
-    def browse_library(self, uri: str | None = None) -> list[dict[str, object]]:
-        return list(self.browse_map.get(uri or "", []))
-
-    def load_track_uris(self, track_uris: list[str]) -> bool:
-        self.loaded_track_uris = list(track_uris)
-        return True
 
 
 class StubRuntime:
@@ -70,24 +29,31 @@ class StubScreenCoordinator:
         self.now_playing_refreshes += 1
 
 
-def test_local_music_service_filters_playlists_and_loads_local_only() -> None:
-    mopidy = FakeMopidyClient()
-    service = LocalMusicService(mopidy)
+def test_local_music_service_scans_playlists_and_loads_local_only(tmp_path: Path) -> None:
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    playlist_path = music_dir / "local-mix.m3u"
+    playlist_path.write_text("#EXTM3U\ntrack-a.mp3\ntrack-b.mp3\n", encoding="utf-8")
 
-    playlists = service.list_playlists(fetch_track_counts=True)
+    backend = MockMusicBackend()
+    backend.start()
+    service = LocalMusicService(backend, music_dir=music_dir)
 
-    assert [playlist.name for playlist in playlists] == ["Local Mix"]
-    assert service.load_playlist("m3u:local-mix") is True
-    assert mopidy.loaded_playlist_uri == "m3u:local-mix"
-    assert service.load_playlist("spotify:cloud-mix") is False
+    playlists = service.list_playlists()
+
+    assert [playlist.name for playlist in playlists] == ["local-mix"]
+    assert playlists[0].track_count == 2
+    assert service.load_playlist(str(playlist_path)) is True
+    assert backend.commands[-1] == f"load_playlist:{playlist_path}"
+    assert service.load_playlist(str(tmp_path / "outside.m3u")) is False
 
 
 def test_recent_track_history_store_deduplicates_and_persists(tmp_path: Path) -> None:
     history_file = tmp_path / "recent_tracks.json"
     store = RecentTrackHistoryStore(history_file, max_entries=3)
 
-    first = MopidyTrack(uri="local:track:first", name="First", artists=["Artist"], album="Album")
-    second = MopidyTrack(uri="file:///music/second.flac", name="Second", artists=["Artist"], album="Album")
+    first = Track(uri=str(tmp_path / "first.mp3"), name="First", artists=["Artist"], album="Album")
+    second = Track(uri=str(tmp_path / "second.flac"), name="Second", artists=["Artist"], album="Album")
 
     store.record_track(first)
     store.record_track(second)
@@ -97,21 +63,32 @@ def test_recent_track_history_store_deduplicates_and_persists(tmp_path: Path) ->
     assert [entry.title for entry in reloaded.list_recent()] == ["First", "Second"]
 
 
-def test_local_music_service_shuffle_collects_local_tracks_and_starts_playback() -> None:
-    mopidy = FakeMopidyClient()
-    service = LocalMusicService(mopidy)
+def test_local_music_service_shuffle_collects_local_tracks_and_starts_playback(tmp_path: Path) -> None:
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    (music_dir / "track-a.flac").write_bytes(b"a")
+    albums_dir = music_dir / "Albums"
+    albums_dir.mkdir()
+    (albums_dir / "track-b.flac").write_bytes(b"b")
+
+    backend = MockMusicBackend()
+    backend.start()
+    service = LocalMusicService(backend, music_dir=music_dir)
 
     assert service.shuffle_all() is True
-    assert sorted(mopidy.loaded_track_uris) == [
-        "file:///music/track-a.flac",
-        "file:///music/track-b.flac",
-    ]
+    assert backend.commands[-1] == "load_tracks:2"
 
 
 def test_playback_coordinator_records_recent_local_tracks(tmp_path: Path) -> None:
-    mopidy = FakeMopidyClient()
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    track_path = music_dir / "alpha.mp3"
+    track_path.write_bytes(b"a")
+
+    backend = MockMusicBackend()
+    backend.start()
     store = RecentTrackHistoryStore(tmp_path / "recent_tracks.json")
-    service = LocalMusicService(mopidy, recent_store=store)
+    service = LocalMusicService(backend, music_dir=music_dir, recent_store=store)
     coordinator = PlaybackCoordinator(
         runtime=StubRuntime(),
         screen_coordinator=StubScreenCoordinator(),
@@ -119,8 +96,8 @@ def test_playback_coordinator_records_recent_local_tracks(tmp_path: Path) -> Non
     )
 
     coordinator.handle_track_change(
-        MopidyTrack(
-            uri="local:track:alpha",
+        Track(
+            uri=str(track_path),
             name="Alpha",
             artists=["Artist"],
             album="Album",

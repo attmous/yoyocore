@@ -90,7 +90,7 @@ class VoIPConfig:
     capture_dev_id: str = "ALSA: wm8960-soundcard"
     media_dev_id: str = "ALSA: wm8960-soundcard"
     mic_gain: int = 80
-    speaker_volume: int = 80
+    output_volume: int = 100
 
     @staticmethod
     def from_config_manager(config_manager) -> "VoIPConfig":
@@ -120,7 +120,7 @@ class VoIPConfig:
             capture_dev_id=config_manager.get_capture_device_id(),
             media_dev_id=config_manager.get_media_device_id(),
             mic_gain=config_manager.get_mic_gain(),
-            speaker_volume=config_manager.get_speaker_volume(),
+            output_volume=config_manager.get_default_output_volume(),
         )
 
     def is_linphone_hosted(self) -> bool:

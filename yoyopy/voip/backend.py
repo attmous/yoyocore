@@ -90,8 +90,7 @@ class VoIPBackend(Protocol):
 
 
 @dataclass(slots=True)
-class _AlsaMixerConfig:
-    speaker_raw: int
+class _AlsaCaptureConfig:
     capture_raw: int
 
 
@@ -126,7 +125,7 @@ class LiblinphoneBackend:
             file_transfer_server_url = self.config.effective_file_transfer_server_url()
             lime_server_url = self.config.effective_lime_server_url()
             self.binding.init()
-            self._configure_alsa_mixer()
+            self._configure_alsa_capture_path()
             if not self.config.conference_factory_uri and conference_factory_uri:
                 logger.info(
                     "Using inferred conference factory {} for hosted account {}",
@@ -166,7 +165,7 @@ class LiblinphoneBackend:
                 media_device_id=self.config.media_dev_id,
                 echo_cancellation=True,
                 mic_gain=self.config.mic_gain,
-                speaker_volume=self.config.speaker_volume,
+                output_volume=self.config.output_volume,
                 voice_note_store_dir=self.config.voice_note_store_dir,
             )
             self.running = True
@@ -445,13 +444,10 @@ class LiblinphoneBackend:
 
         return datetime.now(timezone.utc).isoformat()
 
-    def _configure_alsa_mixer(self) -> None:
-        mixer = self._alsa_mixer_config()
+    def _configure_alsa_capture_path(self) -> None:
+        mixer = self._alsa_capture_config()
         card = "1"
         commands = [
-            f"amixer -c {card} sset 'Speaker' {mixer.speaker_raw}",
-            f"amixer -c {card} sset 'Playback' 255",
-            f"amixer -c {card} sset 'Headphone' {mixer.speaker_raw}",
             f"amixer -c {card} sset 'Capture' {mixer.capture_raw}",
             f"amixer -c {card} sset 'ADC PCM' 195",
             f"amixer -c {card} sset 'Left Input Boost Mixer LINPUT1' 1",
@@ -464,13 +460,9 @@ class LiblinphoneBackend:
             except Exception as exc:
                 logger.warning("ALSA mixer command failed: {}: {}", command, exc)
 
-    def _alsa_mixer_config(self) -> _AlsaMixerConfig:
-        speaker_pct = min(100, max(0, self.config.speaker_volume))
+    def _alsa_capture_config(self) -> _AlsaCaptureConfig:
         capture_pct = min(100, max(0, self.config.mic_gain))
-        return _AlsaMixerConfig(
-            speaker_raw=int(85 + speaker_pct * 0.30),
-            capture_raw=int(14 + capture_pct * 0.16),
-        )
+        return _AlsaCaptureConfig(capture_raw=int(14 + capture_pct * 0.16))
 
 
 class MockVoIPBackend:

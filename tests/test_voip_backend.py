@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -190,6 +191,7 @@ def test_liblinphone_backend_starts_and_drains_native_events() -> None:
     assert binding.start_kwargs["conference_factory_uri"] == ""
     assert binding.start_kwargs["file_transfer_server_url"] == "https://transfer.example.com"
     assert binding.start_kwargs["lime_server_url"] == ""
+    assert binding.start_kwargs["output_volume"] == 100
     assert binding.start_kwargs["factory_config_path"].endswith("config\\liblinphone_factory.conf") or binding.start_kwargs[
         "factory_config_path"
     ].endswith("config/liblinphone_factory.conf")
@@ -215,6 +217,31 @@ def test_liblinphone_backend_infers_linphone_hosted_servers() -> None:
         binding.start_kwargs["lime_server_url"]
         == "https://lime.linphone.org/lime-server/lime-server.php"
     )
+
+
+def test_liblinphone_backend_uses_shared_output_volume_and_capture_only_alsa(monkeypatch) -> None:
+    """VoIP startup should inherit app output volume but only touch capture-path mixers."""
+
+    commands: list[str] = []
+
+    def fake_run(command: str, **kwargs) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("yoyopy.voip.backend.subprocess.run", fake_run)
+
+    binding = FakeBinding()
+    config = build_config()
+    config.output_volume = 73
+    backend = LiblinphoneBackend(config, binding=binding)
+
+    assert backend.start()
+    assert binding.start_kwargs["output_volume"] == 73
+    assert all("Speaker" not in command for command in commands)
+    assert all("Headphone" not in command for command in commands)
+    assert all("Playback" not in command for command in commands)
+    assert any("Capture" in command for command in commands)
+    assert any("ADC PCM" in command for command in commands)
 
 
 def test_liblinphone_binding_decodes_c_string_arrays() -> None:

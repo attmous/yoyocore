@@ -47,7 +47,7 @@ int yoyopy_liblinphone_start(
     const char *media_device_id,
     int32_t echo_cancellation,
     int32_t mic_gain,
-    int32_t speaker_volume,
+    int32_t output_volume,
     const char *voice_note_store_dir
 );
 void yoyopy_liblinphone_stop(void);

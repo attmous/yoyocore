@@ -11,6 +11,7 @@ import pytest
 
 from yoyopy.app import YoyoPodApp
 from yoyopy.app_context import AppContext
+from yoyopy.audio import MockMusicBackend, Track
 from yoyopy.voip import CallState, RegistrationState
 from yoyopy.coordinators.runtime import AppRuntimeState
 from yoyopy.events import (
@@ -118,33 +119,23 @@ class FakeScreenManager:
             self.on_screen_changed(route_name)
 
 
-class FakeMopidyClient:
-    """Minimal Mopidy double used by the coordinator tests."""
+class FakeMusicBackend(MockMusicBackend):
+    """Minimal music backend double used by the coordinator tests."""
 
     def __init__(self, playback_state: str) -> None:
-        self.playback_state = playback_state
+        super().__init__()
+        self.start()
+        self._playback_state = playback_state
         self.pause_calls = 0
         self.play_calls = 0
-        self.is_connected = True
-
-    def get_playback_state(self) -> str:
-        return self.playback_state
 
     def pause(self) -> bool:
         self.pause_calls += 1
-        self.playback_state = "paused"
-        return True
+        return super().pause()
 
     def play(self) -> bool:
         self.play_calls += 1
-        self.playback_state = "playing"
-        return True
-
-    def stop_polling(self) -> None:
-        pass
-
-    def cleanup(self) -> None:
-        pass
+        return super().play()
 
 
 class FakeRecoveringVoIPManager:
@@ -165,25 +156,19 @@ class FakeRecoveringVoIPManager:
         self.running = False
 
 
-class FakeRecoveringMopidyClient:
-    """Minimal Mopidy double for recovery backoff tests."""
+class FakeRecoveringMusicBackend(MockMusicBackend):
+    """Minimal music backend double for recovery backoff tests."""
 
-    def __init__(self, connect_results: list[bool]) -> None:
-        self._connect_results = connect_results
-        self.connect_calls = 0
-        self.start_polling_calls = 0
-        self.is_connected = False
-        self.polling = False
+    def __init__(self, start_results: list[bool]) -> None:
+        super().__init__()
+        self._start_results = start_results
+        self.start_calls = 0
 
-    def connect(self) -> bool:
-        self.connect_calls += 1
-        result_index = min(self.connect_calls - 1, len(self._connect_results) - 1)
-        self.is_connected = self._connect_results[result_index]
-        return self.is_connected
-
-    def start_polling(self) -> None:
-        self.polling = True
-        self.start_polling_calls += 1
+    def start(self) -> bool:
+        self.start_calls += 1
+        result_index = min(self.start_calls - 1, len(self._start_results) - 1)
+        self._connected = self._start_results[result_index]
+        return self._connected
 
 
 class FakeStoppingVoIPManager:
@@ -310,7 +295,7 @@ def _power_snapshot(
 
 def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tuple[
     YoyoPodApp,
-    FakeMopidyClient,
+    FakeMusicBackend,
     FakeScreenManager,
 ]:
     app = YoyoPodApp(simulate=True)
@@ -322,8 +307,8 @@ def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tup
     app.voip_registered = False
     app.power_manager = None
 
-    mopidy = FakeMopidyClient(playback_state=playback_state)
-    app.mopidy_client = mopidy
+    music_backend = FakeMusicBackend(playback_state=playback_state)
+    app.music_backend = music_backend
 
     app.menu_screen = FakeScreen()
     app.power_screen = FakeScreen()
@@ -353,7 +338,7 @@ def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tup
     app._setup_event_subscriptions()
     app.call_coordinator.start_ringing = lambda: None
     app.call_coordinator.stop_ringing = lambda: None
-    return app, mopidy, screen_manager
+    return app, music_backend, screen_manager
 
 
 def _build_app_with_power(
@@ -361,7 +346,7 @@ def _build_app_with_power(
     *,
     playback_state: str = "stopped",
     auto_resume: bool = True,
-) -> tuple[YoyoPodApp, FakeMopidyClient, FakeScreenManager]:
+) -> tuple[YoyoPodApp, FakeMusicBackend, FakeScreenManager]:
     app = YoyoPodApp(simulate=True)
     app.context = AppContext()
     app.music_fsm = MusicFSM()
@@ -371,8 +356,8 @@ def _build_app_with_power(
     app.voip_registered = False
     app.power_manager = power_manager
 
-    mopidy = FakeMopidyClient(playback_state=playback_state)
-    app.mopidy_client = mopidy
+    music_backend = FakeMusicBackend(playback_state=playback_state)
+    app.music_backend = music_backend
 
     app.menu_screen = FakeScreen()
     app.power_screen = FakeScreen()
@@ -402,12 +387,51 @@ def _build_app_with_power(
     app._setup_event_subscriptions()
     app.call_coordinator.start_ringing = lambda: None
     app.call_coordinator.stop_ringing = lambda: None
-    return app, mopidy, screen_manager
+    return app, music_backend, screen_manager
+
+
+def test_apply_default_music_volume_updates_backend_and_context() -> None:
+    """Startup should push the configured music volume into mpv and app context."""
+    app = YoyoPodApp(simulate=True)
+    app.context = AppContext()
+    app.app_settings = SimpleNamespace(audio=SimpleNamespace(default_volume=100))
+    app.music_backend = MockMusicBackend()
+    app.music_backend.start()
+
+    app._apply_default_music_volume()
+
+    assert app.context.playback.volume == 100
+    assert app.music_backend.get_volume() == 100
+    assert app.music_backend.commands[-1] == "volume:100"
+
+
+def test_music_connect_reapplies_shared_output_volume() -> None:
+    """mpv reconnects should inherit the current shared output volume."""
+    app = YoyoPodApp(simulate=True)
+    app.context = AppContext()
+
+    class FakeOutputVolume:
+        def __init__(self) -> None:
+            self.synced: list[int] = []
+
+        def get_volume(self) -> int:
+            return 82
+
+        def sync_music_backend(self, volume: int) -> bool:
+            self.synced.append(volume)
+            return True
+
+    app.output_volume = FakeOutputVolume()
+
+    app._sync_output_volume_on_music_connect(True, "connected")
+
+    assert app.output_volume.synced == [82]
+    assert app.context.playback.volume == 82
 
 
 def test_incoming_call_pauses_playing_music_once() -> None:
     """Incoming call events should pause active playback exactly once."""
-    app, mopidy, screen_manager = _build_app(playback_state="playing")
+    app, music_backend, screen_manager = _build_app(playback_state="playing")
     app.music_fsm.transition("play")
     app.coordinator_runtime.sync_app_state("playback_playing")
 
@@ -416,9 +440,9 @@ def test_incoming_call_pauses_playing_music_once() -> None:
         IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"),
     )
 
-    assert mopidy.pause_calls == 0
+    assert music_backend.pause_calls == 0
     assert app.event_bus.drain() == 1
-    assert mopidy.pause_calls == 1
+    assert music_backend.pause_calls == 1
     assert app.music_fsm.state == MusicState.PAUSED
     assert app.call_fsm.state == CallSessionState.INCOMING
     assert app.call_interruption_policy.music_interrupted_by_call
@@ -431,13 +455,13 @@ def test_incoming_call_pauses_playing_music_once() -> None:
     )
 
     assert app.event_bus.drain() == 1
-    assert mopidy.pause_calls == 1
+    assert music_backend.pause_calls == 1
     assert len(screen_manager.screen_stack) == 2
 
 
 def test_call_end_auto_resumes_only_when_enabled() -> None:
     """Call end should auto-resume only when playback was interrupted and enabled."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=True)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=True)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -447,9 +471,9 @@ def test_call_end_auto_resumes_only_when_enabled() -> None:
 
     _publish_from_worker(app, CallEndedEvent())
 
-    assert mopidy.play_calls == 0
+    assert music_backend.play_calls == 0
     assert app.event_bus.drain() == 1
-    assert mopidy.play_calls == 1
+    assert music_backend.play_calls == 1
     assert app.music_fsm.state == MusicState.PLAYING
     assert app.call_fsm.state == CallSessionState.IDLE
     assert not app.call_interruption_policy.music_interrupted_by_call
@@ -458,7 +482,7 @@ def test_call_end_auto_resumes_only_when_enabled() -> None:
 
 def test_call_end_keeps_music_paused_when_auto_resume_disabled() -> None:
     """Call end should leave playback paused when auto-resume is off."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=False)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=False)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -469,7 +493,7 @@ def test_call_end_keeps_music_paused_when_auto_resume_disabled() -> None:
     _publish_from_worker(app, CallEndedEvent())
 
     assert app.event_bus.drain() == 1
-    assert mopidy.play_calls == 0
+    assert music_backend.play_calls == 0
     assert app.music_fsm.state == MusicState.PAUSED
     assert app.call_fsm.state == CallSessionState.IDLE
     assert not app.call_interruption_policy.music_interrupted_by_call
@@ -548,7 +572,7 @@ def test_periodic_in_call_refresh_only_renders_visible_call_screen() -> None:
 
 def test_voip_unavailable_event_ends_call_and_restores_music() -> None:
     """VoIP backend loss should tear down the call flow and restore interrupted playback."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=True)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=True)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -563,12 +587,12 @@ def test_voip_unavailable_event_ends_call_and_restores_music() -> None:
     assert app.event_bus.drain() == 1
     assert app.call_fsm.state == CallSessionState.IDLE
     assert app.music_fsm.state == MusicState.PLAYING
-    assert mopidy.play_calls == 1
+    assert music_backend.play_calls == 1
     assert screen_manager.current_screen is app.menu_screen
 
 
 def test_music_unavailable_event_stops_music_and_refreshes_now_playing() -> None:
-    """Mopidy loss should stop music state and refresh the visible now-playing screen."""
+    """Music backend loss should stop music state and refresh the visible now-playing screen."""
     app, _, screen_manager = _build_app(playback_state="playing")
     screen_manager.current_screen = app.now_playing_screen
     app.music_fsm.transition("play")
@@ -651,62 +675,60 @@ def test_call_end_restores_previous_screen_base_state() -> None:
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.PLAYLIST_BROWSER
 
 
-def test_manager_recovery_schedules_mopidy_reconnect_off_main_thread() -> None:
-    """Mopidy recovery should schedule work instead of blocking the coordinator loop."""
+def test_manager_recovery_schedules_music_reconnect_off_main_thread() -> None:
+    """Music recovery should schedule work instead of blocking the coordinator loop."""
     app = YoyoPodApp(simulate=True)
     app.voip_manager = FakeRecoveringVoIPManager([False, True])
-    app.mopidy_client = FakeRecoveringMopidyClient([False, True])
+    app.music_backend = FakeRecoveringMusicBackend([False, True])
     scheduled_attempts: list[float] = []
 
-    app._start_mopidy_recovery_worker = lambda recovery_now: scheduled_attempts.append(recovery_now)
+    app._start_music_recovery_worker = lambda recovery_now: scheduled_attempts.append(recovery_now)
 
     app._attempt_manager_recovery(now=0.0)
 
     assert app.voip_manager.start_calls == 1
-    assert app.mopidy_client.connect_calls == 0
+    assert app.music_backend.start_calls == 0
     assert scheduled_attempts == [0.0]
-    assert app._mopidy_recovery.in_flight
+    assert app._music_recovery.in_flight
     assert app._voip_recovery.next_attempt_at == 1.0
 
 
-def test_mopidy_recovery_backoff_doubles_and_restarts_polling_after_success() -> None:
-    """Background Mopidy recovery results should update backoff and restart polling."""
+def test_music_recovery_backoff_doubles_after_success() -> None:
+    """Background music recovery results should update backoff on success and failure."""
     app = YoyoPodApp(simulate=True)
-    app.mopidy_client = FakeRecoveringMopidyClient([False, True])
+    app.music_backend = FakeRecoveringMusicBackend([False, True])
 
-    app._mopidy_recovery.in_flight = True
+    app._music_recovery.in_flight = True
     app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="mopidy", recovered=False, recovery_now=0.0)
+        RecoveryAttemptCompletedEvent(manager="music", recovered=False, recovery_now=0.0)
     )
 
-    assert app.mopidy_client.start_polling_calls == 0
-    assert app._mopidy_recovery.next_attempt_at == 1.0
-    assert app._mopidy_recovery.delay_seconds == 2.0
+    assert app._music_recovery.next_attempt_at == 1.0
+    assert app._music_recovery.delay_seconds == 2.0
 
-    app._mopidy_recovery.in_flight = True
+    app._music_recovery.in_flight = True
     app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="mopidy", recovered=False, recovery_now=1.0)
+        RecoveryAttemptCompletedEvent(manager="music", recovered=False, recovery_now=1.0)
     )
 
-    assert app._mopidy_recovery.next_attempt_at == 3.0
-    assert app._mopidy_recovery.delay_seconds == 4.0
+    assert app._music_recovery.next_attempt_at == 3.0
+    assert app._music_recovery.delay_seconds == 4.0
 
-    app.mopidy_client.is_connected = True
-    app._mopidy_recovery.in_flight = True
+    app.music_backend._connected = True
+    app._music_recovery.in_flight = True
     app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="mopidy", recovered=True, recovery_now=3.0)
+        RecoveryAttemptCompletedEvent(manager="music", recovered=True, recovery_now=3.0)
     )
 
-    assert app.mopidy_client.start_polling_calls == 1
-    assert app._mopidy_recovery.next_attempt_at == 0.0
-    assert app._mopidy_recovery.delay_seconds == 1.0
+    assert app._music_recovery.next_attempt_at == 0.0
+    assert app._music_recovery.delay_seconds == 1.0
 
 
 def test_app_stop_uses_silent_voip_teardown() -> None:
     """App shutdown should suppress VoIP teardown callbacks that could restart playback."""
     app, _, _ = _build_app(playback_state="paused", auto_resume=True)
     app.voip_manager = FakeStoppingVoIPManager()
-    app.mopidy_client = None
+    app.music_backend = None
 
     app.stop()
 

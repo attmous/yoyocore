@@ -1632,7 +1632,7 @@ int yoyopy_liblinphone_start(
     const char *media_device_id,
     int32_t echo_cancellation,
     int32_t mic_gain,
-    int32_t speaker_volume,
+    int32_t output_volume,
     const char *voice_note_store_dir
 ) {
     if (!g_state.initialized && yoyopy_liblinphone_init() != 0) {
@@ -1729,7 +1729,7 @@ int yoyopy_liblinphone_start(
     linphone_core_enable_echo_cancellation(g_state.core, echo_cancellation != 0);
     linphone_core_set_chat_messages_aggregation_enabled(g_state.core, FALSE);
     linphone_core_set_mic_gain_db(g_state.core, ((float)mic_gain * 0.3f));
-    linphone_core_set_playback_gain_db(g_state.core, ((float)speaker_volume * 0.12f) - 6.0f);
+    linphone_core_set_playback_gain_db(g_state.core, ((float)output_volume * 0.12f) - 6.0f);
     if (yoyopy_configure_media_policy(g_state.core, g_state.factory) != 0) {
         yoyopy_liblinphone_stop();
         return -1;

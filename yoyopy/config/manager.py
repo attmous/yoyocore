@@ -90,7 +90,8 @@ class ConfigManager:
                 logger.warning(f"App config file not found: {self.app_config_file}")
                 logger.info("Using default app configuration")
 
-            logger.debug(f"Mopidy host: {self.app_settings.audio.mopidy_host}")
+            logger.debug(f"Music directory: {self.app_settings.audio.music_dir}")
+            logger.debug(f"mpv socket: {self.app_settings.audio.mpv_socket or '(default)'}")
             logger.debug(f"Display hardware: {self.app_settings.display.hardware}")
             return self.app_config_loaded
         except Exception:
@@ -352,10 +353,10 @@ class ConfigManager:
 
         return self.voip_settings.audio.mic_gain
 
-    def get_speaker_volume(self) -> int:
-        """Get the configured speaker volume (0-100)."""
+    def get_default_output_volume(self) -> int:
+        """Get the shared app output volume used by music and call playback."""
 
-        return self.voip_settings.audio.speaker_volume
+        return self.app_settings.audio.default_volume
 
     def get_ring_output_device(self) -> str:
         """Get the output device for the speaker-test ring tone helper."""

@@ -143,17 +143,19 @@ class AppMetadataConfig:
 
 @dataclass(slots=True)
 class AppAudioConfig:
-    """Audio and Mopidy integration settings."""
+    """Audio and local music-backend settings."""
 
-    mopidy_host: str = config_value(default="localhost", env="YOYOPOD_MOPIDY_HOST")
-    mopidy_port: int = config_value(default=6680, env="YOYOPOD_MOPIDY_PORT")
+    music_dir: str = config_value(default="/home/pi/Music", env="YOYOPOD_MUSIC_DIR")
+    mpv_socket: str = config_value(default="", env="YOYOPOD_MPV_SOCKET")
+    mpv_binary: str = config_value(default="mpv", env="YOYOPOD_MPV_BINARY")
+    alsa_device: str = config_value(default="default", env="YOYOPOD_ALSA_DEVICE")
     auto_resume_after_call: bool = config_value(
         default=True,
         env="YOYOPOD_AUTO_RESUME_AFTER_CALL",
     )
     fade_out_duration_ms: int = config_value(default=0, env="YOYOPOD_FADE_OUT_DURATION_MS")
     fade_in_duration_ms: int = config_value(default=0, env="YOYOPOD_FADE_IN_DURATION_MS")
-    default_volume: int = config_value(default=70, env="YOYOPOD_DEFAULT_VOLUME")
+    default_volume: int = config_value(default=100, env="YOYOPOD_DEFAULT_VOLUME")
     ring_output_device: str = config_value(default="", env="YOYOPOD_RING_OUTPUT_DEVICE")
     speaker_test_path: str = config_value(default="speaker-test", env="YOYOPOD_SPEAKER_TEST_PATH")
 
@@ -395,7 +397,6 @@ class VoIPAudioConfig:
     preferred_codec: str = "opus"
     echo_cancellation: bool = True
     mic_gain: int = 80
-    speaker_volume: int = 80
     playback_device_id: str = config_value(
         default="ALSA: wm8960-soundcard",
         env="YOYOPOD_PLAYBACK_DEVICE",

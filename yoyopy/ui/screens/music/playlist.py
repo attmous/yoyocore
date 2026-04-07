@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 
 class PlaylistScreen(Screen):
-    """Browse local playlists exposed by Mopidy."""
+    """Browse local playlists from the on-device music library."""
 
     def __init__(
         self,
@@ -135,7 +135,7 @@ class PlaylistScreen(Screen):
 
         if not self.music_service.is_available:
             self.error_message = "Music offline"
-            logger.error("Cannot fetch playlists: Mopidy is offline")
+            logger.error("Cannot fetch playlists: music backend is offline")
             return
 
         self.loading = True
