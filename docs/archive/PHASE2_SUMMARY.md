@@ -1,0 +1,43 @@
+# Phase 2 Summary: Screen Integration
+
+**Last updated:** 2026-04-02
+**Status:** Historical summary, corrected to current file paths
+
+Phase 2 was the point where the integrated application stopped being a set of separate demos and became one navigable app.
+
+## What Phase 2 Added
+
+- screen instance setup inside `YoyoPodApp`
+- screen registration with `ScreenManager`
+- callback-driven transitions for call and music events
+- stack cleanup for call-related screens
+- production entrypoint via `yoyopod.py`
+
+## Correct Current File References
+
+The integration work lives in:
+
+- `yoyopy/app.py`
+- `yoyopod.py`
+
+The older reference to `yoyopy/yoyopod_app.py` is no longer correct.
+
+## Screen Set Registered By The App
+
+- navigation: `home`, `menu`
+- music: `now_playing`, `playlists`
+- VoIP: `call`, `contacts`, `incoming_call`, `outgoing_call`, `in_call`
+
+## Important Helper
+
+`YoyoPodApp._pop_call_screens()` remains the key guard against call-screen stack buildup. That logic still exists in `yoyopy/app.py`.
+
+## Later Refactor Note
+
+After Phase 2, the UI package was refactored:
+
+- `screens.py` was split into `yoyopy/ui/screens/`
+- `screen_manager.py` moved to `yoyopy/ui/screens/manager.py`
+- input and display were moved behind HAL packages
+
+So the Phase 2 behavior is still relevant, but the old module layout is not.

@@ -372,8 +372,9 @@ The current codebase is in a good place to focus on product behavior instead of 
 ## References
 
 - `README.md`
+- `docs/DEVELOPMENT_GUIDE.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
-- `docs/INTEGRATION_PLAN.md`
 - `docs/RPI_SMOKE_VALIDATION.md`
 - `docs/PI_DEV_WORKFLOW.md`
+- `docs/archive/`
 - Project repository: `https://github.com/moustafattia/yoyo-py`

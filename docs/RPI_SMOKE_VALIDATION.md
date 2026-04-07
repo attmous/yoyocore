@@ -92,10 +92,11 @@ Use this when SIP registration works but incoming-call parsing or callback deliv
 ### Whisplay display-only debug
 
 ```bash
-uv run python test_hal_whisplay.py
+uv run python scripts/lvgl_build.py
+uv run python scripts/lvgl_probe.py --scene carousel --duration-seconds 10
 ```
 
-Use this only on a Pi with the Whisplay hardware attached. It is a manual hardware smoke script, not part of CI.
+Use this only on a Pi with the Whisplay hardware attached. It validates the display/LVGL path without starting the full app and is not part of CI.
 
 ### Whisplay gesture tuning
 
