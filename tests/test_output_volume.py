@@ -60,3 +60,38 @@ def test_output_volume_controller_falls_back_to_music_backend_when_amixer_missin
     assert controller.set_volume(68) is True
     assert controller.get_volume() == 68
     assert backend.get_volume() == 68
+
+
+def test_output_volume_controller_falls_back_to_card_one_when_default_card_fails(
+    monkeypatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if args == ["amixer", "sget", "Master"]:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=1,
+                stdout="",
+                stderr="amixer: Unable to find simple control 'Master',0",
+            )
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=0,
+            stdout="""
+Simple mixer control 'Master',0
+  Front Left: Playback 65536 [100%] [on]
+""",
+            stderr="",
+        )
+
+    monkeypatch.setattr("yoyopy.audio.volume.subprocess.run", fake_run)
+
+    controller = OutputVolumeController()
+
+    assert controller.get_system_volume() == 100
+    assert calls[:2] == [
+        ["amixer", "sget", "Master"],
+        ["amixer", "-c", "1", "sget", "Master"],
+    ]

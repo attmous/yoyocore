@@ -87,50 +87,62 @@ class OutputVolumeController:
 
     def get_system_volume(self) -> int | None:
         """Read the current ALSA mixer percentage for the configured control."""
-        try:
-            result = subprocess.run(
-                [self.amixer_binary, "sget", self.mixer_control],
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-        except FileNotFoundError:
-            logger.debug("amixer not found; system output volume unavailable")
-            return None
-        except Exception as exc:
-            logger.warning("Failed to read ALSA output volume: {}", exc)
-            return None
+        for command in self._amixer_candidates("sget"):
+            result = self._run_amixer(command)
+            if result is None:
+                return None
+            if result.returncode != 0:
+                continue
 
-        if result.returncode != 0:
-            logger.warning("amixer sget {} failed: {}", self.mixer_control, result.stderr.strip())
-            return None
+            match = _PERCENT_RE.search(result.stdout)
+            if match is not None:
+                return int(match.group(1))
 
-        match = _PERCENT_RE.search(result.stdout)
-        if match is None:
-            logger.warning("Could not parse ALSA output volume from amixer output")
-            return None
-        return int(match.group(1))
+        logger.warning("Could not read ALSA output volume for {}", self.mixer_control)
+        return None
 
     def set_system_volume(self, volume: int) -> bool:
         """Write one ALSA mixer percentage for the configured control."""
         target = max(0, min(100, int(volume)))
+        for command in self._amixer_candidates("sset", f"{target}%"):
+            result = self._run_amixer(command)
+            if result is None:
+                return False
+            if result.returncode == 0:
+                return True
+
+        logger.warning("Failed to set ALSA output volume for {} to {}%", self.mixer_control, target)
+        return False
+
+    def _amixer_candidates(self, verb: str, *extra: str) -> list[list[str]]:
+        """Return candidate amixer commands across the usual ALSA cards."""
+        candidates = [
+            [self.amixer_binary, verb, self.mixer_control, *extra],
+            [self.amixer_binary, "-c", "1", verb, self.mixer_control, *extra],
+            [self.amixer_binary, "-c", "0", verb, self.mixer_control, *extra],
+        ]
+        unique: list[list[str]] = []
+        seen: set[tuple[str, ...]] = set()
+        for command in candidates:
+            key = tuple(command)
+            if key not in seen:
+                seen.add(key)
+                unique.append(command)
+        return unique
+
+    def _run_amixer(self, command: list[str]) -> subprocess.CompletedProcess[str] | None:
+        """Run one amixer command and normalize failure handling."""
         try:
-            result = subprocess.run(
-                [self.amixer_binary, "sset", self.mixer_control, f"{target}%"],
+            return subprocess.run(
+                command,
                 capture_output=True,
                 text=True,
                 timeout=5,
                 check=False,
             )
         except FileNotFoundError:
-            logger.debug("amixer not found; skipping ALSA output volume write")
-            return False
+            logger.debug("amixer not found; ALSA output volume unavailable")
+            return None
         except Exception as exc:
-            logger.warning("Failed to set ALSA output volume: {}", exc)
-            return False
-
-        if result.returncode != 0:
-            logger.warning("amixer sset {} {}% failed: {}", self.mixer_control, target, result.stderr.strip())
-            return False
-        return True
+            logger.warning("Failed to run amixer command {}: {}", command, exc)
+            return None
