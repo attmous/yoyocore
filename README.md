@@ -1,6 +1,6 @@
 # YoyoPod
 
-YoyoPod is an iPod-inspired Raspberry Pi application that combines SIP calling and local-first Mopidy-based music playback behind a small-screen, button-driven UI.
+YoyoPod is an iPod-inspired Raspberry Pi application that combines SIP calling and local-first mpv-based music playback behind a small-screen, button-driven UI.
 
 The current codebase supports three display/input modes:
 
@@ -20,7 +20,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - The UI package has been refactored into display, input, and screen subpackages
 - Hardware abstraction layers exist for display and input
 - Demo scripts and tests have been migrated to the current UI/HAL APIs
-- Background VoIP and Mopidy callbacks are coordinated through the app's main loop
+- Background VoIP and music-backend callbacks are coordinated through the app's main loop
 - The production UI now uses the Graffiti Buddy visual system with a fixed root IA:
   - `Listen`
   - `Talk`
@@ -31,6 +31,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - `Voice Note` now supports hold-to-record, review, local preview playback, send, and sent/failed feedback in the Talk flow
 - `Ask` is now a staged shell with idle, listening, thinking, and response states
 - Whisplay production rendering now runs on the LVGL backend by default
+- Local music playback now runs through an app-managed mpv backend under `yoyopy/audio/music/`
 - GitHub Actions CI validates `uv sync --extra dev` and `uv run pytest -q`
 
 ## Main Runtime Components
@@ -38,7 +39,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - `yoyopod.py`: top-level launcher for local development
 - `yoyopy/main.py`: package entry point for installed console scripts
 - `yoyopy/app.py`: `YoyoPodApp` coordinator
-- `scripts/pi_smoke.py`: Raspberry Pi smoke validator for hardware and optional service checks
+- `scripts/pi_smoke.py`: Raspberry Pi smoke validator for hardware and optional music, power, RTC, and VoIP checks
 - `scripts/pi_remote.py`: SSH helper for Raspberry Pi deploy, rsync, restart, logs, status, screenshots, smoke, and run loops
 - `scripts/lvgl_soak.py`: LVGL transition and sleep/wake soak helper for Whisplay
 - `scripts/pisugar_power.py`: PiSugar battery, shutdown, and watchdog helper
@@ -48,7 +49,11 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - `deploy/pi-deploy.local.yaml`: optional gitignored override for machine-specific Pi host, SSH user, project dir, and branch defaults
 - `yoyopy/fsm.py`: split `MusicFSM`, `CallFSM`, and call interruption policy
 - `yoyopy/coordinators/runtime.py`: derived `AppRuntimeState` over music, call, and UI state
-- `yoyopy/audio/mopidy_client.py`: Mopidy JSON-RPC client
+- `yoyopy/audio/music/backend.py`: `MusicBackend`, `MpvBackend`, and `MockMusicBackend`
+- `yoyopy/audio/music/process.py`: `MpvProcess` lifecycle wrapper around the spawned mpv process
+- `yoyopy/audio/music/ipc.py`: low-level mpv JSON IPC client
+- `yoyopy/audio/local_service.py`: filesystem-backed local library, playlists, shuffle, and recent-track integration
+- `yoyopy/audio/volume.py`: shared output-volume control across ALSA and mpv
 - `yoyopy/voip/manager.py`: Liblinphone-backed call and message facade
 - `yoyopy/ui/display/`: display HAL, factory, and adapters
 - `yoyopy/ui/input/`: input HAL, manager, and adapters
@@ -60,6 +65,7 @@ The current implementation assumes a Raspberry Pi environment, but the main hard
 
 - Whisplay driver discovery can be overridden with `YOYOPOD_WHISPLAY_DRIVER`
 - Liblinphone audio devices can be overridden with `YOYOPOD_PLAYBACK_DEVICE`, `YOYOPOD_RINGER_DEVICE`, `YOYOPOD_CAPTURE_DEVICE`, and `YOYOPOD_MEDIA_DEVICE`
+- Local music playback can be overridden with `YOYOPOD_MUSIC_DIR`, `YOYOPOD_MPV_SOCKET`, `YOYOPOD_MPV_BINARY`, `YOYOPOD_ALSA_DEVICE`, and `YOYOPOD_DEFAULT_VOLUME`
 - Ring tone output can be overridden with `YOYOPOD_RING_OUTPUT_DEVICE` or `config/yoyopod_config.yaml`
 - Simulation mode starts a Flask-SocketIO web server on `http://localhost:5000`
 
@@ -75,7 +81,7 @@ uv sync --extra dev
 
 YoyoPod expects these external packages on Raspberry Pi OS:
 
-- `mopidy`
+- `mpv`
 - `liblinphone-dev`
 - `pkg-config`
 - `cmake`
@@ -86,7 +92,7 @@ YoyoPod expects these external packages on Raspberry Pi OS:
 Example:
 
 ```bash
-sudo apt install mopidy liblinphone-dev pkg-config cmake alsa-utils i2c-tools
+sudo apt install mpv liblinphone-dev pkg-config cmake alsa-utils i2c-tools
 uv run python scripts/liblinphone_build.py
 ```
 
@@ -102,7 +108,7 @@ Edit these in place for your environment:
 
 Important settings:
 
-- `config/yoyopod_config.yaml`: display hardware selection, Mopidy host/port, auto-resume behavior
+- `config/yoyopod_config.yaml`: display hardware selection, `audio.music_dir`, `audio.mpv_socket`, `audio.mpv_binary`, `audio.alsa_device`, `audio.default_volume`, and auto-resume behavior
 - `docs/LOCAL_FIRST_MUSIC_PLAN.md`: local-only music direction and implementation notes
 - `config/yoyopod_config.yaml`: Whisplay gesture tuning under `input.whisplay_*_ms`
 - `config/yoyopod_config.yaml`: `input.ptt_navigation=false` is reserved for future voice/PTT work and is currently experimental
@@ -126,7 +132,7 @@ Raspberry Pi smoke:
 ```bash
 uv run python scripts/pi_smoke.py
 uv run python scripts/pi_smoke.py --with-power --with-rtc
-uv run python scripts/pi_smoke.py --with-mopidy --with-voip --with-rtc
+uv run python scripts/pi_smoke.py --with-music --with-voip --with-rtc
 uv run python scripts/pi_smoke.py --with-lvgl-soak
 ```
 
@@ -136,11 +142,11 @@ Remote Pi workflow:
 uv run python scripts/pi_remote.py config show
 uv run python scripts/pi_remote.py config edit
 uv run python scripts/pi_remote.py status
-uv run python scripts/pi_remote.py preflight --branch main --with-mopidy --with-voip
+uv run python scripts/pi_remote.py preflight --branch main --with-music --with-voip
 uv run python scripts/pi_remote.py sync --branch main
 uv run python scripts/pi_remote.py rsync
 uv run python scripts/pi_remote.py restart
-uv run python scripts/pi_remote.py smoke --with-mopidy --with-voip
+uv run python scripts/pi_remote.py smoke --with-music --with-voip
 uv run python scripts/pi_remote.py power
 uv run python scripts/pi_remote.py rtc status
 uv run python scripts/pi_remote.py rtc sync-to-rtc
@@ -177,7 +183,7 @@ uv run python scripts/pi_remote.py power
 
 ## Logging
 
-The production app now writes two rotating files in `logs/`:
+The production app writes two rotating files in `logs/`:
 
 - `logs/yoyopod.log`: main structured log with timestamps, subsystem tag, module/function/line, and message
 - `logs/yoyopod_errors.log`: errors-only companion log
@@ -220,9 +226,11 @@ python yoyopod.py --simulate
 
 Simulation mode starts the browser UI at `http://localhost:5000`.
 
-### Runtime Demo
+### Runtime Demos
 
 ```bash
+python demos/demo_voip.py --simulate
+python demos/demo_playlists.py
 python demos/demo_runtime_state.py --simulate
 ```
 
@@ -244,40 +252,27 @@ yoyopy/
   app_context.py
   coordinators/
   audio/
-    manager.py
-    mopidy_client.py
+    history.py
+    local_service.py
+    volume.py
+    music/
+      backend.py
+      ipc.py
+      models.py
+      process.py
   config/
     manager.py
+    models.py
   voip/
     backend.py
     history.py
     manager.py
     models.py
   ui/
-    __init__.py
-    web_server.py
     display/
-      hal.py
-      factory.py
-      manager.py
-      adapters/
-        pimoroni.py
-        simulation.py
-        whisplay.py
     input/
-      hal.py
-      factory.py
-      manager.py
-      adapters/
-        four_button.py
-        keyboard.py
-        ptt_button.py
     screens/
-      base.py
-      manager.py
-      navigation/
-      music/
-      voip/
+    web_server.py
 ```
 
 ## Documentation
@@ -290,10 +285,10 @@ yoyopy/
 - `docs/LVGL_MIGRATION_PLAN.md`: Whisplay LVGL migration record and backend boundaries
 - `docs/RPI_SMOKE_VALIDATION.md`: Raspberry Pi smoke checklist and manual follow-up drills
 - `docs/PI_DEV_WORKFLOW.md`: SSH-based Raspberry Pi sync/run workflow and release checklist
-- `docs/UI_RESTRUCTURE_PROPOSAL.md`: refactor status and remaining cleanup
-- `docs/PHASE2_SUMMARY.md`: historical screen-integration summary, updated to current file paths
+- `docs/LOCAL_FIRST_MUSIC_PLAN.md`: current local-library product direction
+- `docs/MPV_DEPENDENCIES.md`: mpv runtime and validation reference
 
 ## Current Gaps
 
-- Full end-to-end validation still requires Raspberry Pi hardware, Mopidy, and a reachable SIP service; see `docs/RPI_SMOKE_VALIDATION.md`
+- Full end-to-end validation still requires Raspberry Pi hardware, `mpv`, and a reachable SIP service; see `docs/RPI_SMOKE_VALIDATION.md`
 - CI currently covers the Python test suite, not hardware-in-the-loop scenarios

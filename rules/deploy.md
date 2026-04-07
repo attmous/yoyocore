@@ -16,7 +16,7 @@ ssh rpi-zero "cd yoyo-py && source .venv/bin/activate && python yoyopod.py"
 Kill stuck processes before restarting:
 
 ```bash
-ssh rpi-zero "killall -9 python linphonec"
+ssh rpi-zero "killall -9 python"
 ```
 
 ## rpi-deploy Plugin
