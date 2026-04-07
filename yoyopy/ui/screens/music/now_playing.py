@@ -11,6 +11,7 @@ from yoyopy.ui.screens.theme import INK, LISTEN, MUTED, SURFACE, draw_icon, rend
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
+    from yoyopy.audio.music.backend import MusicBackend
     from yoyopy.ui.screens import ScreenView
 
 
@@ -21,12 +22,10 @@ class NowPlayingScreen(Screen):
         self,
         display: Display,
         context: Optional["AppContext"] = None,
-        music_backend=None,
-        mopidy_client=None,
+        music_backend: "MusicBackend | None" = None,
     ) -> None:
         super().__init__(display, context, "NowPlaying")
-        self.music_backend = music_backend or mopidy_client
-        self.mopidy_client = self.music_backend
+        self.music_backend = music_backend
         self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
@@ -187,7 +186,7 @@ class NowPlayingScreen(Screen):
         )
 
     def _toggle_playback(self) -> None:
-        """Toggle playback via Mopidy or the local app context."""
+        """Toggle playback via the music backend or local app context."""
         if self.music_backend:
             if not self.music_backend.is_connected:
                 return

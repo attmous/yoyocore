@@ -155,11 +155,11 @@ def test_build_smoke_command_adds_optional_checks() -> None:
     args = Namespace(
         with_power=True,
         with_rtc=True,
-        with_mopidy=True,
+        with_music=True,
         with_voip=True,
         with_lvgl_soak=True,
         verbose=True,
-        mopidy_timeout=10,
+        music_timeout=10,
         voip_timeout=15.0,
     )
 
@@ -168,11 +168,11 @@ def test_build_smoke_command_adds_optional_checks() -> None:
     assert command.startswith("uv run python scripts/pi_smoke.py")
     assert "--with-power" in command
     assert "--with-rtc" in command
-    assert "--with-mopidy" in command
+    assert "--with-music" in command
     assert "--with-voip" in command
     assert "--with-lvgl-soak" in command
     assert "--verbose" in command
-    assert "--mopidy-timeout 10" in command
+    assert "--music-timeout 10" in command
     assert "--voip-timeout 15.0" in command
 
 

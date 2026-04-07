@@ -45,21 +45,21 @@ class PlaybackCoordinator:
         self._bound = True
 
     def publish_track_change(self, track: Track | None) -> None:
-        """Publish a Mopidy track change from the poller thread."""
+        """Publish a music track change from the poller thread."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
         self._event_bus.publish(TrackChangedEvent(track=track))
 
     def publish_playback_state_change(self, playback_state: str) -> None:
-        """Publish a Mopidy playback-state change from the poller thread."""
+        """Publish a playback-state change from the poller thread."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
         self._event_bus.publish(PlaybackStateChangedEvent(state=playback_state))
 
     def publish_availability_change(self, available: bool, reason: str = "") -> None:
-        """Publish Mopidy connectivity changes from worker threads."""
+        """Publish music-backend connectivity changes from worker threads."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
 
@@ -97,7 +97,7 @@ class PlaybackCoordinator:
         self.screen_coordinator.refresh_now_playing_screen()
 
     def handle_playback_state_change(self, playback_state: str) -> None:
-        """Sync the playback FSM with Mopidy state when not in a call."""
+        """Sync the playback FSM with music-backend state when not in a call."""
         logger.info(f"Playback state changed: {playback_state}")
 
         if self.runtime.call_fsm.is_active:
@@ -117,7 +117,7 @@ class PlaybackCoordinator:
         self.screen_coordinator.refresh_now_playing_screen()
 
     def handle_availability_change(self, available: bool, reason: str) -> None:
-        """Keep playback state aligned with Mopidy connectivity."""
+        """Keep playback state aligned with music-backend connectivity."""
         if available:
             logger.info(f"Music backend connected ({reason or 'ready'})")
             self.screen_coordinator.refresh_now_playing_screen()

@@ -93,7 +93,6 @@ class CoordinatorRuntime:
     config: dict[str, Any]
     config_manager: ConfigManager | None
     music_backend: MusicBackend | None = None
-    mopidy_client: MusicBackend | None = None
     context: AppContext | None = None
     ui_state: AppRuntimeState = AppRuntimeState.IDLE
     voip_ready: bool = False
@@ -117,10 +116,6 @@ class CoordinatorRuntime:
     }
 
     def __post_init__(self) -> None:
-        if self.music_backend is None:
-            self.music_backend = self.mopidy_client
-        elif self.mopidy_client is None:
-            self.mopidy_client = self.music_backend
         self.current_app_state = self._derive_state()
         self.state_history = [self.current_app_state]
 

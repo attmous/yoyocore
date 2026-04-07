@@ -38,11 +38,9 @@ class HubScreen(Screen):
         music_backend: Optional["MusicBackend"] = None,
         local_music_service: Optional["LocalMusicService"] = None,
         voip_manager: Optional["VoIPManager"] = None,
-        mopidy_client: Optional["MusicBackend"] = None,
     ) -> None:
         super().__init__(display, context, "ActionHub")
-        self.music_backend = music_backend or mopidy_client
-        self.mopidy_client = self.music_backend
+        self.music_backend = music_backend
         self.local_music_service = local_music_service
         self.voip_manager = voip_manager
         self.selected_index = 0

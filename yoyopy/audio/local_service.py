@@ -39,7 +39,6 @@ class LocalMusicService:
         recent_store: RecentTrackHistoryStore | None = None,
     ) -> None:
         self.music_backend = music_backend
-        self.mopidy_client = music_backend
         self.music_dir = music_dir
         self.recent_store = recent_store
 

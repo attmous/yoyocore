@@ -197,7 +197,6 @@ class YoyoPodApp:
         # Recovery backoff state
         self._voip_recovery = _RecoveryState()
         self._music_recovery = _RecoveryState()
-        self._mopidy_recovery = self._music_recovery
         self._next_power_poll_at = 0.0
         self._power_available: bool | None = None
         self._power_alert: _PowerAlert | None = None
@@ -239,16 +238,6 @@ class YoyoPodApp:
         self._voip_registered = value
         if self.call_coordinator is not None:
             self.call_coordinator.voip_registered = value
-
-    @property
-    def mopidy_client(self) -> Any | None:
-        """Compatibility alias during the mpv migration."""
-        return self.music_backend
-
-    @mopidy_client.setter
-    def mopidy_client(self, value: Any | None) -> None:
-        """Compatibility alias during the mpv migration."""
-        self.music_backend = value
 
     def setup(self) -> bool:
         """
@@ -464,13 +453,13 @@ class YoyoPodApp:
             return False
 
     def _init_managers(self) -> bool:
-        """Initialize VoIP and Mopidy managers."""
+        """Initialize VoIP and music managers."""
         logger.info("Initializing managers...")
 
         self.display.clear(self.display.COLOR_BLACK)
         self.display.text("Connecting VoIP...", 10, 80, color=self.display.COLOR_WHITE, font_size=16)
         self.display.text(
-            "Connecting Mopidy...",
+            "Starting Music...",
             10,
             110,
             color=self.display.COLOR_WHITE,
@@ -514,9 +503,9 @@ class YoyoPodApp:
                 recent_store=self.recent_track_store,
             )
             if self.music_backend.start():
-                logger.info("    ✓ Mopidy connected successfully")
+                logger.info("    ✓ Music backend started successfully")
             else:
-                logger.warning("    ⚠ Mopidy connection failed (VoIP-only mode)")
+                logger.warning("    ⚠ Music backend failed to start (VoIP-only mode)")
 
             logger.info("  - PowerManager")
             self.power_manager = PowerManager.from_config_manager(self.config_manager)
@@ -871,7 +860,7 @@ class YoyoPodApp:
         event: RecoveryAttemptCompletedEvent,
     ) -> None:
         """Finalize background recovery attempts on the coordinator thread."""
-        if event.manager not in {"music", "mopidy"}:
+        if event.manager != "music":
             return
 
         self._music_recovery.in_flight = False
@@ -1175,7 +1164,7 @@ class YoyoPodApp:
         self._sleep_screen(now)
 
     def _attempt_manager_recovery(self, now: float | None = None) -> None:
-        """Try to recover VoIP and Mopidy when they become unavailable."""
+        """Try to recover VoIP and music when they become unavailable."""
         if self._stopping:
             return
 
@@ -1427,7 +1416,7 @@ class YoyoPodApp:
 
         logger.info("Attempting music backend recovery")
         self._music_recovery.in_flight = True
-        self._start_mopidy_recovery_worker(recovery_now)
+        self._start_music_recovery_worker(recovery_now)
 
     def _start_music_recovery_worker(self, recovery_now: float) -> None:
         worker = threading.Thread(
@@ -1437,10 +1426,6 @@ class YoyoPodApp:
             name="music-recovery",
         )
         worker.start()
-
-    def _start_mopidy_recovery_worker(self, recovery_now: float) -> None:
-        """Compatibility wrapper for tests during the mpv migration."""
-        self._start_music_recovery_worker(recovery_now)
 
     def _run_music_recovery_attempt(self, recovery_now: float) -> None:
         recovered = False
@@ -1454,10 +1439,6 @@ class YoyoPodApp:
                 recovery_now=recovery_now,
             )
         )
-
-    def _run_mopidy_recovery_attempt(self, recovery_now: float) -> None:
-        """Compatibility wrapper for tests during the mpv migration."""
-        self._run_music_recovery_attempt(recovery_now)
 
     def _finalize_recovery_attempt(
         self,
@@ -1504,7 +1485,7 @@ class YoyoPodApp:
             playback_state = self.music_backend.get_playback_state()
             logger.info(f"  Playback state: {playback_state}")
         else:
-            logger.info("  Mopidy not connected")
+            logger.info("  Music backend not connected")
         logger.info("")
         logger.info("Power Status:")
         if self.power_manager:

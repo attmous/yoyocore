@@ -90,7 +90,8 @@ class ConfigManager:
                 logger.warning(f"App config file not found: {self.app_config_file}")
                 logger.info("Using default app configuration")
 
-            logger.debug(f"Mopidy host: {self.app_settings.audio.mopidy_host}")
+            logger.debug(f"Music directory: {self.app_settings.audio.music_dir}")
+            logger.debug(f"mpv socket: {self.app_settings.audio.mpv_socket or '(default)'}")
             logger.debug(f"Display hardware: {self.app_settings.display.hardware}")
             return self.app_config_loaded
         except Exception:

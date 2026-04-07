@@ -392,7 +392,7 @@ def _build_app_with_power(
 
 def test_incoming_call_pauses_playing_music_once() -> None:
     """Incoming call events should pause active playback exactly once."""
-    app, mopidy, screen_manager = _build_app(playback_state="playing")
+    app, music_backend, screen_manager = _build_app(playback_state="playing")
     app.music_fsm.transition("play")
     app.coordinator_runtime.sync_app_state("playback_playing")
 
@@ -401,9 +401,9 @@ def test_incoming_call_pauses_playing_music_once() -> None:
         IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"),
     )
 
-    assert mopidy.pause_calls == 0
+    assert music_backend.pause_calls == 0
     assert app.event_bus.drain() == 1
-    assert mopidy.pause_calls == 1
+    assert music_backend.pause_calls == 1
     assert app.music_fsm.state == MusicState.PAUSED
     assert app.call_fsm.state == CallSessionState.INCOMING
     assert app.call_interruption_policy.music_interrupted_by_call
@@ -416,13 +416,13 @@ def test_incoming_call_pauses_playing_music_once() -> None:
     )
 
     assert app.event_bus.drain() == 1
-    assert mopidy.pause_calls == 1
+    assert music_backend.pause_calls == 1
     assert len(screen_manager.screen_stack) == 2
 
 
 def test_call_end_auto_resumes_only_when_enabled() -> None:
     """Call end should auto-resume only when playback was interrupted and enabled."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=True)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=True)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -432,9 +432,9 @@ def test_call_end_auto_resumes_only_when_enabled() -> None:
 
     _publish_from_worker(app, CallEndedEvent())
 
-    assert mopidy.play_calls == 0
+    assert music_backend.play_calls == 0
     assert app.event_bus.drain() == 1
-    assert mopidy.play_calls == 1
+    assert music_backend.play_calls == 1
     assert app.music_fsm.state == MusicState.PLAYING
     assert app.call_fsm.state == CallSessionState.IDLE
     assert not app.call_interruption_policy.music_interrupted_by_call
@@ -443,7 +443,7 @@ def test_call_end_auto_resumes_only_when_enabled() -> None:
 
 def test_call_end_keeps_music_paused_when_auto_resume_disabled() -> None:
     """Call end should leave playback paused when auto-resume is off."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=False)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=False)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -454,7 +454,7 @@ def test_call_end_keeps_music_paused_when_auto_resume_disabled() -> None:
     _publish_from_worker(app, CallEndedEvent())
 
     assert app.event_bus.drain() == 1
-    assert mopidy.play_calls == 0
+    assert music_backend.play_calls == 0
     assert app.music_fsm.state == MusicState.PAUSED
     assert app.call_fsm.state == CallSessionState.IDLE
     assert not app.call_interruption_policy.music_interrupted_by_call
@@ -533,7 +533,7 @@ def test_periodic_in_call_refresh_only_renders_visible_call_screen() -> None:
 
 def test_voip_unavailable_event_ends_call_and_restores_music() -> None:
     """VoIP backend loss should tear down the call flow and restore interrupted playback."""
-    app, mopidy, screen_manager = _build_app(playback_state="paused", auto_resume=True)
+    app, music_backend, screen_manager = _build_app(playback_state="paused", auto_resume=True)
     app.music_fsm.sync(MusicState.PAUSED)
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.call_interruption_policy.music_interrupted_by_call = True
@@ -548,7 +548,7 @@ def test_voip_unavailable_event_ends_call_and_restores_music() -> None:
     assert app.event_bus.drain() == 1
     assert app.call_fsm.state == CallSessionState.IDLE
     assert app.music_fsm.state == MusicState.PLAYING
-    assert mopidy.play_calls == 1
+    assert music_backend.play_calls == 1
     assert screen_manager.current_screen is app.menu_screen
 
 
@@ -643,7 +643,7 @@ def test_manager_recovery_schedules_music_reconnect_off_main_thread() -> None:
     app.music_backend = FakeRecoveringMusicBackend([False, True])
     scheduled_attempts: list[float] = []
 
-    app._start_mopidy_recovery_worker = lambda recovery_now: scheduled_attempts.append(recovery_now)
+    app._start_music_recovery_worker = lambda recovery_now: scheduled_attempts.append(recovery_now)
 
     app._attempt_manager_recovery(now=0.0)
 

@@ -9,7 +9,7 @@ from pathlib import Path
 
 @dataclass(frozen=True, slots=True)
 class Track:
-    """One music track. Replaces MopidyTrack."""
+    """One music track."""
 
     uri: str
     name: str
@@ -66,7 +66,7 @@ class Track:
 
 @dataclass(frozen=True, slots=True)
 class Playlist:
-    """One M3U playlist. Replaces MopidyPlaylist."""
+    """One M3U playlist."""
 
     uri: str
     name: str

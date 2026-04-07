@@ -124,7 +124,7 @@ def main() -> int:
             app_log.error("  - config/voip_config.yaml exists")
             app_log.error("  - config/contacts.yaml exists")
             app_log.error("  - liblinphone is installed and the native shim is built")
-            app_log.error("  - Mopidy is running on localhost:6680")
+            app_log.error("  - mpv is installed and the configured music backend can start")
             app.stop()
             return 1
 
@@ -134,7 +134,7 @@ def main() -> int:
         app_log.info("=" * 60)
         app_log.info("")
         app_log.info("Available Features:")
-        app_log.info("  - Local music playback (Mopidy)")
+        app_log.info("  - Local music playback (mpv)")
         app_log.info("  - VoIP calling and messaging (Liblinphone)")
         app_log.info("  - Auto-pause music on calls")
         app_log.info("  - Auto-resume after calls")

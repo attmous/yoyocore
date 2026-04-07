@@ -42,7 +42,7 @@ class RecentTrackEntry:
 
     @classmethod
     def from_track(cls, track: Track) -> "RecentTrackEntry":
-        """Create a persistent recent-entry from the current Mopidy track."""
+        """Create a persistent recent-entry from the current track."""
 
         return cls(
             uri=track.uri,
