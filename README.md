@@ -1,6 +1,6 @@
 # YoyoPod
 
-YoyoPod is an iPod-inspired Raspberry Pi application that combines SIP calling and Mopidy-based music playback behind a small-screen, button-driven UI.
+YoyoPod is an iPod-inspired Raspberry Pi application that combines SIP calling and local-first Mopidy-based music playback behind a small-screen, button-driven UI.
 
 The current codebase supports three display/input modes:
 
@@ -26,7 +26,9 @@ On Whisplay, the one-button root hub currently exposes four cards:
   - `Talk`
   - `Ask`
   - `Setup`
-- `Talk` now includes quick-call favorites, recents/missed calls, and a voice-note recipient entry point
+- `Listen` is now local-first and local-only with `Playlists`, `Recent`, and `Shuffle`
+- `Talk` now opens as a people-first contact deck: pick a person, then choose `Call` or `Voice Note`
+- `Voice Note` now supports hold-to-record, review, local preview playback, send, and sent/failed feedback in the Talk flow
 - `Ask` is now a staged shell with idle, listening, thinking, and response states
 - Whisplay production rendering now runs on the LVGL backend by default
 - GitHub Actions CI validates `uv sync --extra dev` and `uv run pytest -q`
@@ -46,7 +48,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 - `yoyopy/fsm.py`: split `MusicFSM`, `CallFSM`, and call interruption policy
 - `yoyopy/coordinators/runtime.py`: derived `AppRuntimeState` over music, call, and UI state
 - `yoyopy/audio/mopidy_client.py`: Mopidy JSON-RPC client
-- `yoyopy/voip/manager.py`: `linphonec` subprocess integration
+- `yoyopy/voip/manager.py`: Liblinphone-backed call and message facade
 - `yoyopy/ui/display/`: display HAL, factory, and adapters
 - `yoyopy/ui/input/`: input HAL, manager, and adapters
 - `yoyopy/ui/screens/`: screen base class, navigation manager, and feature screens
@@ -56,7 +58,7 @@ On Whisplay, the one-button root hub currently exposes four cards:
 The current implementation assumes a Raspberry Pi environment, but the main hardware-specific paths and audio devices can now be overridden:
 
 - Whisplay driver discovery can be overridden with `YOYOPOD_WHISPLAY_DRIVER`
-- Linphone audio devices can be overridden with `YOYOPOD_PLAYBACK_DEVICE`, `YOYOPOD_RINGER_DEVICE`, `YOYOPOD_CAPTURE_DEVICE`, and `YOYOPOD_MEDIA_DEVICE`
+- Liblinphone audio devices can be overridden with `YOYOPOD_PLAYBACK_DEVICE`, `YOYOPOD_RINGER_DEVICE`, `YOYOPOD_CAPTURE_DEVICE`, and `YOYOPOD_MEDIA_DEVICE`
 - Ring tone output can be overridden with `YOYOPOD_RING_OUTPUT_DEVICE` or `config/yoyopod_config.yaml`
 - Simulation mode starts a Flask-SocketIO web server on `http://localhost:5000`
 
@@ -70,10 +72,12 @@ uv sync --extra dev
 
 ### System Dependencies
 
-YoyoPod expects these external tools on Raspberry Pi OS:
+YoyoPod expects these external packages on Raspberry Pi OS:
 
 - `mopidy`
-- `linphone-cli`
+- `liblinphone-dev`
+- `pkg-config`
+- `cmake`
 - `alsa-utils` for `speaker-test`
 - `i2c-tools` for PiSugar watchdog control
 - `pisugar-server` for PiSugar power/RTC telemetry via PiSugar's official installer
@@ -81,7 +85,8 @@ YoyoPod expects these external tools on Raspberry Pi OS:
 Example:
 
 ```bash
-sudo apt install mopidy linphone-cli alsa-utils i2c-tools
+sudo apt install mopidy liblinphone-dev pkg-config cmake alsa-utils i2c-tools
+uv run python scripts/liblinphone_build.py
 ```
 
 ### Configuration
@@ -90,19 +95,21 @@ The repo already ships tracked config files in `config/`.
 Edit these in place for your environment:
 
 - `config/voip_config.yaml`
+- `config/liblinphone_factory.conf`
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
 
 Important settings:
 
 - `config/yoyopod_config.yaml`: display hardware selection, Mopidy host/port, auto-resume behavior
-- `config/yoyopod_config.yaml`: `audio.listen_sources` controls which source cards appear under `Listen`
+- `docs/LOCAL_FIRST_MUSIC_PLAN.md`: local-only music direction and implementation notes
 - `config/yoyopod_config.yaml`: Whisplay gesture tuning under `input.whisplay_*_ms`
 - `config/yoyopod_config.yaml`: `input.ptt_navigation=false` is reserved for future voice/PTT work and is currently experimental
 - `config/yoyopod_config.yaml`: `power.watchdog_*` controls the PiSugar app heartbeat watchdog
 - `config/yoyopod_config.yaml`: `power.*` also controls low-battery warning, graceful shutdown, and PiSugar polling
 - `config/yoyopod_config.yaml`: `logging.*` controls file rotation, retention, error-only logs, PID file location, and traceback detail
-- `config/voip_config.yaml`: SIP account, transport, STUN, `linphonec` path
+- `config/voip_config.yaml`: SIP account, transport, STUN, Liblinphone messaging/file-transfer settings
+- `config/liblinphone_factory.conf`: repo-managed Liblinphone media, codec, and network defaults used for outbound-call parity on Raspberry Pi
 - `config/contacts.yaml`: contact list and speed dial entries
 
 ### Verification

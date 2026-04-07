@@ -103,7 +103,9 @@ class ScreenRouter:
             },
             "listen": {
                 "back": NavigationRequest.pop(),
-                "source_selected": NavigationRequest.push("playlists"),
+                "open_playlists": NavigationRequest.push("playlists"),
+                "open_recent": NavigationRequest.push("recent_tracks"),
+                "shuffle_started": NavigationRequest.push("now_playing"),
             },
             "ask": {
                 "back": NavigationRequest.pop(),
@@ -118,20 +120,23 @@ class ScreenRouter:
                 "back": NavigationRequest.pop(),
                 "playlist_loaded": NavigationRequest.push("now_playing"),
             },
+            "recent_tracks": {
+                "back": NavigationRequest.pop(),
+                "track_loaded": NavigationRequest.push("now_playing"),
+            },
             "call": {
                 "back": NavigationRequest.pop(),
-                "browse_contacts": NavigationRequest.push("contacts"),
-                "browse_history": NavigationRequest.push("call_history"),
-                "voice_notes": NavigationRequest.push("voice_note_contacts"),
+                "open_contact": NavigationRequest.push("talk_contact"),
                 "call_started": NavigationRequest.push("outgoing_call"),
+            },
+            "talk_contact": {
+                "back": NavigationRequest.pop(),
+                "call_started": NavigationRequest.push("outgoing_call"),
+                "voice_note": NavigationRequest.push("voice_note"),
             },
             "contacts": {
                 "back": NavigationRequest.pop(),
                 "call_started": NavigationRequest.push("outgoing_call"),
-            },
-            "voice_note_contacts": {
-                "back": NavigationRequest.pop(),
-                "voice_note_selected": NavigationRequest.push("voice_note"),
             },
             "call_history": {
                 "back": NavigationRequest.pop(),

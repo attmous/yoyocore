@@ -1,6 +1,6 @@
 # YoyoPod System Architecture
 
-**Last updated:** 2026-04-02
+**Last updated:** 2026-04-06
 **Status:** Current implementation
 
 This document describes the architecture that exists on `main` after the UI HAL refactor.
@@ -13,7 +13,7 @@ YoyoPod runs as a single Python application that coordinates:
 - semantic input handling
 - screen navigation
 - Mopidy music playback
-- SIP calling through `linphonec`
+- SIP calling and messaging through Liblinphone
 - state transitions between playback and call flows
 
 The production entrypoint is `yoyopod.py`, which delegates to `YoyoPodApp` in `yoyopy/app.py`.
@@ -38,7 +38,8 @@ yoyopod.py / yoyopy.main
      -> MopidyClient
         -> Mopidy JSON-RPC over HTTP
      -> VoIPManager
-        -> linphonec subprocess
+        -> LiblinphoneBackend
+           -> native Liblinphone shim
 ```
 
 ## Package Structure
@@ -54,7 +55,9 @@ yoyopod.py / yoyopy.main
 ### Audio and VoIP
 
 - `yoyopy/audio/mopidy_client.py`: playlist loading, playback control, polling callbacks
-- `yoyopy/voip/manager.py`: registration, call state parsing, call control
+- `yoyopy/voip/manager.py`: call, message, and voice-note facade
+- `yoyopy/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
+- `config/liblinphone_factory.conf`: repo-managed Liblinphone factory config for media, codec, and network defaults
 
 ### UI Layer
 
@@ -146,12 +149,12 @@ and updates:
 
 ### Incoming Call
 
-1. `VoIPManager` reads `linphonec` output on a monitor thread
-2. caller address and name are extracted
-3. `YoyoPodApp._handle_incoming_call()` pauses music if needed
-4. state transitions to `CALL_INCOMING`
-5. `IncomingCallScreen` is pushed
-6. ringing starts through `speaker-test`
+1. `YoyoPodApp` iterates the Liblinphone backend on the coordinator thread
+2. the native shim queues typed registration/call/message events
+3. `VoIPManager` translates those into app callbacks
+4. `YoyoPodApp._handle_incoming_call()` pauses music if needed
+5. state transitions to `CALL_INCOMING`
+6. `IncomingCallScreen` is pushed
 
 ### Music Playback
 
@@ -172,8 +175,9 @@ and updates:
 The current code still includes a few environment-specific assumptions:
 
 - Whisplay driver path: `/home/tifo/Whisplay/Driver/WhisPlay.py`
-- audio device for Linphone and ringing: `plughw:1`
+- audio device defaults for Liblinphone and ringing: `ALSA: wm8960-soundcard`
 - simulation server defaults to port `5000`
+- call negotiation on the Pi currently depends on the tracked Liblinphone factory config at `config/liblinphone_factory.conf`
 
 These are known implementation constraints, not architecture goals.
 

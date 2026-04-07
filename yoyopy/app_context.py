@@ -133,11 +133,18 @@ class AppContext:
         self.signal_strength: int = 4  # 0-4 bars
         self.is_connected: bool = False
         self.connection_type: str = "none"  # wifi, 4g, none
-        self.current_audio_source: str = "local"
         self.missed_calls: int = 0
         self.recent_calls: List[str] = []
+        self.unread_voice_notes: int = 0
+        self.latest_voice_note_by_contact: Dict[str, Dict[str, Any]] = {}
+        self.talk_contact_name: str = ""
+        self.talk_contact_address: str = ""
         self.voice_note_recipient_name: str = ""
         self.voice_note_recipient_address: str = ""
+        self.voice_note_send_state: str = "idle"
+        self.voice_note_status_text: str = ""
+        self.voice_note_file_path: str = ""
+        self.voice_note_duration_ms: int = 0
 
         # Navigation history for back button
         self.navigation_history: List[str] = []
@@ -388,8 +395,44 @@ class AppContext:
         self.missed_calls = max(0, int(missed_calls))
         self.recent_calls = list(recent_calls)
 
+    def set_talk_contact(self, *, name: str, sip_address: str) -> None:
+        """Store the currently selected Talk contact."""
+
+        self.talk_contact_name = name
+        self.talk_contact_address = sip_address
+
     def set_voice_note_recipient(self, *, name: str, sip_address: str) -> None:
         """Store the currently selected voice-note recipient."""
 
         self.voice_note_recipient_name = name
         self.voice_note_recipient_address = sip_address
+        self.voice_note_send_state = "idle"
+        self.voice_note_status_text = ""
+        self.voice_note_file_path = ""
+        self.voice_note_duration_ms = 0
+
+    def update_voice_note_summary(
+        self,
+        *,
+        unread_voice_notes: int,
+        latest_voice_note_by_contact: Dict[str, Dict[str, Any]],
+    ) -> None:
+        """Update unread counts and latest voice-note metadata exposed to Talk."""
+
+        self.unread_voice_notes = max(0, int(unread_voice_notes))
+        self.latest_voice_note_by_contact = dict(latest_voice_note_by_contact)
+
+    def update_active_voice_note(
+        self,
+        *,
+        send_state: str,
+        status_text: str = "",
+        file_path: str = "",
+        duration_ms: int = 0,
+    ) -> None:
+        """Update the active voice-note UI state for the selected recipient."""
+
+        self.voice_note_send_state = send_state
+        self.voice_note_status_text = status_text
+        self.voice_note_file_path = file_path
+        self.voice_note_duration_ms = max(0, int(duration_ms))

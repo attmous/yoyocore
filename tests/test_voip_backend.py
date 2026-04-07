@@ -1,23 +1,100 @@
-"""Unit tests for the VoIP backend abstraction and manager facade."""
+"""Unit tests for the Liblinphone backend abstraction and manager facade."""
 
 from __future__ import annotations
 
-import subprocess
+import time
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+
+from cffi import FFI
 
 from yoyopy.voip import (
     BackendStopped,
     CallState,
     CallStateChanged,
     IncomingCallDetected,
-    LinphonecBackend,
+    LiblinphoneBackend,
+    MessageDeliveryChanged,
+    MessageDeliveryState,
+    MessageDirection,
+    MessageFailed,
+    MessageKind,
+    MessageReceived,
     MockVoIPBackend,
     RegistrationState,
     RegistrationStateChanged,
     VoIPConfig,
     VoIPManager,
+    VoIPMessageRecord,
 )
+from yoyopy.voip.liblinphone_binding import LiblinphoneBinding
+
+
+class FakeBinding:
+    """Minimal binding double for LiblinphoneBackend tests."""
+
+    def __init__(self) -> None:
+        self.started = False
+        self.initialized = False
+        self.stopped = False
+        self.shutdown_called = False
+        self.events: list[SimpleNamespace] = []
+        self.calls: list[str] = []
+        self.start_kwargs: dict[str, object] = {}
+
+    def init(self) -> None:
+        self.initialized = True
+
+    def shutdown(self) -> None:
+        self.shutdown_called = True
+
+    def start(self, **kwargs) -> None:
+        self.start_kwargs = kwargs
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def iterate(self) -> None:
+        return
+
+    def poll_event(self):
+        if not self.events:
+            return None
+        return self.events.pop(0)
+
+    def make_call(self, sip_address: str) -> None:
+        self.calls.append(f"call {sip_address}")
+
+    def answer_call(self) -> None:
+        self.calls.append("answer")
+
+    def reject_call(self) -> None:
+        self.calls.append("reject")
+
+    def hangup(self) -> None:
+        self.calls.append("hangup")
+
+    def set_muted(self, muted: bool) -> None:
+        self.calls.append(f"mute {muted}")
+
+    def send_text_message(self, sip_address: str, text: str) -> str:
+        self.calls.append(f"text {sip_address} {text}")
+        return "text-1"
+
+    def start_voice_recording(self, file_path: str) -> None:
+        self.calls.append(f"record {file_path}")
+
+    def stop_voice_recording(self) -> int:
+        self.calls.append("stop-record")
+        return 1800
+
+    def cancel_voice_recording(self) -> None:
+        self.calls.append("cancel-record")
+
+    def send_voice_note(self, sip_address: str, *, file_path: str, duration_ms: int, mime_type: str) -> str:
+        self.calls.append(f"voice {sip_address} {file_path} {duration_ms} {mime_type}")
+        return "voice-1"
 
 
 class FakeConfigManager:
@@ -27,20 +104,10 @@ class FakeConfigManager:
         self.contacts = contacts or {}
 
     def get_contact_by_address(self, sip_address: str):
-        """Return a fake contact object when the address is known."""
-
         contact_name = self.contacts.get(sip_address)
         if contact_name is None:
             return None
-        return SimpleNamespace(name=contact_name)
-
-
-class StopEmittingMockVoIPBackend(MockVoIPBackend):
-    """Backend double that emits a stop event while the manager is tearing down."""
-
-    def stop(self) -> None:
-        self.emit(BackendStopped(reason="process_terminated"))
-        super().stop()
+        return SimpleNamespace(display_name=contact_name)
 
 
 def build_config() -> VoIPConfig:
@@ -51,22 +118,115 @@ def build_config() -> VoIPConfig:
         sip_username="alice",
         sip_password_ha1="hash",
         sip_identity="sip:alice@sip.example.com",
-        linphonec_path="/usr/bin/linphonec",
+        file_transfer_server_url="https://transfer.example.com",
+        message_store_dir="data/test_messages",
+        voice_note_store_dir="data/test_voice_notes",
     )
 
 
-def test_linphone_backend_parses_registration_and_incoming_call_events() -> None:
-    """The Linphone backend should translate stdout lines into typed events."""
+def native_event(**overrides) -> SimpleNamespace:
+    """Create one fake native shim event."""
 
-    backend = LinphonecBackend(build_config())
+    base = {
+        "type": 1,
+        "registration_state": 0,
+        "call_state": 0,
+        "message_kind": 1,
+        "message_direction": 1,
+        "message_delivery_state": 1,
+        "duration_ms": 0,
+        "unread": 0,
+        "message_id": "",
+        "peer_sip_address": "",
+        "sender_sip_address": "",
+        "recipient_sip_address": "",
+        "local_file_path": "",
+        "mime_type": "",
+        "text": "",
+        "reason": "",
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
 
-    assert backend._parse_output_line("LinphoneRegistrationOk, reason none") == [
-        RegistrationStateChanged(state=RegistrationState.OK)
+
+def test_liblinphone_backend_starts_and_drains_native_events() -> None:
+    """LiblinphoneBackend should translate native shim events into typed events."""
+
+    binding = FakeBinding()
+    backend = LiblinphoneBackend(build_config(), binding=binding)
+    events: list[object] = []
+    backend.on_event(events.append)
+
+    assert backend.start()
+
+    binding.events = [
+        native_event(type=1, registration_state=2),
+        native_event(type=3, peer_sip_address="sip:parent@example.com"),
+        native_event(type=2, call_state=6),
+        native_event(
+            type=5,
+            message_id="msg-1",
+            peer_sip_address="sip:parent@example.com",
+            sender_sip_address="sip:parent@example.com",
+            recipient_sip_address="sip:alice@example.com",
+            message_kind=2,
+            message_direction=1,
+            message_delivery_state=4,
+            local_file_path="data/voice.wav",
+            duration_ms=2100,
+            unread=1,
+        ),
     ]
-    assert backend._parse_output_line("New incoming call from [sip:parent@example.com]") == [
-        CallStateChanged(state=CallState.INCOMING),
-        IncomingCallDetected(caller_address="sip:parent@example.com"),
-    ]
+    backend.iterate()
+
+    assert isinstance(events[0], RegistrationStateChanged)
+    assert events[0].state == RegistrationState.OK
+    assert isinstance(events[1], IncomingCallDetected)
+    assert isinstance(events[2], CallStateChanged)
+    assert events[2].state == CallState.CONNECTED
+    assert isinstance(events[3], MessageReceived)
+    assert events[3].message.kind == MessageKind.VOICE_NOTE
+    assert events[3].message.unread is True
+    assert binding.start_kwargs["conference_factory_uri"] == ""
+    assert binding.start_kwargs["file_transfer_server_url"] == "https://transfer.example.com"
+    assert binding.start_kwargs["lime_server_url"] == ""
+    assert binding.start_kwargs["factory_config_path"].endswith("config\\liblinphone_factory.conf") or binding.start_kwargs[
+        "factory_config_path"
+    ].endswith("config/liblinphone_factory.conf")
+
+
+def test_liblinphone_backend_infers_linphone_hosted_servers() -> None:
+    """Hosted Linphone accounts should inherit the same messaging defaults as the official client."""
+
+    binding = FakeBinding()
+    config = build_config()
+    config.sip_server = "sip.linphone.org"
+    config.file_transfer_server_url = ""
+    config.lime_server_url = ""
+    backend = LiblinphoneBackend(config, binding=binding)
+
+    assert backend.start()
+    assert (
+        binding.start_kwargs["conference_factory_uri"]
+        == "sip:conference-factory@sip.linphone.org"
+    )
+    assert binding.start_kwargs["file_transfer_server_url"] == "https://files.linphone.org/lft.php"
+    assert (
+        binding.start_kwargs["lime_server_url"]
+        == "https://lime.linphone.org/lime-server/lime-server.php"
+    )
+
+
+def test_liblinphone_binding_decodes_c_string_arrays() -> None:
+    """Fixed-size C char arrays should decode through ffi.string on all platforms."""
+
+    ffi = FFI()
+    binding = object.__new__(LiblinphoneBinding)
+    binding.ffi = ffi
+
+    buffer = ffi.new("char[]", b"sip:parent@example.com")
+
+    assert binding._decode_c_string(buffer) == "sip:parent@example.com"
 
 
 def test_voip_manager_applies_backend_events_and_resolves_contact_names() -> None:
@@ -110,72 +270,271 @@ def test_voip_manager_delegates_outgoing_commands_to_backend() -> None:
     assert manager.get_caller_info()["display_name"] == "Bob"
 
 
-def test_voip_manager_resets_call_state_after_release() -> None:
-    """Releasing a call should stop timers and clear caller metadata."""
+def test_voip_manager_tracks_voice_note_send_and_delivery() -> None:
+    """Voice-note record/send flow should update the active draft and summary state."""
 
     backend = MockVoIPBackend()
     manager = VoIPManager(build_config(), backend=backend)
-    manager.caller_address = "sip:bob@example.com"
-    manager.caller_name = "Bob"
 
-    backend.emit(CallStateChanged(state=CallState.CONNECTED))
-    assert manager.call_start_time is not None
+    assert manager.start()
+    assert manager.start_voice_note_recording("sip:mom@example.com", recipient_name="Mom")
 
-    backend.emit(CallStateChanged(state=CallState.RELEASED))
+    draft = manager.stop_voice_note_recording()
+    assert draft is not None
+    assert draft.send_state == "review"
 
-    assert manager.call_state == CallState.RELEASED
-    assert manager.call_start_time is None
-    assert manager.call_duration == 0
-    assert manager.get_caller_info()["display_name"] == "Unknown"
+    assert manager.send_active_voice_note()
+    assert manager.get_active_voice_note().send_state == "sending"
+
+    backend.emit(
+        MessageDeliveryChanged(
+            message_id="mock-note-1",
+            delivery_state=MessageDeliveryState.SENT,
+            local_file_path="data/voice.wav",
+        )
+    )
+
+    assert manager.get_active_voice_note().send_state == "sent"
 
 
-def test_voip_manager_stop_can_suppress_teardown_callbacks() -> None:
-    """Intentional shutdown should not emit release or availability callbacks."""
-    backend = StopEmittingMockVoIPBackend()
+def test_voip_manager_fails_voice_note_send_without_transfer_server() -> None:
+    """Voice-note sending should fail immediately when file transfer is not configured."""
+
+    backend = MockVoIPBackend()
+    config = build_config()
+    config.file_transfer_server_url = ""
+    manager = VoIPManager(config, backend=backend)
+
+    assert manager.start()
+    assert manager.start_voice_note_recording("sip:mom@example.com", recipient_name="Mom")
+    assert manager.stop_voice_note_recording() is not None
+
+    assert manager.send_active_voice_note() is False
+    assert manager.get_active_voice_note().send_state == "failed"
+    assert manager.get_active_voice_note().status_text == "Voice notes unavailable"
+
+
+def test_voip_manager_allows_voice_note_send_for_hosted_linphone_account_without_explicit_url() -> None:
+    """Hosted Linphone accounts should use inferred upload settings instead of failing immediately."""
+
+    backend = MockVoIPBackend()
+    config = build_config()
+    config.sip_server = "sip.linphone.org"
+    config.file_transfer_server_url = ""
+    manager = VoIPManager(config, backend=backend)
+
+    assert manager.start()
+    assert manager.start_voice_note_recording("sip:mom@example.com", recipient_name="Mom")
+    assert manager.stop_voice_note_recording() is not None
+    assert manager.send_active_voice_note() is True
+    assert manager.get_active_voice_note().send_state == "sending"
+
+
+def test_voip_manager_times_out_stuck_voice_note_send() -> None:
+    """Voice-note sends should not remain in sending forever without delivery callbacks."""
+
+    backend = MockVoIPBackend()
+    config = build_config()
+    config.file_transfer_server_url = "https://transfer.example.com"
+    manager = VoIPManager(config, backend=backend)
+
+    assert manager.start()
+    assert manager.start_voice_note_recording("sip:mom@example.com", recipient_name="Mom")
+    assert manager.stop_voice_note_recording() is not None
+    assert manager.send_active_voice_note() is True
+
+    manager.get_active_voice_note().send_started_at = time.monotonic() - 30.0
+    manager.iterate()
+
+    assert manager.get_active_voice_note().send_state == "failed"
+    assert manager.get_active_voice_note().status_text == "Send timed out"
+
+
+def test_voip_manager_surfaces_voice_note_failure_reason() -> None:
+    """Voice-note send failures should preserve the backend reason for the UI."""
+
+    backend = MockVoIPBackend()
     manager = VoIPManager(build_config(), backend=backend)
-    manager.running = True
-    manager.registered = True
-    manager.call_state = CallState.CONNECTED
-    manager.caller_address = "sip:bob@example.com"
-    manager.caller_name = "Bob"
 
-    call_states: list[CallState] = []
-    availability_events: list[tuple[bool, str]] = []
-    manager.on_call_state_change(call_states.append)
-    manager.on_availability_change(
-        lambda available, reason: availability_events.append((available, reason))
+    assert manager.start()
+    assert manager.start_voice_note_recording("sip:mom@example.com", recipient_name="Mom")
+    assert manager.stop_voice_note_recording() is not None
+    assert manager.send_active_voice_note()
+
+    backend.emit(MessageFailed(message_id="mock-note-1", reason="Upload failed"))
+
+    assert manager.get_active_voice_note().send_state == "failed"
+    assert manager.get_active_voice_note().status_text == "Upload failed"
+
+
+def test_voip_manager_receives_incoming_voice_note_and_updates_summary(tmp_path: Path) -> None:
+    """Incoming voice notes should be persisted and exposed through Talk summaries."""
+
+    backend = MockVoIPBackend()
+    config = build_config()
+    config.message_store_dir = str(tmp_path / "messages")
+    manager = VoIPManager(config, backend=backend)
+    summary_events: list[tuple[int, dict[str, dict[str, str]]]] = []
+    manager.on_message_summary_change(lambda unread, summary: summary_events.append((unread, summary)))
+
+    assert manager.start()
+
+    backend.emit(
+        MessageReceived(
+            message=VoIPMessageRecord(
+                id="incoming-1",
+                peer_sip_address="sip:mom@example.com",
+                sender_sip_address="sip:mom@example.com",
+                recipient_sip_address="sip:alice@example.com",
+                kind=MessageKind.VOICE_NOTE,
+                direction=MessageDirection.INCOMING,
+                delivery_state=MessageDeliveryState.DELIVERED,
+                created_at="2026-04-06T00:00:00+00:00",
+                updated_at="2026-04-06T00:00:00+00:00",
+                local_file_path="data/voice_notes/incoming.wav",
+                duration_ms=2000,
+                unread=True,
+            )
+        )
     )
 
-    manager.stop(notify_events=False)
-
-    assert call_states == []
-    assert availability_events == []
-    assert manager.call_state == CallState.RELEASED
-    assert manager.call_start_time is None
-    assert manager.get_caller_info()["display_name"] == "Unknown"
+    assert manager.unread_voice_note_count() == 1
+    latest = manager.latest_voice_note_for_contact("sip:mom@example.com")
+    assert latest is not None
+    assert latest.local_file_path.endswith("incoming.wav")
+    assert summary_events[-1][0] == 1
 
 
-def test_linphone_backend_stop_kills_process_after_terminate_timeout() -> None:
-    """Stopping linphonec should hard-kill the process if terminate still hangs."""
+def test_voip_manager_uses_ffplay_for_containerized_voice_notes() -> None:
+    """Compressed/containerized incoming notes should not be sent to aplay as raw PCM."""
 
-    backend = LinphonecBackend(build_config())
-    process = SimpleNamespace()
-    process.stdin = Mock()
-    process.wait = Mock(
-        side_effect=[
-            subprocess.TimeoutExpired(cmd=["linphonec"], timeout=2),
-            subprocess.TimeoutExpired(cmd=["linphonec"], timeout=1),
-            None,
-        ]
+    assert VoIPManager._build_voice_note_playback_command("data/voice_notes/incoming.mka") == [
+        "ffplay",
+        "-nodisp",
+        "-autoexit",
+        "-loglevel",
+        "error",
+        "-af",
+        "volume=12.0dB",
+        "data/voice_notes/incoming.mka",
+    ]
+    assert VoIPManager._build_voice_note_playback_command("data/voice_notes/incoming.wav") == [
+        "aplay",
+        "-q",
+        "data/voice_notes/incoming.wav",
+    ]
+
+
+def test_voip_manager_coerces_rcs_voice_note_envelope_into_voice_note_record(tmp_path: Path) -> None:
+    """Incoming GSMA file-transfer envelopes for voice recordings should not be stored as plain text."""
+
+    backend = MockVoIPBackend()
+    config = build_config()
+    config.message_store_dir = str(tmp_path / "messages")
+    manager = VoIPManager(config, backend=backend)
+
+    assert manager.start()
+
+    backend.emit(
+        MessageReceived(
+            message=VoIPMessageRecord(
+                id="incoming-envelope-1",
+                peer_sip_address="sip:mom@example.com",
+                sender_sip_address="sip:mom@example.com",
+                recipient_sip_address="sip:alice@example.com",
+                kind=MessageKind.TEXT,
+                direction=MessageDirection.INCOMING,
+                delivery_state=MessageDeliveryState.SENDING,
+                created_at="2026-04-06T00:00:00+00:00",
+                updated_at="2026-04-06T00:00:00+00:00",
+                text=(
+                    '<?xml version="1.0" encoding="UTF-8"?>'
+                    '<file xmlns="urn:gsma:params:xml:ns:rcs:rcs:fthttp" '
+                    'xmlns:am="urn:gsma:params:xml:ns:rcs:rcs:rram">'
+                    "<file-info type=\"file\">"
+                    "<content-type>audio/wav;voice-recording=yes</content-type>"
+                    "<am:playing-length>4046</am:playing-length>"
+                    "</file-info>"
+                    "</file>"
+                ),
+                local_file_path="/tmp/incoming-envelope.mka",
+                mime_type="application/vnd.gsma.rcs-ft-http+xml",
+                unread=True,
+            )
+        )
     )
-    process.terminate = Mock()
-    process.kill = Mock()
-    backend.process = process
-    backend.running = True
 
-    backend.stop()
+    latest = manager.latest_voice_note_for_contact("sip:mom@example.com")
+    assert latest is not None
+    assert latest.kind == MessageKind.VOICE_NOTE
+    assert latest.mime_type == "audio/wav"
+    assert latest.duration_ms == 4046
+    assert latest.text == ""
+    assert latest.local_file_path == "/tmp/incoming-envelope.mka"
 
-    process.terminate.assert_called_once()
-    process.kill.assert_called_once()
-    assert process.wait.call_count == 3
-    assert backend.process is None
+
+def test_voip_manager_builds_message_store_under_directory(tmp_path: Path) -> None:
+    """The configured message store path should be treated as a directory, not a file."""
+
+    config = build_config()
+    config.message_store_dir = str(tmp_path / "messages")
+
+    manager = VoIPManager(config, backend=MockVoIPBackend())
+
+    assert manager._message_store.store_dir == tmp_path / "messages"
+    assert manager._message_store.index_file == tmp_path / "messages" / "messages.json"
+
+
+def test_liblinphone_shim_records_voice_notes_as_wav() -> None:
+    """The native recorder shim should explicitly match the .wav files used by the app."""
+
+    shim_source = Path("yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
+        encoding="utf-8"
+    )
+
+    assert "linphone_recorder_params_set_file_format(params, LinphoneRecorderFileFormatWav);" in shim_source
+
+
+def test_liblinphone_shim_wires_incoming_message_debug_paths() -> None:
+    """The native shim should cover aggregated and undecryptable incoming message paths."""
+
+    shim_source = Path("yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
+        encoding="utf-8"
+    )
+
+    assert "linphone_core_cbs_set_messages_received(g_state.core_cbs, yoyopy_on_messages_received);" in shim_source
+    assert "linphone_core_set_chat_messages_aggregation_enabled(g_state.core, FALSE);" in shim_source
+    assert "linphone_core_cbs_set_message_received_unable_decrypt(" in shim_source
+    assert "linphone_account_params_enable_cpim_in_basic_chat_room(params, TRUE);" in shim_source
+    assert "linphone_account_params_set_conference_factory_address(params, conference_factory_address);" in shim_source
+    assert "linphone_account_params_set_lime_server_url(params, lime_server_url);" in shim_source
+    assert "linphone_factory_create_chat_room_cbs(g_state.factory);" in shim_source
+    assert "linphone_chat_room_add_callbacks(chat_room, g_state.chat_room_cbs);" in shim_source
+    assert "linphone_chat_room_cbs_set_message_received(g_state.chat_room_cbs, yoyopy_on_chat_room_message_received);" in shim_source
+    assert "linphone_logging_service_set_log_level_mask(" in shim_source
+    assert "yoyopy_log_account_diagnostics(\"registration_ok\");" in shim_source
+    assert "linphone_core_search_chat_room(" in shim_source
+    assert "linphone_core_create_chat_room_6(" in shim_source
+    assert "linphone_chat_room_params_set_backend(params, LinphoneChatRoomBackendFlexisipChat);" in shim_source
+    assert "linphone_chat_room_params_set_backend(params, LinphoneChatRoomBackendBasic);" in shim_source
+    assert "linphone_chat_room_params_enable_encryption(params, FALSE);" in shim_source
+    assert 'voice-recording=yes' in shim_source
+    assert "linphone_core_enable_auto_download_voice_recordings(g_state.core, FALSE);" in shim_source
+    assert 'linphone_chat_room_params_set_subject(params, "YoyoPod");' in shim_source
+    assert "linphone_core_delete_chat_room(g_state.core, chat_room);" in shim_source
+    assert shim_source.count("chat_room = yoyopy_get_direct_chat_room(sip_address);") >= 2
+
+
+def test_voip_manager_handles_backend_stop_event() -> None:
+    """Unexpected backend stop should clear availability and registration state."""
+
+    backend = MockVoIPBackend()
+    manager = VoIPManager(build_config(), backend=backend)
+
+    assert manager.start()
+    backend.emit(RegistrationStateChanged(state=RegistrationState.OK))
+    backend.emit(BackendStopped(reason="native core stopped"))
+
+    assert manager.running is False
+    assert manager.registered is False
+    assert manager.registration_state == RegistrationState.FAILED

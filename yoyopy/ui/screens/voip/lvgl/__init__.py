@@ -6,6 +6,7 @@ from yoyopy.ui.screens.voip.lvgl.contact_list_view import LvglContactListView
 from yoyopy.ui.screens.voip.lvgl.in_call_view import LvglInCallView
 from yoyopy.ui.screens.voip.lvgl.incoming_call_view import LvglIncomingCallView
 from yoyopy.ui.screens.voip.lvgl.outgoing_call_view import LvglOutgoingCallView
+from yoyopy.ui.screens.voip.lvgl.talk_contact_view import LvglTalkContactView
 from yoyopy.ui.screens.voip.lvgl.voice_note_view import LvglVoiceNoteView
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "LvglInCallView",
     "LvglIncomingCallView",
     "LvglOutgoingCallView",
+    "LvglTalkContactView",
     "LvglVoiceNoteView",
 ]

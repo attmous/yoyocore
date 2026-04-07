@@ -1,4 +1,4 @@
-"""LVGL-backed view for the Talk hub screen."""
+"""LVGL-backed view for the Talk contact deck."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 @dataclass(slots=True)
 class LvglCallView:
-    """Own the LVGL object lifecycle for CallScreen."""
+    """Own the LVGL object lifecycle for the people-first Talk screen."""
 
     screen: "CallScreen"
     backend: LvglDisplayBackend
@@ -24,60 +24,35 @@ class LvglCallView:
     def build(self) -> None:
         if self._built or self.backend.binding is None:
             return
-        self.backend.binding.playlist_build()
+        self.backend.binding.hub_build()
         self._built = True
 
     def sync(self) -> None:
         if not self._built or self.backend.binding is None:
             return
 
-        visible_items, visible_badges, selected_visible_index = self.screen.get_visible_window()
-        status = self.screen._get_status_snapshot()
-        status_text, _status_color, _detail = self.screen._status_lines(status)
-        call_state_text, _caller_text = self.screen._call_context_lines(status)
+        title_text, subtitle_text, selected_index, total_cards = self.screen.current_card_model()
         context = self.screen.context
-
-        title_text = call_state_text or "Calls"
-        status_chip_text, status_chip_kind = self._status_chip(status_text, call_state_text)
-
-        self.backend.binding.playlist_sync(
-            title_text=title_text,
-            page_text=None,
-            status_chip_text=status_chip_text,
-            status_chip_kind=status_chip_kind,
-            footer=self.screen._instruction_text(),
-            items=visible_items,
-            badges=visible_badges,
-            selected_visible_index=selected_visible_index,
+        self.backend.binding.hub_sync(
+            icon_key="talk",
+            title=title_text or "Talk",
+            subtitle=subtitle_text or "Call or voice note",
+            footer="Tap next / Double open",
+            time_text=None,
+            accent=TALK.accent,
+            selected_index=selected_index,
+            total_cards=max(1, total_cards),
             voip_state=self._voip_state(context),
             battery_percent=self._battery_percent(context),
             charging=bool(getattr(context, "battery_charging", False)) if context is not None else False,
             power_available=bool(getattr(context, "power_available", True)) if context is not None else True,
-            accent=TALK.accent,
-            empty_title="No contacts",
-            empty_subtitle="Add favorites to Talk.",
-            empty_icon_key="talk",
         )
 
     def destroy(self) -> None:
         if not self._built or self.backend.binding is None:
             return
-        self.backend.binding.playlist_destroy()
+        self.backend.binding.hub_destroy()
         self._built = False
-
-    @staticmethod
-    def _status_chip(status_text: str, call_state_text: str) -> tuple[str | None, int]:
-        if call_state_text:
-            return None, 0
-        if status_text == "Calls ready":
-            return "Ready", 1
-        if status_text in {"Recovering", "Connecting"}:
-            return status_text, 2
-        if status_text == "Offline":
-            return "Offline", 3
-        if status_text == "Not set up":
-            return "Setup", 4
-        return None, 0
 
     @staticmethod
     def _battery_percent(context: "AppContext | None") -> int:

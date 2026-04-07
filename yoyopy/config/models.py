@@ -147,7 +147,6 @@ class AppAudioConfig:
 
     mopidy_host: str = config_value(default="localhost", env="YOYOPOD_MOPIDY_HOST")
     mopidy_port: int = config_value(default=6680, env="YOYOPOD_MOPIDY_PORT")
-    listen_sources: list[str] = config_value(default_factory=lambda: ["local"])
     auto_resume_after_call: bool = config_value(
         default=True,
         env="YOYOPOD_AUTO_RESUME_AFTER_CALL",
@@ -335,6 +334,10 @@ class VoIPAccountConfig:
     sip_password: str = config_value(default="", env="YOYOPOD_SIP_PASSWORD")
     sip_password_ha1: str = config_value(default="", env="YOYOPOD_SIP_PASSWORD_HA1")
     sip_identity: str = config_value(default="", env="YOYOPOD_SIP_IDENTITY")
+    factory_config_path: str = config_value(
+        default="config/liblinphone_factory.conf",
+        env="YOYOPOD_LIBLINPHONE_FACTORY_CONFIG",
+    )
     transport: str = config_value(default="tcp", env="YOYOPOD_SIP_TRANSPORT")
     display_name: str = "YoyoPod"
 
@@ -345,6 +348,44 @@ class VoIPNetworkConfig:
 
     stun_server: str = config_value(default="stun.linphone.org", env="YOYOPOD_STUN_SERVER")
     enable_ice: bool = True
+
+
+@dataclass(slots=True)
+class VoIPMessagingConfig:
+    """VoIP chat and voice-note settings."""
+
+    conference_factory_uri: str = config_value(
+        default="",
+        env="YOYOPOD_CONFERENCE_FACTORY_URI",
+    )
+    file_transfer_server_url: str = config_value(
+        default="",
+        env="YOYOPOD_FILE_TRANSFER_SERVER_URL",
+    )
+    lime_server_url: str = config_value(
+        default="",
+        env="YOYOPOD_LIME_SERVER_URL",
+    )
+    iterate_interval_ms: int = config_value(
+        default=20,
+        env="YOYOPOD_VOIP_ITERATE_INTERVAL_MS",
+    )
+    message_store_dir: str = config_value(
+        default="data/messages",
+        env="YOYOPOD_MESSAGE_STORE_DIR",
+    )
+    voice_note_store_dir: str = config_value(
+        default="data/voice_notes",
+        env="YOYOPOD_VOICE_NOTE_STORE_DIR",
+    )
+    voice_note_max_duration_seconds: int = config_value(
+        default=30,
+        env="YOYOPOD_VOICE_NOTE_MAX_DURATION_SECONDS",
+    )
+    auto_download_incoming_voice_recordings: bool = config_value(
+        default=True,
+        env="YOYOPOD_AUTO_DOWNLOAD_INCOMING_VOICE_RECORDINGS",
+    )
 
 
 @dataclass(slots=True)
@@ -381,6 +422,6 @@ class VoIPFileConfig:
     account: VoIPAccountConfig = config_value(default_factory=VoIPAccountConfig)
     network: VoIPNetworkConfig = config_value(default_factory=VoIPNetworkConfig)
     audio: VoIPAudioConfig = config_value(default_factory=VoIPAudioConfig)
-    linphonec_path: str = config_value(default="/usr/bin/linphonec", env="YOYOPOD_LINPHONEC_PATH")
+    messaging: VoIPMessagingConfig = config_value(default_factory=VoIPMessagingConfig)
     auto_answer: bool = False
     call_timeout: int = 60

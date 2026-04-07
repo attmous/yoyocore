@@ -23,6 +23,7 @@ from yoyopy.ui.screens import (
     OutgoingCallScreen,
     InCallScreen,
     ContactListScreen,
+    TalkContactScreen,
 )
 
 __all__ = [
@@ -45,4 +46,5 @@ __all__ = [
     'OutgoingCallScreen',
     'InCallScreen',
     'ContactListScreen',
+    'TalkContactScreen',
 ]

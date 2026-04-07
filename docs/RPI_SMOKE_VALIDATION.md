@@ -50,7 +50,8 @@ What it checks:
 
 - PiSugar battery telemetry and RTC state when requested
 - Mopidy JSON-RPC connectivity using `config/yoyopod_config.yaml`
-- `linphonec` startup and SIP registration using `config/voip_config.yaml`
+- Liblinphone startup and SIP registration using `config/voip_config.yaml`
+- Liblinphone media/codec defaults from `config/liblinphone_factory.conf`
 
 Useful flags:
 
@@ -157,7 +158,7 @@ Use this when you want a focused battery, charging, RTC, shutdown-threshold, and
 - `display` fails: check attached HAT, driver/library install, and `display.hardware` config
 - `input` fails: check the matching display adapter initialized correctly first
 - `mopidy` fails: verify Mopidy is running and reachable at the configured host/port
-- `voip` fails: verify `linphonec`, SIP credentials, network reachability, and audio device configuration
+- `voip` fails: verify the Liblinphone shim build, `config/liblinphone_factory.conf`, SIP credentials, network reachability, and audio device configuration
 
 ## Notes
 

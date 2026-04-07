@@ -30,6 +30,13 @@ class Contact:
     favorite: bool = False
     notes: str = ""
 
+    @property
+    def display_name(self) -> str:
+        """Return the kid-facing label for the contact."""
+
+        label = self.notes.strip()
+        return label or self.name
+
     def __str__(self) -> str:
         return f"{self.name} ({self.sip_address})"
 
@@ -250,6 +257,11 @@ class ConfigManager:
 
         return self.voip_settings.account.sip_identity
 
+    def get_voip_factory_config_path(self) -> str:
+        """Get the Liblinphone factory-config path."""
+
+        return self.voip_settings.account.factory_config_path
+
     def get_transport(self) -> str:
         """Get transport protocol."""
 
@@ -265,10 +277,45 @@ class ConfigManager:
 
         return self.voip_settings.network.stun_server
 
-    def get_linphonec_path(self) -> str:
-        """Get linphonec executable path."""
+    def get_file_transfer_server_url(self) -> str:
+        """Get the configured Liblinphone file transfer server URL."""
 
-        return self.voip_settings.linphonec_path
+        return self.voip_settings.messaging.file_transfer_server_url
+
+    def get_conference_factory_uri(self) -> str:
+        """Get the configured conference-factory URI for hosted chat rooms."""
+
+        return self.voip_settings.messaging.conference_factory_uri
+
+    def get_lime_server_url(self) -> str:
+        """Get the configured Liblinphone LIME/X3DH server URL."""
+
+        return self.voip_settings.messaging.lime_server_url
+
+    def get_voip_iterate_interval_ms(self) -> int:
+        """Get the Liblinphone iterate cadence in milliseconds."""
+
+        return self.voip_settings.messaging.iterate_interval_ms
+
+    def get_message_store_dir(self) -> str:
+        """Get the persistent VoIP message metadata directory."""
+
+        return self.voip_settings.messaging.message_store_dir
+
+    def get_voice_note_store_dir(self) -> str:
+        """Get the directory used to store local voice-note files."""
+
+        return self.voip_settings.messaging.voice_note_store_dir
+
+    def get_voice_note_max_duration_seconds(self) -> int:
+        """Get the maximum allowed voice-note duration in seconds."""
+
+        return self.voip_settings.messaging.voice_note_max_duration_seconds
+
+    def get_auto_download_incoming_voice_recordings(self) -> bool:
+        """Return whether incoming voice-note attachments should auto-download."""
+
+        return self.voip_settings.messaging.auto_download_incoming_voice_recordings
 
     def get_auto_answer(self) -> bool:
         """Get auto-answer setting."""
@@ -328,12 +375,6 @@ class ConfigManager:
         if favorites_only:
             return [contact for contact in self.contacts if contact.favorite]
         return self.contacts
-
-    def get_listen_sources(self) -> list[str]:
-        """Return the configured music sources for the Listen browser."""
-
-        sources = self.app_settings.audio.listen_sources
-        return list(sources) if sources else ["local"]
 
     def get_contact_by_name(self, name: str) -> Optional[Contact]:
         """Get a contact by display name."""

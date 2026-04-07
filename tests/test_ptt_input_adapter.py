@@ -11,7 +11,13 @@ from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
 
 def _record_actions(adapter: PTTInputAdapter) -> list[InputAction]:
     actions: list[InputAction] = []
-    for action in (InputAction.ADVANCE, InputAction.SELECT, InputAction.BACK):
+    for action in (
+        InputAction.ADVANCE,
+        InputAction.SELECT,
+        InputAction.BACK,
+        InputAction.PTT_PRESS,
+        InputAction.PTT_RELEASE,
+    ):
         adapter.on_action(action, lambda data=None, action=action: actions.append(action))
     return actions
 
@@ -125,3 +131,23 @@ def test_poll_loop_preserves_double_tap_window_across_debounce(monkeypatch) -> N
     adapter._poll_button()
 
     assert actions == [InputAction.SELECT]
+
+
+def test_raw_ptt_passthrough_emits_hold_press_and_release_without_back() -> None:
+    """Voice-note passthrough should surface raw hold events and suppress BACK."""
+
+    adapter = PTTInputAdapter(simulate=True, enable_navigation=True)
+    adapter.set_raw_ptt_passthrough(True)
+    actions = _record_actions(adapter)
+
+    adapter._handle_button_press(0.0)
+    adapter._poll_button = lambda: None  # not used; keep static analysis quiet
+    adapter.press_start_time = 0.0
+    adapter.button_pressed = True
+    adapter.raw_hold_started = False
+    if (0.85 - adapter.press_start_time) >= adapter.long_press_time:
+        adapter.raw_hold_started = True
+        adapter._fire_action(InputAction.PTT_PRESS, {"stage": "hold_started", "duration": 0.85})
+    adapter._handle_button_release(0.85)
+
+    assert actions == [InputAction.PTT_PRESS, InputAction.PTT_PRESS, InputAction.PTT_RELEASE]

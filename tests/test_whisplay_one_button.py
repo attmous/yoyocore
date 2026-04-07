@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from yoyopy.app_context import AppContext
+from yoyopy.audio import LocalMusicService, RecentTrackHistoryStore
 from yoyopy.ui.display import Display
 from yoyopy.ui.input import InteractionProfile
 from yoyopy.ui.screens import (
@@ -18,7 +19,11 @@ from yoyopy.ui.screens import (
     NowPlayingScreen,
     OutgoingCallScreen,
     PlaylistScreen,
+    RecentTracksScreen,
+    TalkContactScreen,
+    VoiceNoteScreen,
 )
+from yoyopy.voip.manager import VoiceNoteDraft
 
 
 class FakeTrack:
@@ -53,8 +58,8 @@ class FakeMopidyClient:
         self.play_calls = 0
         self.pause_calls = 0
         self.playlists = [
-            FakePlaylist("Alpha", "playlist:alpha"),
-            FakePlaylist("Beta", "playlist:beta"),
+            FakePlaylist("Alpha", "m3u:alpha"),
+            FakePlaylist("Beta", "m3u:beta"),
         ]
         self.loaded_playlists: list[str] = []
 
@@ -91,14 +96,24 @@ class FakeMopidyClient:
         self.loaded_playlists.append(playlist_uri)
         return True
 
+    def load_track_uris(self, track_uris: list[str]) -> bool:
+        if track_uris:
+            self.playback_state = "playing"
+        return True
+
 
 class FakeContact:
     """Minimal contact record for VoIP screen tests."""
 
-    def __init__(self, name: str, sip_address: str, favorite: bool = False) -> None:
+    def __init__(self, name: str, sip_address: str, favorite: bool = False, notes: str = "") -> None:
         self.name = name
         self.sip_address = sip_address
         self.favorite = favorite
+        self.notes = notes
+
+    @property
+    def display_name(self) -> str:
+        return self.notes or self.name
 
 
 class FakeConfigManager:
@@ -109,9 +124,6 @@ class FakeConfigManager:
 
     def get_contacts(self) -> list[FakeContact]:
         return list(self._contacts)
-
-    def get_listen_sources(self) -> list[str]:
-        return ["spotify", "local"]
 
 
 class FakeVoIPManager:
@@ -127,6 +139,10 @@ class FakeVoIPManager:
         self.toggle_mute_calls = 0
         self.is_muted = False
         self.make_calls: list[tuple[str, str | None]] = []
+        self.latest_notes: dict[str, object] = {}
+        self.active_voice_note: VoiceNoteDraft | None = None
+        self.started_recordings: list[tuple[str, str]] = []
+        self.send_attempts = 0
 
     def get_status(self) -> dict:
         return {
@@ -164,6 +180,52 @@ class FakeVoIPManager:
     def get_call_duration(self) -> int:
         return 42
 
+    def latest_voice_note_for_contact(self, sip_address: str):
+        return self.latest_notes.get(sip_address)
+
+    def play_latest_voice_note(self, sip_address: str) -> bool:
+        return True
+
+    def mark_voice_notes_seen(self, sip_address: str) -> None:
+        return
+
+    def start_voice_note_recording(self, recipient_address: str, recipient_name: str = "") -> bool:
+        self.started_recordings.append((recipient_address, recipient_name))
+        self.active_voice_note = VoiceNoteDraft(
+            recipient_address=recipient_address,
+            recipient_name=recipient_name,
+            file_path="data/voice_notes/test.wav",
+            send_state="recording",
+            status_text="Recording...",
+        )
+        return True
+
+    def stop_voice_note_recording(self) -> VoiceNoteDraft | None:
+        if self.active_voice_note is None:
+            return None
+        self.active_voice_note.duration_ms = 2500
+        self.active_voice_note.send_state = "review"
+        self.active_voice_note.status_text = "Ready to send"
+        return self.active_voice_note
+
+    def cancel_voice_note_recording(self) -> bool:
+        self.active_voice_note = None
+        return True
+
+    def discard_active_voice_note(self) -> None:
+        self.active_voice_note = None
+
+    def send_active_voice_note(self) -> bool:
+        self.send_attempts += 1
+        if self.active_voice_note is None:
+            return False
+        self.active_voice_note.send_state = "sending"
+        self.active_voice_note.status_text = "Sending..."
+        return True
+
+    def get_active_voice_note(self) -> VoiceNoteDraft | None:
+        return self.active_voice_note
+
 
 @pytest.fixture
 def display() -> Display:
@@ -186,10 +248,12 @@ def test_hub_advance_wraps_from_last_card_to_first(
     one_button_context: AppContext,
 ) -> None:
     """The Whisplay root hub should wrap its carousel on ADVANCE."""
+    music_service = LocalMusicService(FakeMopidyClient())
     hub = HubScreen(
         display,
         one_button_context,
         mopidy_client=FakeMopidyClient(),
+        local_music_service=music_service,
         voip_manager=FakeVoIPManager(),
     )
 
@@ -199,26 +263,40 @@ def test_hub_advance_wraps_from_last_card_to_first(
     assert hub.selected_index == 0
 
 
-def test_listen_screen_select_sets_source_and_routes_to_playlists(
+def test_listen_screen_select_opens_local_playlist_flow(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """Listen should keep the chosen source and route into playlists."""
+    """Listen should route its Playlists row into the playlist browser."""
     screen = ListenScreen(
         display,
         one_button_context,
-        config_manager=FakeConfigManager([]),
+        music_service=LocalMusicService(FakeMopidyClient()),
+    )
+
+    screen.enter()
+    screen.selected_index = 0
+    screen.on_select()
+
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_playlists")
+
+
+def test_listen_screen_select_opens_recent_tracks(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """Listen should route its Recent row into the recent-tracks browser."""
+    screen = ListenScreen(
+        display,
+        one_button_context,
+        music_service=LocalMusicService(FakeMopidyClient()),
     )
 
     screen.enter()
     screen.selected_index = 1
     screen.on_select()
 
-    assert one_button_context.current_audio_source == "local"
-    assert screen.consume_navigation_request() == NavigationRequest.route(
-        "source_selected",
-        payload="local",
-    )
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_recent")
 
 def test_hub_select_requests_setup_route_for_setup_card(
     display: Display,
@@ -229,6 +307,7 @@ def test_hub_select_requests_setup_route_for_setup_card(
         display,
         one_button_context,
         mopidy_client=FakeMopidyClient(),
+        local_music_service=LocalMusicService(FakeMopidyClient()),
         voip_manager=FakeVoIPManager(),
     )
 
@@ -247,6 +326,7 @@ def test_hub_cards_use_mode_tinted_surfaces(
         display,
         one_button_context,
         mopidy_client=FakeMopidyClient(),
+        local_music_service=LocalMusicService(FakeMopidyClient()),
         voip_manager=FakeVoIPManager(),
     )
 
@@ -286,7 +366,7 @@ def test_playlist_advance_wraps_and_select_loads_playlist(
 ) -> None:
     """Playlists should wrap on ADVANCE and load the current selection on SELECT."""
     mopidy = FakeMopidyClient()
-    screen = PlaylistScreen(display, one_button_context, mopidy_client=mopidy)
+    screen = PlaylistScreen(display, one_button_context, music_service=LocalMusicService(mopidy))
 
     screen.enter()
     screen.selected_index = len(screen.playlists) - 1
@@ -294,15 +374,40 @@ def test_playlist_advance_wraps_and_select_loads_playlist(
     screen.on_select()
 
     assert screen.selected_index == 0
-    assert mopidy.loaded_playlists == ["playlist:alpha"]
+    assert mopidy.loaded_playlists == ["m3u:alpha"]
     assert screen.consume_navigation_request() == NavigationRequest.route("playlist_loaded")
 
 
-def test_call_screen_advance_wraps_through_quick_targets(
+def test_recent_tracks_select_routes_to_now_playing(
+    display: Display,
+    one_button_context: AppContext,
+    tmp_path,
+) -> None:
+    """Recent track playback should route into Now Playing once the track is queued."""
+    mopidy = FakeMopidyClient()
+    service = LocalMusicService(
+        mopidy,
+        recent_store=RecentTrackHistoryStore(tmp_path / "recent_tracks.json"),
+    )
+    service.record_recent_track(type("Track", (), {
+        "uri": "local:track:1",
+        "name": "Alpha Song",
+        "album": "Album",
+        "get_artist_string": lambda self: "Artist",
+    })())
+    screen = RecentTracksScreen(display, one_button_context, music_service=service)
+
+    screen.enter()
+    screen.on_select()
+
+    assert screen.consume_navigation_request() == NavigationRequest.route("track_loaded")
+
+
+def test_call_screen_advance_wraps_through_contacts(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """The call hub should wrap through quick-call targets on ADVANCE."""
+    """The Talk deck should wrap through contacts on ADVANCE."""
     contacts = [
         FakeContact("Alice", "sip:alice@example.com", favorite=True),
         FakeContact("Bob", "sip:bob@example.com", favorite=False),
@@ -315,10 +420,78 @@ def test_call_screen_advance_wraps_through_quick_targets(
     )
 
     screen.enter()
-    screen.selected_index = len(screen.quick_targets) - 1
+    screen.selected_index = len(screen.people) - 1
     screen.on_advance()
 
     assert screen.selected_index == 0
+
+
+def test_call_screen_select_routes_to_contact_actions(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """Selecting from Talk should open the contact action screen."""
+
+    contacts = [
+        FakeContact("Alice", "sip:alice@example.com", favorite=True, notes="Mama"),
+    ]
+    screen = CallScreen(
+        display,
+        one_button_context,
+        voip_manager=FakeVoIPManager(),
+        config_manager=FakeConfigManager(contacts),
+    )
+
+    screen.enter()
+    screen.on_select()
+
+    assert one_button_context.talk_contact_name == "Mama"
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_contact")
+
+
+def test_talk_contact_screen_advance_and_select_follow_one_button_mapping(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """The contact action screen should cycle actions and open voice notes."""
+
+    one_button_context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    screen = TalkContactScreen(
+        display,
+        one_button_context,
+        voip_manager=FakeVoIPManager(),
+    )
+
+    screen.enter()
+    screen.on_advance()
+    screen.on_select()
+
+    assert one_button_context.voice_note_recipient_name == "Mama"
+    assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
+
+
+def test_voice_note_screen_uses_hold_to_record_in_one_button_mode(
+    display: Display,
+    one_button_context: AppContext,
+) -> None:
+    """Voice notes should start on raw hold and stop on release in one-button mode."""
+
+    one_button_context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    screen = VoiceNoteScreen(display, one_button_context, voip_manager=voip_manager)
+
+    screen.enter()
+    assert screen.wants_ptt_passthrough()
+
+    screen.on_ptt_press({"stage": "hold_started"})
+    assert screen.current_view_model()[0] == "Recording"
+
+    screen.on_ptt_release({"hold_started": True})
+    assert screen.current_view_model()[0] == "Review"
+
+    screen.on_select()
+    assert screen.current_view_model()[0] == "Sending"
+    assert voip_manager.send_attempts == 1
 
 
 def test_contact_list_advance_wraps_and_select_calls_contact(

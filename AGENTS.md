@@ -12,7 +12,7 @@ Follow all instructions in the `rules/` directory:
 - `rules/project.md` -- project overview, commands, configuration
 - `rules/architecture.md` -- system architecture, HAL layers, state machines
 - `rules/code-style.md` -- Python 3.12+, black, ruff, type hints
-- `rules/voip.md` -- linphonec integration, SIP patterns
+- `rules/voip.md` -- Liblinphone integration, SIP and messaging patterns
 - `rules/lvgl.md` -- LVGL display pipeline, C shim, screenshot support
 - `rules/logging.md` -- loguru contract, subsystem tags, PID file
 - `rules/deploy.md` -- Pi deploy workflow and commands
@@ -53,6 +53,7 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
   - PiSugar software watchdog support
 - Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
 - Whisplay now runs on the LVGL rendering path in production under `yoyopy/ui/lvgl_binding/`.
+- Production VoIP now runs through Liblinphone under `yoyopy/voip/liblinphone_binding/` and `yoyopy/voip/backend.py`.
 - CI validates the Python test suite with `uv sync --extra dev` and `uv run pytest -q`.
 - Raspberry Pi validation has a defined path through `scripts/pi_smoke.py` and `scripts/pi_remote.py`.
 
@@ -88,6 +89,7 @@ When in doubt, trust these files first:
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/POWER_MODULE.md`
 - `docs/LVGL_MIGRATION_PLAN.md`
+- `docs/LOCAL_FIRST_MUSIC_PLAN.md`
 
 ---
 
@@ -114,7 +116,7 @@ yoyopod.py / yoyopy.main
         -> navigation / music / voip screens
      -> MopidyClient
      -> VoIPManager
-        -> LinphonecBackend
+        -> LiblinphoneBackend
      -> PowerManager
         -> PiSugarBackend
         -> PiSugarWatchdog
@@ -152,8 +154,10 @@ Key design points:
 
 - `yoyopy/audio/mopidy_client.py` - Mopidy JSON-RPC client
 - `yoyopy/voip/manager.py` - app-facing VoIP facade
-- `yoyopy/voip/backend.py` - `VoIPBackend`, `LinphonecBackend`, `MockVoIPBackend`
-- `yoyopy/voip/models.py` - SIP config and typed backend events
+- `yoyopy/voip/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, `MockVoIPBackend`
+- `yoyopy/voip/models.py` - SIP config plus typed call/message backend events
+- `yoyopy/voip/liblinphone_binding/` - native Liblinphone shim and CPython cffi binding
+- `yoyopy/voip/messages.py` - persistent voice-note/message metadata store
 - `yoyopy/voip/history.py` - persistent recent/missed-call store for the Talk flow
 
 ### Power
@@ -174,16 +178,19 @@ Key design points:
 - `yoyopy/ui/screens/manager.py` - stack navigation and input binding
 - `yoyopy/ui/screens/router.py` - declarative route resolution
 - `yoyopy/ui/screens/theme.py` - Graffiti Buddy shared chrome, colors, icons, and status-bar renderer
-- `yoyopy/ui/screens/navigation/listen.py` - source chooser for the `Listen` root mode
+- `yoyopy/ui/screens/navigation/listen.py` - local-first library menu for `Playlists`, `Recent`, and `Shuffle`
+- `yoyopy/ui/screens/music/recent.py` - recent local tracks browser
 - `yoyopy/ui/screens/navigation/ask.py` - staged `Ask` shell with idle/listening/thinking/response states
 - `yoyopy/ui/screens/system/power.py` - `Setup` screen with power and care pages
-- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` quick-call hub with favorites, recents, and voice-note entry
+- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` people-first contact deck for calls and voice notes
+- `yoyopy/ui/screens/voip/talk_contact.py` - selected-contact action screen with `Call` and `Voice Note`
 - `yoyopy/ui/screens/voip/call_history.py` - Talk recents and missed-call screen
-- `yoyopy/ui/screens/voip/voice_note.py` - voice-note shell for the Talk flow
+- `yoyopy/ui/screens/voip/voice_note.py` - voice-note record/review/send flow for the Talk experience
 
 ### Configuration
 
 - `config/voip_config.yaml`
+- `config/liblinphone_factory.conf`
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
 - `yoyopy/config/models.py` - typed config models
@@ -285,20 +292,17 @@ uv run python scripts/debug_incoming_call.py
 Helpful remote checks:
 
 ```bash
-ssh rpi-zero "ps aux | grep -E '(python|linphonec|mopidy)'"
+ssh rpi-zero "ps aux | grep -E '(python|mopidy)'"
 ssh rpi-zero "free -h"
 ssh rpi-zero "systemctl --user status mopidy"
-ssh rpi-zero "killall -9 python linphonec"
+ssh rpi-zero "killall -9 python"
 ```
 
-If SIP behavior looks wrong, inspect `linphonec` parsing in `yoyopy/voip/backend.py`.
+If SIP behavior looks wrong, inspect the Liblinphone shim and backend boundary:
 
-Important current Linphone parsing assumptions:
-
-- Linphone 5.x emits `CallSession` output
-- incoming calls may use `LinphoneCallIncoming`
-- SIP addresses may appear in square brackets like `[sip:user@domain]`
-- incoming call text is typically lowercase `New incoming call from ...`
+- `yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c`
+- `yoyopy/voip/liblinphone_binding/binding.py`
+- `yoyopy/voip/backend.py`
 
 ---
 
@@ -342,7 +346,7 @@ If an old doc mentions combined VoIP/music states as the implementation model, t
 The architecture cleanup is largely done. The remaining work is more product-facing:
 
 - dial pad / manual SIP entry
-- voice-note recording/send implementation behind the new shell
+- fuller local library browse (`Artists` / `Albums`)
 - fuller settings UI
 - additional hardware-in-the-loop validation on Raspberry Pi
 

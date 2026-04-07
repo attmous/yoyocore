@@ -163,6 +163,11 @@ stable Pi contract for:
 
 Use this during on-device tuning when the Whisplay button feels too eager or too sluggish. The helper runs interactively over SSH, prints every semantic gesture event, and accepts temporary timing overrides without modifying the tracked config file.
 
+Liblinphone note:
+
+- keep `config/liblinphone_factory.conf` tracked and synced with the branch when debugging outbound-call negotiation on the Pi
+- if registration works but calls fail during setup, compare the active branch's factory config before changing SIP credentials
+
 ### Run the full preflight in one command
 
 ```bash
@@ -230,5 +235,5 @@ run, use:
 - `pi_remote.py run` uses an interactive SSH session so you can stop the remote app with `Ctrl+C`.
 - `pi_remote.py preflight` is intentionally non-interactive. It validates but does not launch the app.
 - `pi_remote.py service install` expects passwordless `sudo` or an interactive sudo policy on the Pi.
-- The helper does not kill existing remote processes for you. If the Pi already has a stale YoyoPod or `linphonec` process, stop it first.
+- The helper does not kill existing remote processes for you. If the Pi already has a stale YoyoPod process, stop it first.
 - For deeper hardware debugging, use `docs/RPI_SMOKE_VALIDATION.md`.

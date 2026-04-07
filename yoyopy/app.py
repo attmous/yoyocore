@@ -1,5 +1,5 @@
 """
-YoyoPod - Unified VoIP + Music Streaming Application
+YoyoPod - Unified VoIP + Local Music Application
 
 Main application bootstrap and lifecycle coordinator.
 """
@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, Optional
 from loguru import logger
 
 from yoyopy.app_context import AppContext
-from yoyopy.audio.mopidy_client import MopidyClient
+from yoyopy.audio import LocalMusicService, MopidyClient, RecentTrackHistoryStore
 from yoyopy.config import ConfigManager, YoyoPodConfig
 from yoyopy.coordinators import (
     AppRuntimeState,
@@ -58,7 +58,9 @@ from yoyopy.ui.screens import (
     OutgoingCallScreen,
     PlaylistScreen,
     PowerScreen,
+    RecentTracksScreen,
     ScreenManager,
+    TalkContactScreen,
     VoiceNoteScreen,
 )
 from yoyopy.voip import CallHistoryStore, VoIPConfig, VoIPManager
@@ -124,8 +126,10 @@ class YoyoPodApp:
         # Manager components
         self.voip_manager: Optional[VoIPManager] = None
         self.mopidy_client: Optional[MopidyClient] = None
+        self.local_music_service: Optional[LocalMusicService] = None
         self.power_manager: Optional[PowerManager] = None
         self.call_history_store: Optional[CallHistoryStore] = None
+        self.recent_track_store: Optional[RecentTrackHistoryStore] = None
 
         # Screen instances
         self.hub_screen: Optional[HubScreen] = None
@@ -136,10 +140,11 @@ class YoyoPodApp:
         self.power_screen: Optional[PowerScreen] = None
         self.now_playing_screen: Optional[NowPlayingScreen] = None
         self.playlist_screen: Optional[PlaylistScreen] = None
+        self.recent_tracks_screen: Optional[RecentTracksScreen] = None
         self.call_screen: Optional[CallScreen] = None
+        self.talk_contact_screen: Optional[TalkContactScreen] = None
         self.call_history_screen: Optional[CallHistoryScreen] = None
         self.contact_list_screen: Optional[ContactListScreen] = None
-        self.voice_note_contacts_screen: Optional[ContactListScreen] = None
         self.voice_note_screen: Optional[VoiceNoteScreen] = None
         self.incoming_call_screen: Optional[IncomingCallScreen] = None
         self.outgoing_call_screen: Optional[OutgoingCallScreen] = None
@@ -212,6 +217,8 @@ class YoyoPodApp:
         self._lvgl_backend: Optional[LvglDisplayBackend] = None
         self._lvgl_input_bridge: Optional[LvglInputBridge] = None
         self._last_lvgl_pump_at = 0.0
+        self._next_voip_iterate_at = 0.0
+        self._voip_iterate_interval_seconds = 0.02
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -280,6 +287,9 @@ class YoyoPodApp:
             self.call_history_store = CallHistoryStore(
                 self.config_manager.config_dir / "call_history.json"
             )
+            self.recent_track_store = RecentTrackHistoryStore(
+                self.config_manager.config_dir / "recent_tracks.json"
+            )
 
             if self.config_manager.app_config_loaded:
                 logger.info(f"Loaded configuration from {self.config_manager.app_config_file}")
@@ -340,6 +350,11 @@ class YoyoPodApp:
             missed_calls=self.call_history_store.missed_count(),
             recent_calls=self.call_history_store.recent_preview(),
         )
+        if self.voip_manager is not None:
+            self.context.update_voice_note_summary(
+                unread_voice_notes=self.voip_manager.unread_voice_note_count(),
+                latest_voice_note_by_contact=self.voip_manager.latest_voice_note_summary(),
+            )
 
     def _init_core_components(self) -> bool:
         """Initialize display, context, orchestration models, input, and screen manager."""
@@ -388,9 +403,6 @@ class YoyoPodApp:
             logger.info("  - AppContext")
             self.context = AppContext()
             if self.config_manager is not None:
-                listen_sources = self.config_manager.get_listen_sources()
-                if listen_sources:
-                    self.context.current_audio_source = listen_sources[0]
                 self.context.update_voip_status(
                     configured=bool(
                         self.config_manager.get_sip_identity().strip()
@@ -458,6 +470,10 @@ class YoyoPodApp:
             logger.info("  - VoIPManager")
             voip_config = VoIPConfig.from_config_manager(self.config_manager)
             self.voip_manager = VoIPManager(voip_config, config_manager=self.config_manager)
+            self._voip_iterate_interval_seconds = max(
+                0.01,
+                float(voip_config.iterate_interval_ms) / 1000.0,
+            )
             if self.voip_manager.start():
                 logger.info("    ✓ VoIP started successfully")
             else:
@@ -477,6 +493,10 @@ class YoyoPodApp:
             )
             mopidy_port = self.app_settings.audio.mopidy_port if self.app_settings else 6680
             self.mopidy_client = MopidyClient(host=mopidy_host, port=mopidy_port)
+            self.local_music_service = LocalMusicService(
+                self.mopidy_client,
+                recent_store=self.recent_track_store,
+            )
             if self.mopidy_client.connect():
                 logger.info("    ✓ Mopidy connected successfully")
                 self.mopidy_client.start_polling()
@@ -513,6 +533,7 @@ class YoyoPodApp:
                 self.display,
                 self.context,
                 mopidy_client=self.mopidy_client,
+                local_music_service=self.local_music_service,
                 voip_manager=self.voip_manager,
             )
             self.menu_screen = MenuScreen(self.display, self.context, items=menu_items)
@@ -520,7 +541,7 @@ class YoyoPodApp:
             self.listen_screen = ListenScreen(
                 self.display,
                 self.context,
-                config_manager=self.config_manager,
+                music_service=self.local_music_service,
             )
             self.ask_screen = AskScreen(self.display, self.context)
             self.power_screen = PowerScreen(
@@ -537,7 +558,12 @@ class YoyoPodApp:
             self.playlist_screen = PlaylistScreen(
                 self.display,
                 self.context,
-                mopidy_client=self.mopidy_client,
+                music_service=self.local_music_service,
+            )
+            self.recent_tracks_screen = RecentTracksScreen(
+                self.display,
+                self.context,
+                music_service=self.local_music_service,
             )
             self.call_screen = CallScreen(
                 self.display,
@@ -552,22 +578,21 @@ class YoyoPodApp:
                 voip_manager=self.voip_manager,
                 call_history_store=self.call_history_store,
             )
+            self.talk_contact_screen = TalkContactScreen(
+                self.display,
+                self.context,
+                voip_manager=self.voip_manager,
+            )
             self.contact_list_screen = ContactListScreen(
                 self.display,
                 self.context,
                 voip_manager=self.voip_manager,
                 config_manager=self.config_manager,
             )
-            self.voice_note_contacts_screen = ContactListScreen(
-                self.display,
-                self.context,
-                voip_manager=self.voip_manager,
-                config_manager=self.config_manager,
-                action_mode="voice_note",
-            )
             self.voice_note_screen = VoiceNoteScreen(
                 self.display,
                 self.context,
+                voip_manager=self.voip_manager,
             )
             self.incoming_call_screen = IncomingCallScreen(
                 self.display,
@@ -597,10 +622,11 @@ class YoyoPodApp:
             self.screen_manager.register_screen("power", self.power_screen)
             self.screen_manager.register_screen("now_playing", self.now_playing_screen)
             self.screen_manager.register_screen("playlists", self.playlist_screen)
+            self.screen_manager.register_screen("recent_tracks", self.recent_tracks_screen)
             self.screen_manager.register_screen("call", self.call_screen)
+            self.screen_manager.register_screen("talk_contact", self.talk_contact_screen)
             self.screen_manager.register_screen("call_history", self.call_history_screen)
             self.screen_manager.register_screen("contacts", self.contact_list_screen)
-            self.screen_manager.register_screen("voice_note_contacts", self.voice_note_contacts_screen)
             self.screen_manager.register_screen("voice_note", self.voice_note_screen)
             self.screen_manager.register_screen("incoming_call", self.incoming_call_screen)
             self.screen_manager.register_screen("outgoing_call", self.outgoing_call_screen)
@@ -608,10 +634,10 @@ class YoyoPodApp:
             logger.info("    - Whisplay root: hub")
 
             logger.info("  ✓ All screens registered")
-            logger.info("    - Listen flow: listen, playlists, now_playing")
+            logger.info("    - Listen flow: listen, playlists, recent_tracks, now_playing")
             logger.info("    - Ask flow: ask")
             logger.info("    - Power screen: power")
-            logger.info("    - VoIP screens: call, call_history, contacts, voice_note_contacts, voice_note, incoming_call, outgoing_call, in_call")
+            logger.info("    - VoIP screens: call, talk_contact, call_history, contacts, voice_note, incoming_call, outgoing_call, in_call")
             logger.info("    - Navigation: home, menu")
 
             initial_screen = self._get_initial_screen_name()
@@ -658,6 +684,69 @@ class YoyoPodApp:
         self.voip_manager.on_call_state_change(self.call_coordinator.publish_call_state_events)
         self.voip_manager.on_registration_change(self.call_coordinator.publish_registration_change)
         self.voip_manager.on_availability_change(self.call_coordinator.publish_availability_change)
+        self.voip_manager.on_message_summary_change(self._handle_voice_note_summary_changed)
+        self.voip_manager.on_message_received(self._handle_voice_note_activity_changed)
+        self.voip_manager.on_message_delivery_change(self._handle_voice_note_activity_changed)
+        self.voip_manager.on_message_failure(self._handle_voice_note_failure)
+        self._refresh_talk_summary()
+        self._sync_active_voice_note_context()
+        logger.info("  VoIP callbacks registered")
+
+    def _handle_voice_note_summary_changed(
+        self,
+        unread_voice_notes: int,
+        latest_voice_note_by_contact: dict[str, dict[str, object]],
+    ) -> None:
+        """Keep Talk voice-note summary state in sync with the VoIP manager."""
+
+        if self.context is None:
+            return
+        self.context.update_voice_note_summary(
+            unread_voice_notes=unread_voice_notes,
+            latest_voice_note_by_contact=latest_voice_note_by_contact,
+        )
+        self._refresh_talk_related_screen()
+
+    def _handle_voice_note_activity_changed(self, *_args) -> None:
+        """Refresh active draft state after a message or delivery update."""
+
+        self._sync_active_voice_note_context()
+        self._refresh_talk_summary()
+        self._refresh_talk_related_screen()
+
+    def _handle_voice_note_failure(self, *_args) -> None:
+        """Refresh draft state after a failed message operation."""
+
+        self._sync_active_voice_note_context()
+        self._refresh_talk_related_screen()
+
+    def _sync_active_voice_note_context(self) -> None:
+        """Mirror the active voice-note draft into the shared app context."""
+
+        if self.context is None or self.voip_manager is None:
+            return
+        draft = self.voip_manager.get_active_voice_note()
+        if draft is None:
+            self.context.update_active_voice_note(send_state="idle")
+            return
+        self.context.update_active_voice_note(
+            send_state=draft.send_state,
+            status_text=draft.status_text,
+            file_path=draft.file_path,
+            duration_ms=draft.duration_ms,
+        )
+
+    def _refresh_talk_related_screen(self) -> None:
+        """Re-render Talk screens when their message state changes."""
+
+        if self.screen_manager is None:
+            return
+        current_screen = self.screen_manager.get_current_screen()
+        if current_screen is None:
+            return
+        if current_screen.route_name in {"call", "talk_contact", "voice_note"}:
+            self.screen_manager.refresh_current_screen()
+        return
         logger.info("  ✓ VoIP callbacks registered")
 
     def _setup_music_callbacks(self) -> None:
@@ -730,6 +819,22 @@ class YoyoPodApp:
         if self._lvgl_input_bridge is not None:
             self._lvgl_input_bridge.process_pending()
         self._lvgl_backend.pump(delta_ms)
+
+    def _iterate_voip_backend_if_due(self, now: float | None = None) -> None:
+        """Advance the Liblinphone core on the coordinator thread at its configured cadence."""
+
+        if self.voip_manager is None or not self.voip_manager.running:
+            return
+
+        monotonic_now = time.monotonic() if now is None else now
+        if self._next_voip_iterate_at <= 0.0:
+            self._next_voip_iterate_at = monotonic_now
+
+        if monotonic_now < self._next_voip_iterate_at:
+            return
+
+        self.voip_manager.iterate()
+        self._next_voip_iterate_at = monotonic_now + self._voip_iterate_interval_seconds
 
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
         """Apply queued screen-change state sync on the coordinator thread."""
@@ -915,6 +1020,7 @@ class YoyoPodApp:
         self.playback_coordinator = PlaybackCoordinator(
             runtime=self.coordinator_runtime,
             screen_coordinator=self.screen_coordinator,
+            local_music_service=self.local_music_service,
         )
         self.power_coordinator = PowerCoordinator(
             runtime=self.coordinator_runtime,
@@ -1409,11 +1515,12 @@ class YoyoPodApp:
                 logger.info("")
 
             while not self._stopping:
-                time.sleep(0.1)
+                time.sleep(min(0.05, self._voip_iterate_interval_seconds))
+                monotonic_now = time.monotonic()
+                self._iterate_voip_backend_if_due(monotonic_now)
                 self._process_pending_main_thread_actions()
                 self._attempt_manager_recovery()
                 self._poll_power_status()
-                monotonic_now = time.monotonic()
                 self._pump_lvgl_backend(monotonic_now)
                 self._feed_watchdog_if_due(monotonic_now)
                 self._process_pending_shutdown(monotonic_now)

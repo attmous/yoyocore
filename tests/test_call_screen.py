@@ -1,4 +1,4 @@
-"""Focused tests for the VoIP call hub screen."""
+"""Focused tests for the Talk flow screens."""
 
 from __future__ import annotations
 
@@ -7,11 +7,18 @@ import pytest
 from yoyopy.app_context import AppContext
 from yoyopy.config import Contact
 from yoyopy.ui.display import Display
-from yoyopy.ui.screens import CallScreen, NavigationRequest
+from yoyopy.ui.screens import CallScreen, NavigationRequest, TalkContactScreen, VoiceNoteScreen
+from yoyopy.voip.manager import VoiceNoteDraft
+from yoyopy.voip.models import (
+    MessageDeliveryState,
+    MessageDirection,
+    MessageKind,
+    VoIPMessageRecord,
+)
 
 
 class FakeConfigManager:
-    """Minimal contact source for call-screen tests."""
+    """Minimal contact source for Talk tests."""
 
     def __init__(self, contacts: list[Contact]) -> None:
         self._contacts = contacts
@@ -21,48 +28,79 @@ class FakeConfigManager:
 
 
 class FakeVoIPManager:
-    """Minimal VoIP manager double for call-screen actions."""
+    """Minimal VoIP manager double for Talk actions."""
 
-    def __init__(
-        self,
-        *,
-        running: bool = True,
-        registered: bool = True,
-        registration_state: str = "ok",
-        call_state: str = "idle",
-        make_call_result: bool = True,
-        caller_name: str = "Unknown",
-        caller_address: str = "",
-    ) -> None:
-        self.status = {
-            "running": running,
-            "registered": registered,
-            "registration_state": registration_state,
-            "call_state": call_state,
-            "sip_identity": "sip:test@example.com",
-        }
+    def __init__(self, *, make_call_result: bool = True) -> None:
         self.make_call_result = make_call_result
         self.make_calls: list[tuple[str, str | None]] = []
-        self.caller_name = caller_name
-        self.caller_address = caller_address
-
-    def get_status(self) -> dict:
-        return dict(self.status)
-
-    def get_caller_info(self) -> dict:
-        return {
-            "display_name": self.caller_name,
-            "address": self.caller_address,
-        }
+        self.started_recordings: list[tuple[str, str]] = []
+        self.send_attempts = 0
+        self.played_notes: list[str] = []
+        self.seen_contacts: list[str] = []
+        self.active_voice_note: VoiceNoteDraft | None = None
+        self.latest_notes: dict[str, VoIPMessageRecord] = {}
 
     def make_call(self, sip_address: str, contact_name: str | None = None) -> bool:
         self.make_calls.append((sip_address, contact_name))
         return self.make_call_result
 
+    def latest_voice_note_for_contact(self, sip_address: str) -> VoIPMessageRecord | None:
+        return self.latest_notes.get(sip_address)
+
+    def play_latest_voice_note(self, sip_address: str) -> bool:
+        self.played_notes.append(sip_address)
+        return True
+
+    def play_voice_note(self, file_path: str) -> bool:
+        self.played_notes.append(file_path)
+        return True
+
+    def mark_voice_notes_seen(self, sip_address: str) -> None:
+        self.seen_contacts.append(sip_address)
+
+    def start_voice_note_recording(self, recipient_address: str, recipient_name: str = "") -> bool:
+        self.started_recordings.append((recipient_address, recipient_name))
+        self.active_voice_note = VoiceNoteDraft(
+            recipient_address=recipient_address,
+            recipient_name=recipient_name,
+            file_path="data/voice_notes/test.wav",
+            send_state="recording",
+            status_text="Recording...",
+        )
+        return True
+
+    def stop_voice_note_recording(self) -> VoiceNoteDraft | None:
+        if self.active_voice_note is None:
+            return None
+        self.active_voice_note.duration_ms = 3200
+        self.active_voice_note.send_state = "review"
+        self.active_voice_note.status_text = "Ready to send"
+        return self.active_voice_note
+
+    def cancel_voice_note_recording(self) -> bool:
+        self.active_voice_note = None
+        return True
+
+    def discard_active_voice_note(self) -> None:
+        self.active_voice_note = None
+
+    def send_active_voice_note(self) -> bool:
+        self.send_attempts += 1
+        if self.active_voice_note is None:
+            return False
+        self.active_voice_note.message_id = "note-1"
+        self.active_voice_note.send_state = "sending"
+        self.active_voice_note.status_text = "Sending..."
+        return True
+
+    def get_active_voice_note(self) -> VoiceNoteDraft | None:
+        return self.active_voice_note
+
 
 @pytest.fixture
 def display() -> Display:
     """Create a simulation display and clean it up after the test."""
+
     test_display = Display(simulate=True)
     try:
         yield test_display
@@ -70,11 +108,12 @@ def display() -> Display:
         test_display.cleanup()
 
 
-def test_call_screen_prefers_favorites_and_adds_contacts_shortcut(display: Display) -> None:
-    """The VoIP hub should highlight favorite quick calls before the full list."""
+def test_call_screen_builds_people_deck_from_contacts(display: Display) -> None:
+    """Talk should show one person at a time with favorites first and notes as labels."""
+
     contacts = [
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
+        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False, notes="Dad"),
+        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True, notes="Mama"),
         Contact(name="Carol", sip_address="sip:carol@example.com", favorite=True),
     ]
     screen = CallScreen(
@@ -86,159 +125,201 @@ def test_call_screen_prefers_favorites_and_adds_contacts_shortcut(display: Displ
 
     screen.enter()
 
-    assert [target.title for target in screen.quick_targets] == [
-        "Alice",
-        "Carol",
-        "Voice Note",
-        "All Contacts",
-    ]
+    assert [person.title for person in screen.people] == ["Mama", "Carol", "Dad"]
 
 
-def test_call_screen_falls_back_to_all_contacts_when_no_favorites(display: Display) -> None:
-    """The VoIP hub should still offer quick calls when favorites are not configured."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=False),
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-    ]
+def test_call_screen_select_opens_selected_contact(display: Display) -> None:
+    """Selecting from Talk should store the contact and route to the action screen."""
+
+    contacts = [Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True, notes="Mama")]
+    context = AppContext()
     screen = CallScreen(
         display,
-        AppContext(),
+        context,
         voip_manager=FakeVoIPManager(),
         config_manager=FakeConfigManager(contacts),
     )
 
     screen.enter()
-
-    assert [target.title for target in screen.quick_targets] == [
-        "Alice",
-        "Bob",
-        "Voice Note",
-        "All Contacts",
-    ]
-
-
-def test_call_screen_select_calls_selected_quick_contact(display: Display) -> None:
-    """Selecting a ready quick contact should place the call and route to outgoing."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    voip_manager = FakeVoIPManager(running=True, registered=True)
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=voip_manager,
-        config_manager=FakeConfigManager(contacts),
-    )
-
-    screen.enter()
-    screen.render()
     screen.on_select()
 
-    assert voip_manager.make_calls == [("sip:alice@example.com", "Alice")]
+    assert context.talk_contact_name == "Mama"
+    assert context.talk_contact_address == "sip:alice@example.com"
+    assert screen.consume_navigation_request() == NavigationRequest.route("open_contact")
+
+
+def test_talk_contact_screen_calls_selected_person(display: Display) -> None:
+    """The contact action screen should call the selected person when Call is chosen."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    screen = TalkContactScreen(display, context, voip_manager=voip_manager)
+
+    screen.enter()
+    screen.on_select()
+
+    assert voip_manager.make_calls == [("sip:alice@example.com", "Mama")]
     assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
 
 
-def test_call_screen_select_opens_contacts_when_voip_is_not_ready(display: Display) -> None:
-    """Selecting from the VoIP hub while SIP is down should still open the contact list."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(running=False, registered=False, registration_state="failed"),
-        config_manager=FakeConfigManager(contacts),
-    )
+def test_talk_contact_screen_routes_to_voice_note(display: Display) -> None:
+    """The second action should open the voice-note flow for the selected contact."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    screen = TalkContactScreen(display, context, voip_manager=FakeVoIPManager())
 
     screen.enter()
+    screen.on_advance()
     screen.on_select()
 
-    assert screen.consume_navigation_request() == NavigationRequest.route("browse_contacts")
+    assert context.voice_note_recipient_name == "Mama"
+    assert context.voice_note_recipient_address == "sip:alice@example.com"
+    assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
 
 
-def test_call_screen_browse_target_routes_to_full_contacts(display: Display) -> None:
-    """The explicit All Contacts shortcut should route to the full contact list."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-        Contact(name="Bob", sip_address="sip:bob@example.com", favorite=False),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(),
-        config_manager=FakeConfigManager(contacts),
+def test_talk_contact_screen_adds_play_note_action_when_latest_note_exists(display: Display) -> None:
+    """Contacts with a stored incoming voice note should expose Play Note."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    voip_manager.latest_notes["sip:alice@example.com"] = VoIPMessageRecord(
+        id="note-1",
+        peer_sip_address="sip:alice@example.com",
+        sender_sip_address="sip:alice@example.com",
+        recipient_sip_address="sip:kid@example.com",
+        kind=MessageKind.VOICE_NOTE,
+        direction=MessageDirection.INCOMING,
+        delivery_state=MessageDeliveryState.DELIVERED,
+        created_at="2026-04-06T00:00:00+00:00",
+        updated_at="2026-04-06T00:00:00+00:00",
+        local_file_path="data/voice_notes/incoming.wav",
+        duration_ms=2100,
+        unread=True,
     )
+    screen = TalkContactScreen(display, context, voip_manager=voip_manager)
+
+    assert [action.title for action in screen.actions()] == ["Call", "Voice Note", "Play Note"]
+
+    screen.selected_index = 2
+    screen.on_select()
+
+    assert voip_manager.played_notes == ["sip:alice@example.com"]
+    assert voip_manager.seen_contacts == ["sip:alice@example.com"]
+
+
+def test_voice_note_screen_records_reviews_and_sends(display: Display) -> None:
+    """Voice notes should move through record, review, and sending states."""
+
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
+    context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
 
     screen.enter()
-    screen.selected_index = len(screen.quick_targets) - 1
+    assert screen.current_view_model()[0] == "Voice Note"
+
+    screen.on_ptt_press({"stage": "hold_started"})
+    assert screen.current_view_model()[0] == "Recording"
+    assert voip_manager.started_recordings == [("sip:alice@example.com", "Mama")]
+
+    screen.on_ptt_release({"hold_started": True})
+    assert screen.current_view_model()[0] == "Review"
+    assert context.voice_note_duration_ms == 3200
+
+    screen.on_select()
+    assert screen.current_view_model()[0] == "Sending"
+    assert voip_manager.send_attempts == 1
+
+
+def test_voice_note_screen_can_preview_before_sending(display: Display) -> None:
+    """Review mode should let the child preview the recorded note before sending it."""
+
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
+    context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
+
+    screen.enter()
+    screen.on_ptt_press({"stage": "hold_started"})
+    screen.on_ptt_release({"hold_started": True})
+    screen.on_advance()
+    screen.on_select()
+
+    assert voip_manager.played_notes == ["data/voice_notes/test.wav"]
+    assert context.voice_note_status_text == "Playing preview"
+
+
+def test_voice_note_screen_reopens_clean_after_terminal_draft(display: Display) -> None:
+    """Finished drafts for the same contact should not block starting a new note later."""
+
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
+    voip_manager.active_voice_note = VoiceNoteDraft(
+        recipient_address="sip:alice@example.com",
+        recipient_name="Mama",
+        file_path="data/voice_notes/test.wav",
+        send_state="sent",
+        status_text="Sent",
+        message_id="note-1",
+        duration_ms=3200,
+    )
+    context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
+
+    screen.enter()
+
+    assert screen.current_view_model()[0] == "Voice Note"
+    assert voip_manager.active_voice_note is None
+    assert context.voice_note_send_state == "idle"
+
+
+def test_voice_note_screen_render_syncs_manager_terminal_state(display: Display) -> None:
+    """Render should reflect async manager state changes such as send failure or success."""
+
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
+    voip_manager.active_voice_note = VoiceNoteDraft(
+        recipient_address="sip:alice@example.com",
+        recipient_name="Mama",
+        file_path="data/voice_notes/test.wav",
+        send_state="sending",
+        status_text="Sending...",
+        message_id="note-1",
+        duration_ms=3200,
+    )
+    context.set_voice_note_recipient(name="Mama", sip_address="sip:alice@example.com")
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
+
+    screen.enter()
+    voip_manager.active_voice_note.send_state = "failed"
+    voip_manager.active_voice_note.status_text = "Voice notes unavailable"
     screen.render()
-    screen.on_select()
 
-    assert screen.quick_targets[-1].title == "All Contacts"
-    assert screen.consume_navigation_request() == NavigationRequest.route("browse_contacts")
+    assert screen.current_view_model()[0] == "Couldn't Send"
+    assert context.voice_note_status_text == "Voice notes unavailable"
 
 
-def test_call_screen_voice_note_target_routes_to_voice_note_contacts(display: Display) -> None:
-    """Selecting the Voice Note action should open the recipient picker."""
+def test_voice_note_screen_ignores_stale_draft_for_different_recipient(display: Display) -> None:
+    """Opening voice notes for contact B should not inherit contact A's stale draft state."""
 
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(),
-        config_manager=FakeConfigManager(contacts),
+    context = AppContext()
+    voip_manager = FakeVoIPManager()
+    voip_manager.active_voice_note = VoiceNoteDraft(
+        recipient_address="sip:alice@example.com",
+        recipient_name="Mama",
+        file_path="data/voice_notes/alice.wav",
+        send_state="sent",
+        status_text="Sent",
+        message_id="note-alice",
     )
-
-    screen.enter()
-    screen.selected_index = 1
-    screen.on_select()
-
-    assert screen.quick_targets[1].title == "Voice Note"
-    assert screen.consume_navigation_request() == NavigationRequest.route("voice_notes")
-
-
-def test_call_screen_render_smoke_includes_active_call_context(display: Display) -> None:
-    """Rendering should stay stable when the VoIP hub reflects an active call state."""
-    contacts = [
-        Contact(name="Alice", sip_address="sip:alice@example.com", favorite=True),
-    ]
-    voip_manager = FakeVoIPManager(
-        running=True,
-        registered=True,
-        call_state="connected",
-        caller_name="Alice",
-        caller_address="sip:alice@example.com",
-    )
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=voip_manager,
-        config_manager=FakeConfigManager(contacts),
-    )
-
-    screen.enter()
-    screen.render()
-
-    assert screen._call_context_lines(voip_manager.get_status()) == ("In call", "Alice")
-
-
-def test_call_screen_hides_released_call_context(display: Display) -> None:
-    """Released calls should not leave stale context copy on the Talk hub."""
-    screen = CallScreen(
-        display,
-        AppContext(),
-        voip_manager=FakeVoIPManager(
-            running=True,
-            registered=True,
-            call_state="released",
-            caller_name="Alice",
-            caller_address="sip:alice@example.com",
-        ),
-        config_manager=FakeConfigManager([]),
-    )
+    context.set_voice_note_recipient(name="Dad", sip_address="sip:bob@example.com")
+    screen = VoiceNoteScreen(display, context, voip_manager=voip_manager)
 
     screen.enter()
 
-    assert screen._call_context_lines(screen.voip_manager.get_status()) == ("", "")
+    assert screen.current_view_model()[0] == "Voice Note"
+    assert context.voice_note_send_state == "idle"
+    assert context.voice_note_status_text == ""

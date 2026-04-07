@@ -70,13 +70,13 @@ def test_screen_router_covers_live_menu_labels() -> None:
 
 
 def test_screen_router_covers_call_hub_routes() -> None:
-    """The VoIP hub should resolve its quick-call routes through the router."""
+    """The Talk flow should resolve its people-first routes through the router."""
     router = ScreenRouter()
 
-    assert router.resolve("call", "browse_contacts") == NavigationRequest.push("contacts")
-    assert router.resolve("call", "browse_history") == NavigationRequest.push("call_history")
-    assert router.resolve("call", "voice_notes") == NavigationRequest.push("voice_note_contacts")
+    assert router.resolve("call", "open_contact") == NavigationRequest.push("talk_contact")
     assert router.resolve("call", "call_started") == NavigationRequest.push("outgoing_call")
+    assert router.resolve("talk_contact", "voice_note") == NavigationRequest.push("voice_note")
+    assert router.resolve("talk_contact", "call_started") == NavigationRequest.push("outgoing_call")
 
 
 def test_screen_router_covers_whisplay_hub_routes() -> None:
@@ -88,6 +88,15 @@ def test_screen_router_covers_whisplay_hub_routes() -> None:
     assert router.resolve("hub", "select", payload="Ask") == NavigationRequest.push("ask")
     assert router.resolve("hub", "select", payload="Setup") == NavigationRequest.push("power")
     assert router.resolve("hub", "select", payload="Power") == NavigationRequest.push("power")
+
+
+def test_screen_router_covers_local_listen_routes() -> None:
+    """The local-first Listen menu should route into playlists, recents, and shuffle."""
+    router = ScreenRouter()
+
+    assert router.resolve("listen", "open_playlists") == NavigationRequest.push("playlists")
+    assert router.resolve("listen", "open_recent") == NavigationRequest.push("recent_tracks")
+    assert router.resolve("listen", "shuffle_started") == NavigationRequest.push("now_playing")
 
 
 def test_screen_manager_routes_menu_labels_through_stack(display: Display) -> None:

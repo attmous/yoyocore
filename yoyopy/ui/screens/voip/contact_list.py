@@ -97,8 +97,10 @@ class ContactListScreen(Screen):
     def load_contacts(self) -> None:
         """Load contacts from config manager."""
         if self.config_manager:
-            self.contacts = self.config_manager.get_contacts()
-            self.contacts.sort(key=lambda c: (not c.favorite, c.name.lower()))
+            contacts = self.config_manager.get_contacts()
+            favorites = [contact for contact in contacts if contact.favorite]
+            others = [contact for contact in contacts if not contact.favorite]
+            self.contacts = favorites + others
             logger.info(f"Loaded {len(self.contacts)} contacts")
         else:
             logger.warning("No config manager available to load contacts")
@@ -167,7 +169,7 @@ class ContactListScreen(Screen):
                 y1=y1,
                 x2=self.display.WIDTH - 20,
                 y2=y2,
-                title=text_fit(self.display, contact.name, self.display.WIDTH - 90, 15),
+                title=text_fit(self.display, contact.display_name, self.display.WIDTH - 90, 15),
                 subtitle="",
                 mode="talk",
                 selected=contact_index == self.selected_index,
@@ -200,7 +202,7 @@ class ContactListScreen(Screen):
                 break
 
             contact = self.contacts[contact_index]
-            visible_titles.append(contact.name)
+            visible_titles.append(contact.display_name)
             visible_badges.append("")
             if contact_index == self.selected_index:
                 selected_visible_index = row
@@ -241,11 +243,11 @@ class ContactListScreen(Screen):
             return
 
         contact = self.contacts[self.selected_index]
-        logger.info(f"Calling contact: {contact.name} at {contact.sip_address}")
-        if self.voip_manager.make_call(contact.sip_address, contact_name=contact.name):
+        logger.info(f"Calling contact: {contact.display_name} at {contact.sip_address}")
+        if self.voip_manager.make_call(contact.sip_address, contact_name=contact.display_name):
             self.request_route("call_started")
         else:
-            logger.error(f"Failed to initiate call to {contact.name}")
+            logger.error(f"Failed to initiate call to {contact.display_name}")
 
     def choose_voice_note_recipient(self) -> None:
         """Store the chosen recipient and move into the voice-note shell."""
@@ -256,7 +258,7 @@ class ContactListScreen(Screen):
         contact = self.contacts[self.selected_index]
         if self.context is not None:
             self.context.set_voice_note_recipient(
-                name=contact.name,
+                name=contact.display_name,
                 sip_address=contact.sip_address,
             )
         self.request_route("voice_note_selected")
