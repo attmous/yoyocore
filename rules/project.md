@@ -1,35 +1,33 @@
 # Project Overview
 
-YoyoPod is an iPod-inspired Raspberry Pi application combining SIP calling (VoIP via linphonec) and Mopidy-based music playback behind a small-screen, button-driven UI. Target hardware is Raspberry Pi Zero 2W (416 MB RAM).
+YoyoPod is an iPod-inspired Raspberry Pi application combining SIP calling and mpv-based local music playback behind a small-screen, button-driven UI. Target hardware is Raspberry Pi Zero 2W (416 MB RAM).
 
-Three display/input modes: Pimoroni DisplayHATMini, PiSugar Whisplay, and browser-based simulation.
+Three display/input modes are supported today: Pimoroni Display HAT Mini, PiSugar Whisplay, and browser-based simulation.
 
 ## Common Commands
 
 ```bash
+# Install dev dependencies
+uv sync --extra dev
+
 # Run the app
-python yoyopod.py              # Production (requires Pi hardware)
-python yoyopod.py --simulate   # Simulation mode (browser UI at localhost:5000)
+python yoyopod.py
+python yoyopod.py --simulate
 
 # Tests
-pytest
-pytest tests/test_fsm_runtime.py
-pytest -v
+uv run pytest -q
+uv run pytest -q tests/test_fsm_runtime.py
 
 # Code quality
-black .
-ruff check .
-mypy yoyopy/
-
-# Install dev dependencies
-pip install -e ".[dev]"
+uv run black .
+uv run ruff check .
 ```
 
 ## Configuration
 
-All config in `config/` directory (tracked in repo):
-- `yoyopod_config.yaml` -- display hardware, Mopidy host/port, auto-resume
-- `voip_config.yaml` -- SIP account, transport, STUN, HA1 hash auth
+All tracked config lives under `config/`:
+- `yoyopod_config.yaml` -- display hardware, local music directory, mpv settings, default volume, auto-resume
+- `voip_config.yaml` -- SIP account, transport, STUN, Liblinphone messaging, audio devices
 - `contacts.yaml` -- contact list and speed dial
 
 ## Current Gaps

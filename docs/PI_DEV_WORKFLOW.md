@@ -55,7 +55,7 @@ Shows:
 
 - remote branch and commit
 - dirty working tree state
-- Mopidy user-service state
+- music backend process state
 - tracked PID file state
 - latest startup marker from the file log
 - top memory processes
@@ -84,14 +84,14 @@ uv run python scripts/pi_remote.py sync --branch main --skip-uv-sync
 ```bash
 uv run python scripts/pi_remote.py smoke
 uv run python scripts/pi_remote.py smoke --with-power --with-rtc
-uv run python scripts/pi_remote.py smoke --with-mopidy --with-voip --with-rtc
+uv run python scripts/pi_remote.py smoke --with-music --with-voip --with-rtc
 uv run python scripts/pi_remote.py smoke --with-lvgl-soak
 ```
 
 Useful variations:
 
 ```bash
-uv run python scripts/pi_remote.py smoke --with-mopidy --mopidy-timeout 10
+uv run python scripts/pi_remote.py smoke --with-music --music-timeout 10
 uv run python scripts/pi_remote.py smoke --with-voip --voip-timeout 15 --verbose
 ```
 
@@ -139,11 +139,7 @@ uv run python scripts/pi_remote.py service restart
 uv run python scripts/pi_remote.py service logs --lines 150
 ```
 
-This installs `deploy/systemd/yoyopod@.service` onto the Pi as
-`yoyopod@<remote-user>.service`, enables it at boot, and keeps the app paired
-with the PiSugar watchdog recovery loop. `service install`, `start`, and
-`restart` now wait for the file-log startup marker and verify that it matches
-the PID file before returning success.
+This installs `deploy/systemd/yoyopod@.service` onto the Pi as `yoyopod@<remote-user>.service`, enables it at boot, and keeps the app paired with the PiSugar watchdog recovery loop. `service install`, `start`, and `restart` now wait for the file-log startup marker and verify that it matches the PID file before returning success.
 
 ### Structured file logs
 
@@ -154,8 +150,7 @@ uv run python scripts/pi_remote.py logs --filter voip
 uv run python scripts/pi_remote.py logs --follow --filter ERROR
 ```
 
-This tails the file sinks declared in `deploy/pi-deploy.yaml`, which is the
-stable Pi contract for:
+This tails the file sinks declared in `deploy/pi-deploy.yaml`, which is the stable Pi contract for:
 
 - `<project-dir>/logs/yoyopod.log`
 - `<project-dir>/logs/yoyopod_errors.log`
@@ -171,7 +166,7 @@ Liblinphone note:
 ### Run the full preflight in one command
 
 ```bash
-uv run python scripts/pi_remote.py preflight --branch main --with-mopidy --with-voip --with-lvgl-soak
+uv run python scripts/pi_remote.py preflight --branch main --with-music --with-voip --with-lvgl-soak
 ```
 
 What it does:
@@ -186,7 +181,7 @@ Useful variations:
 ```bash
 uv run python scripts/pi_remote.py preflight --branch main --skip-local
 uv run python scripts/pi_remote.py preflight --branch main --skip-sync --with-voip
-uv run python scripts/pi_remote.py preflight --branch main --skip-uv-sync --with-mopidy --with-voip
+uv run python scripts/pi_remote.py preflight --branch main --skip-uv-sync --with-music --with-voip
 ```
 
 ### Launch the production app remotely
@@ -207,12 +202,11 @@ uv run python scripts/pi_remote.py run --app-arg=--your-extra-flag
 1. Run local checks: `uv run pytest -q`
 2. Push your branch
 3. Run the combined preflight:
-   `uv run python scripts/pi_remote.py preflight --branch <branch> --with-mopidy --with-voip --with-lvgl-soak`
+   `uv run python scripts/pi_remote.py preflight --branch <branch> --with-music --with-voip --with-lvgl-soak`
 4. Launch the app:
    `uv run python scripts/pi_remote.py run`
 
-If you are validating the production boot path rather than an interactive SSH
-run, use:
+If you are validating the production boot path rather than an interactive SSH run, use:
 
 5. `uv run python scripts/pi_remote.py service restart`
 6. `uv run python scripts/pi_remote.py service status`
@@ -221,7 +215,7 @@ run, use:
 
 - Local branch is green with `uv run pytest -q`
 - Branch is pushed and reviewed
-- `uv run python scripts/pi_remote.py preflight --branch <branch> --with-mopidy --with-voip --with-lvgl-soak` passes
+- `uv run python scripts/pi_remote.py preflight --branch <branch> --with-music --with-voip --with-lvgl-soak` passes
 - `uv run python scripts/pi_remote.py run` starts cleanly
 - Manual sanity:
   - display renders correctly

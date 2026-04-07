@@ -1,9 +1,9 @@
 # YoyoPod System Architecture
 
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-07
 **Status:** Current implementation
 
-This document describes the architecture that exists on `main` after the UI HAL refactor.
+This document describes the architecture that exists on `main`.
 
 ## Overview
 
@@ -12,7 +12,7 @@ YoyoPod runs as a single Python application that coordinates:
 - display rendering
 - semantic input handling
 - screen navigation
-- Mopidy music playback
+- mpv-based local music playback
 - SIP calling and messaging through Liblinphone
 - state transitions between playback and call flows
 
@@ -35,8 +35,11 @@ yoyopod.py / yoyopy.main
      -> MusicFSM / CallFSM / CallInterruptionPolicy
      -> CoordinatorRuntime
      -> AppContext
-     -> MopidyClient
-        -> Mopidy JSON-RPC over HTTP
+     -> LocalMusicService
+     -> MpvBackend
+        -> MpvProcess
+        -> MpvIpcClient
+           -> mpv JSON IPC over Unix socket / named pipe
      -> VoIPManager
         -> LiblinphoneBackend
            -> native Liblinphone shim
@@ -54,7 +57,12 @@ yoyopod.py / yoyopy.main
 
 ### Audio and VoIP
 
-- `yoyopy/audio/mopidy_client.py`: playlist loading, playback control, polling callbacks
+- `yoyopy/audio/local_service.py`: local playlists, shuffle source collection, recent history integration
+- `yoyopy/audio/music/backend.py`: `MusicBackend`, `MpvBackend`, `MockMusicBackend`
+- `yoyopy/audio/music/process.py`: app-managed mpv process lifecycle
+- `yoyopy/audio/music/ipc.py`: low-level mpv JSON IPC client
+- `yoyopy/audio/music/models.py`: `Track`, `Playlist`, `MusicConfig`
+- `yoyopy/audio/volume.py`: shared ALSA and mpv output-volume coordination
 - `yoyopy/voip/manager.py`: call, message, and voice-note facade
 - `yoyopy/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
 - `config/liblinphone_factory.conf`: repo-managed Liblinphone factory config for media, codec, and network defaults
@@ -120,7 +128,7 @@ That bridge is intentional but temporary.
 
 ## State Coordination
 
-Playback and call orchestration now use composed models:
+Playback and call orchestration use composed models:
 
 - `MusicFSM` in `yoyopy/fsm.py`
 - `CallFSM` in `yoyopy/fsm.py`
@@ -135,7 +143,7 @@ Playback and call orchestration now use composed models:
 
 `YoyoPodApp` listens to:
 
-- Mopidy playback changes
+- music-backend playback changes
 - VoIP registration changes
 - VoIP call state changes
 
@@ -150,18 +158,19 @@ and updates:
 ### Incoming Call
 
 1. `YoyoPodApp` iterates the Liblinphone backend on the coordinator thread
-2. the native shim queues typed registration/call/message events
+2. the native shim queues typed registration, call, and message events
 3. `VoIPManager` translates those into app callbacks
-4. `YoyoPodApp._handle_incoming_call()` pauses music if needed
+4. `YoyoPodApp` pauses music if needed
 5. state transitions to `CALL_INCOMING`
 6. `IncomingCallScreen` is pushed
 
 ### Music Playback
 
-1. screen action triggers Mopidy RPC
-2. `MopidyClient` polls track and playback state
-3. callbacks refresh `NowPlayingScreen`
-4. the derived runtime state stays synchronized with actual playback state
+1. screen action triggers a `MusicBackend` command
+2. `MpvBackend` receives push events from mpv over JSON IPC
+3. `LocalMusicService` handles local playlist and filesystem browse concerns
+4. callbacks refresh `NowPlayingScreen`
+5. the derived runtime state stays synchronized with actual playback state
 
 ### Simulation Mode
 
@@ -175,7 +184,7 @@ and updates:
 The current code still includes a few environment-specific assumptions:
 
 - Whisplay driver path: `/home/tifo/Whisplay/Driver/WhisPlay.py`
-- audio device defaults for Liblinphone and ringing: `ALSA: wm8960-soundcard`
+- audio device defaults for Liblinphone and mpv: `ALSA: wm8960-soundcard` / `alsa/default`
 - simulation server defaults to port `5000`
 - call negotiation on the Pi currently depends on the tracked Liblinphone factory config at `config/liblinphone_factory.conf`
 
@@ -188,6 +197,8 @@ For current behavior, trust these files over older notes or demos:
 - `yoyopy/app.py`
 - `yoyopy/fsm.py`
 - `yoyopy/coordinators/runtime.py`
+- `yoyopy/audio/`
+- `yoyopy/voip/`
 - `yoyopy/ui/display/`
 - `yoyopy/ui/input/`
 - `yoyopy/ui/screens/`

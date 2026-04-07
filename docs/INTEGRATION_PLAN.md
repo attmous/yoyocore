@@ -1,11 +1,9 @@
-# YoyoPod VoIP + Music Integration Plan
+# YoyoPod VoIP + Local Music Integration Record
 
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-07
 **Status:** Implemented
 
-This document started as a plan and now serves as the completion record for the VoIP + Mopidy integration.
-
-The current backend is Liblinphone. Older references to `linphonec` in this document are historical only.
+This document started as a plan and now serves as the completion record for the VoIP + local music integration that ships on `main`.
 
 ## What Is Implemented
 
@@ -28,19 +26,20 @@ Responsibilities:
 
 - load config
 - initialize display/input/screen infrastructure
-- start VoIP and Mopidy managers
+- start VoIP and music backends
 - register callbacks
 - coordinate call interruption and resume behavior
 
 ### Music Layer
 
-- `yoyopy/audio/mopidy_client.py`
+- `yoyopy/audio/music/backend.py`
+- `yoyopy/audio/local_service.py`
 
 Responsibilities:
 
-- playback control
-- playlist discovery and loading
-- track/state polling callbacks
+- app-managed mpv lifecycle and JSON IPC
+- playback control and property-event handling
+- local playlist discovery, shuffle input, and recent-track integration
 
 ### VoIP Layer
 
@@ -93,21 +92,28 @@ See `yoyopy/fsm.py` for the music/call transitions and `yoyopy/coordinators/runt
 3. outgoing and in-call screens are pushed as typed call state changes arrive
 4. call end pops call screens and returns the app to the prior playback state
 
+## Music Playback Flow
+
+1. screen action triggers a music-backend command
+2. `MpvBackend` receives push events from mpv over JSON IPC
+3. `LocalMusicService` handles local playlist and filesystem browse concerns
+4. callbacks refresh `NowPlayingScreen`
+5. derived runtime state stays synchronized with actual playback state
+
 ## What Changed After The Original Plan
 
-The original integration work predated the later UI refactor. The current code now uses:
+The original integration work predated later backend and UI refactors. The current code now uses:
 
 - `InputManager` instead of `InputHandler`
 - `Display` HAL instead of a single hardcoded display module
 - split screen modules instead of one `screens.py`
-
-The integration behavior is still real and current; the old file references were not.
+- `MpvBackend` instead of the removed JSON-RPC music client
 
 ## Remaining Cleanup Outside Integration
 
 The integration itself is done. Remaining repository work is separate:
 
-- update stale docs and packaging metadata
-- migrate older demos and tests to current UI imports
+- continue reducing stale historical docs
+- migrate older demos and tests to current names and entry points
 - finish semantic input migration inside screen implementations
 - reduce hardcoded hardware assumptions

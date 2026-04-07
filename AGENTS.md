@@ -1,8 +1,8 @@
-# YoyoPod — Agent Instructions
+# YoyoPod - Agent Instructions
 
-**Last Updated:** 2026-04-06
+**Last Updated:** 2026-04-07
 **Target Hardware:** Raspberry Pi Zero 2W
-**Project:** iPod-inspired VoIP and Mopidy player with a small-screen, button-driven UI
+**Project:** iPod-inspired VoIP and mpv-based local music player with a small-screen, button-driven UI
 
 ---
 
@@ -53,6 +53,7 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
   - PiSugar software watchdog support
 - Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
 - Whisplay now runs on the LVGL rendering path in production under `yoyopy/ui/lvgl_binding/`.
+- Production local music now runs through the app-managed mpv backend under `yoyopy/audio/music/`.
 - Production VoIP now runs through Liblinphone under `yoyopy/voip/liblinphone_binding/` and `yoyopy/voip/backend.py`.
 - CI validates the Python test suite with `uv sync --extra dev` and `uv run pytest -q`.
 - Raspberry Pi validation has a defined path through `scripts/pi_smoke.py` and `scripts/pi_remote.py`.
@@ -79,6 +80,7 @@ When in doubt, trust these files first:
 - `yoyopy/event_bus.py`
 - `yoyopy/events.py`
 - `yoyopy/coordinators/runtime.py`
+- `yoyopy/audio/`
 - `yoyopy/voip/`
 - `yoyopy/power/`
 - `yoyopy/ui/display/`
@@ -114,7 +116,10 @@ yoyopod.py / yoyopy.main
      -> ScreenManager
         -> declarative router
         -> navigation / music / voip screens
-     -> MopidyClient
+     -> LocalMusicService
+     -> MpvBackend
+        -> MpvProcess
+        -> MpvIpcClient
      -> VoIPManager
         -> LiblinphoneBackend
      -> PowerManager
@@ -126,7 +131,7 @@ Key design points:
 
 - Music and call state are modeled separately in `yoyopy/fsm.py`.
 - The app no longer uses a monolithic combined `StateMachine`.
-- Background Mopidy and VoIP events are published onto the typed `EventBus` and drained on the coordinator thread.
+- Background music-backend and VoIP events are published onto the typed `EventBus` and drained on the coordinator thread.
 - `CoordinatorRuntime` derives the user-facing app state from the split FSMs plus UI state.
 - The screen stack is still the core navigation model.
 
@@ -152,7 +157,12 @@ Key design points:
 
 ### Audio And VoIP
 
-- `yoyopy/audio/mopidy_client.py` - Mopidy JSON-RPC client
+- `yoyopy/audio/local_service.py` - filesystem-backed playlists, shuffle source collection, and recent-track integration
+- `yoyopy/audio/music/backend.py` - `MusicBackend`, `MpvBackend`, and `MockMusicBackend`
+- `yoyopy/audio/music/process.py` - app-managed mpv process lifecycle
+- `yoyopy/audio/music/ipc.py` - low-level mpv JSON IPC client
+- `yoyopy/audio/music/models.py` - `Track`, `Playlist`, and `MusicConfig`
+- `yoyopy/audio/volume.py` - shared output-volume coordination across ALSA and mpv
 - `yoyopy/voip/manager.py` - app-facing VoIP facade
 - `yoyopy/voip/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, `MockVoIPBackend`
 - `yoyopy/voip/models.py` - SIP config plus typed call/message backend events
@@ -215,6 +225,11 @@ Useful env overrides:
 - `YOYOPOD_CAPTURE_DEVICE`
 - `YOYOPOD_MEDIA_DEVICE`
 - `YOYOPOD_RING_OUTPUT_DEVICE`
+- `YOYOPOD_MUSIC_DIR`
+- `YOYOPOD_MPV_SOCKET`
+- `YOYOPOD_MPV_BINARY`
+- `YOYOPOD_ALSA_DEVICE`
+- `YOYOPOD_DEFAULT_VOLUME`
 - `YOYOPOD_PI_HOST`
 - `YOYOPOD_PI_PROJECT_DIR`
 - `YOYOPOD_PI_BRANCH`
@@ -248,7 +263,6 @@ python yoyopod.py --simulate
 ```bash
 python demos/demo_voip.py --simulate
 python demos/demo_playlists.py
-python demos/demo_mopidy.py
 python demos/demo_runtime_state.py --simulate
 ```
 
@@ -260,9 +274,9 @@ Preferred remote helper:
 
 ```bash
 uv run python scripts/pi_remote.py status --host rpi-zero
-uv run python scripts/pi_remote.py preflight --host rpi-zero --with-mopidy --with-voip --with-lvgl-soak
+uv run python scripts/pi_remote.py preflight --host rpi-zero --with-music --with-voip --with-lvgl-soak
 uv run python scripts/pi_remote.py sync --host rpi-zero --branch main
-uv run python scripts/pi_remote.py smoke --host rpi-zero --with-mopidy --with-voip --with-lvgl-soak
+uv run python scripts/pi_remote.py smoke --host rpi-zero --with-music --with-voip --with-lvgl-soak
 uv run python scripts/pi_remote.py lvgl-soak --host rpi-zero --cycles 2
 uv run python scripts/pi_remote.py power --host rpi-zero
 uv run python scripts/pi_remote.py service install --host rpi-zero
@@ -272,7 +286,7 @@ Direct smoke helper on the Pi:
 
 ```bash
 uv run python scripts/pi_smoke.py
-uv run python scripts/pi_smoke.py --with-mopidy --with-voip
+uv run python scripts/pi_smoke.py --with-music --with-voip
 uv run python scripts/pi_smoke.py --with-lvgl-soak
 ```
 
@@ -292,9 +306,9 @@ uv run python scripts/debug_incoming_call.py
 Helpful remote checks:
 
 ```bash
-ssh rpi-zero "ps aux | grep -E '(python|mopidy)'"
+ssh rpi-zero "ps aux | grep -E '(python|mpv)'"
 ssh rpi-zero "free -h"
-ssh rpi-zero "systemctl --user status mopidy"
+ssh rpi-zero "pgrep -af mpv"
 ssh rpi-zero "killall -9 python"
 ```
 
@@ -315,6 +329,7 @@ High-signal tests:
 - `tests/test_app_orchestration.py`
 - `tests/test_screen_routing.py`
 - `tests/test_call_screen.py`
+- `tests/test_music_backend.py`
 - `tests/test_voip_backend.py`
 - `tests/test_config_models.py`
 - `tests/test_pi_remote.py`

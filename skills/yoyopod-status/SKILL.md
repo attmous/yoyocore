@@ -22,7 +22,7 @@ If the file does not exist, stop and tell the user to create it.
 
 2. **Present the result.** Prefer a compact summary with:
    - git branch and commit
-   - Mopidy status
+   - music backend status
    - YoyoPod service status
    - PiSugar server status
    - PID file state
