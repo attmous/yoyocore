@@ -48,7 +48,7 @@ class MusicBackend(Protocol):
 class MpvBackend:
     """Production music backend driven by an app-managed mpv process."""
 
-    _STARTUP_CONNECT_RETRIES = 10
+    _STARTUP_CONNECT_RETRIES = 30
     _STARTUP_CONNECT_DELAY = 0.1
 
     def __init__(self, config: MusicConfig) -> None:

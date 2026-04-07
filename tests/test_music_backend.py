@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from yoyopy.audio.music.backend import MockMusicBackend, MusicBackend
-from yoyopy.audio.music.models import Track
+from yoyopy.audio.music.backend import MockMusicBackend, MpvBackend, MusicBackend
+from yoyopy.audio.music.models import MusicConfig, Track
 
 
 def test_mock_backend_satisfies_protocol() -> None:
@@ -103,3 +103,51 @@ def test_mock_backend_get_time_position() -> None:
     assert backend.get_time_position() == 0
     backend.time_position = 5000
     assert backend.get_time_position() == 5000
+
+
+def test_mpv_backend_waits_for_delayed_ipc_ready(monkeypatch) -> None:
+    class FakeProcess:
+        def spawn(self) -> bool:
+            return True
+
+        def kill(self) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return True
+
+    class FakeIpc:
+        def __init__(self) -> None:
+            self.connect_calls = 0
+            self.connected = False
+            self.observed: list[tuple[str, int]] = []
+
+        def connect(self) -> bool:
+            self.connect_calls += 1
+            self.connected = self.connect_calls >= 13
+            return self.connected
+
+        def on_event(self, callback) -> None:
+            self._callback = callback
+
+        def start_reader(self) -> None:
+            return None
+
+        def observe_property(self, name: str, observe_id: int) -> None:
+            self.observed.append((name, observe_id))
+
+        def send_command(self, args: list[object]) -> dict[str, object]:
+            return {"error": "success"}
+
+        def disconnect(self) -> None:
+            self.connected = False
+
+    backend = MpvBackend(MusicConfig())
+    fake_ipc = FakeIpc()
+    backend._process = FakeProcess()
+    backend._ipc = fake_ipc
+    monkeypatch.setattr("yoyopy.audio.music.backend.time.sleep", lambda _: None)
+
+    assert backend.start() is True
+    assert fake_ipc.connect_calls == 13
+    assert backend.is_connected is True
