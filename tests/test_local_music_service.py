@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yoyopy.audio import LocalMusicService, MopidyTrack, RecentTrackHistoryStore
+from yoyopy.audio import LocalMusicService, RecentTrackHistoryStore
+from yoyopy.audio.mopidy_client import MopidyTrack
 from yoyopy.coordinators.playback import PlaybackCoordinator
 
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 from loguru import logger
 
 from yoyopy.audio.local_service import LocalMusicService
-from yoyopy.audio.mopidy_client import MopidyTrack
+from yoyopy.audio.music.models import Track
 from yoyopy.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
 from yoyopy.coordinators.screen import ScreenCoordinator
 from yoyopy.event_bus import EventBus
@@ -44,7 +44,7 @@ class PlaybackCoordinator:
         event_bus.subscribe(MusicAvailabilityChangedEvent, self._on_availability_changed_event)
         self._bound = True
 
-    def publish_track_change(self, track: MopidyTrack | None) -> None:
+    def publish_track_change(self, track: Track | None) -> None:
         """Publish a Mopidy track change from the poller thread."""
         if self._event_bus is None:
             raise RuntimeError("PlaybackCoordinator is not bound to an EventBus")
@@ -82,7 +82,7 @@ class PlaybackCoordinator:
     def _on_availability_changed_event(self, event: MusicAvailabilityChangedEvent) -> None:
         self.handle_availability_change(event.available, event.reason)
 
-    def handle_track_change(self, track: MopidyTrack | None) -> None:
+    def handle_track_change(self, track: Track | None) -> None:
         """Handle track changes and refresh the active screen when needed."""
         if track:
             logger.info(f"Track changed: {track.name} - {track.get_artist_string()}")

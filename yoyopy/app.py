@@ -17,7 +17,8 @@ from typing import Any, Callable, Dict, Optional
 from loguru import logger
 
 from yoyopy.app_context import AppContext
-from yoyopy.audio import LocalMusicService, MopidyClient, RecentTrackHistoryStore
+from yoyopy.audio import LocalMusicService, RecentTrackHistoryStore
+from yoyopy.audio.mopidy_client import MopidyClient
 from yoyopy.config import ConfigManager, YoyoPodConfig
 from yoyopy.coordinators import (
     AppRuntimeState,

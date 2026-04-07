@@ -9,7 +9,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from yoyopy.audio.mopidy_client import MopidyTrack
+from yoyopy.audio.music.models import Track
 
 
 def _utc_now_iso() -> str:
@@ -41,7 +41,7 @@ class RecentTrackEntry:
         return "Played recently"
 
     @classmethod
-    def from_track(cls, track: MopidyTrack) -> "RecentTrackEntry":
+    def from_track(cls, track: Track) -> "RecentTrackEntry":
         """Create a persistent recent-entry from the current Mopidy track."""
 
         return cls(
@@ -105,7 +105,7 @@ class RecentTrackHistoryStore:
         except Exception as exc:
             logger.warning(f"Failed to save recent tracks to {self.history_file}: {exc}")
 
-    def record_track(self, track: MopidyTrack) -> None:
+    def record_track(self, track: Track) -> None:
         """Move the current track to the front of the local recents list."""
 
         entry = RecentTrackEntry.from_track(track)

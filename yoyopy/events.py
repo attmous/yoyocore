@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal, Optional
 
-from yoyopy.audio.mopidy_client import MopidyTrack
+from yoyopy.audio.music.models import Track
 from yoyopy.voip.manager import CallState, RegistrationState
 
 
@@ -58,7 +58,7 @@ class UserActivityEvent:
 class RecoveryAttemptCompletedEvent:
     """Published when a background backend recovery attempt finishes."""
 
-    manager: Literal["mopidy"]
+    manager: Literal["music"]
     recovered: bool
     recovery_now: float
 
@@ -75,7 +75,7 @@ class VoIPAvailabilityChangedEvent:
 class TrackChangedEvent:
     """Published when the current Mopidy track changes."""
 
-    track: Optional[MopidyTrack]
+    track: Optional[Track]
 
 
 @dataclass(frozen=True, slots=True)
