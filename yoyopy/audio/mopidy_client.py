@@ -320,17 +320,27 @@ class MopidyClient:
 
         try:
             tl_tracks = self._rpc_call("core.tracklist.get_tl_tracks")
-            if not tl_tracks:
+            if not isinstance(tl_tracks, list) or not tl_tracks:
                 return None
 
             index = self._rpc_call("core.tracklist.index")
             if not isinstance(index, int) or index < 0 or index >= len(tl_tracks):
                 index = 0
 
-            track_data = tl_tracks[index].get("track") if isinstance(tl_tracks[index], dict) else None
+            selected_track = tl_tracks[index]
+            track_data = selected_track.get("track") if isinstance(selected_track, dict) else None
+            if track_data:
+                return MopidyTrack.from_mopidy(track_data)
+
+            for tl_track in tl_tracks:
+                if not isinstance(tl_track, dict):
+                    continue
+                track_data = tl_track.get("track")
+                if track_data:
+                    return MopidyTrack.from_mopidy(track_data)
+
             if not track_data:
                 return None
-            return MopidyTrack.from_mopidy(track_data)
         except Exception as e:
             logger.debug(f"Failed to derive current track from tracklist: {e}")
             return None
