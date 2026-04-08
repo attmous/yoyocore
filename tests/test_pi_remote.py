@@ -3,15 +3,18 @@
 from scripts.pi_remote import (
     PiDeployConfig,
     RemoteConfig,
+    build_archive_sync_extract_command,
     build_config_editor_command,
     build_local_preflight_commands,
     build_local_override_template,
     build_logs_command,
     build_lvgl_soak_command,
+    build_native_shim_refresh_command,
     build_power_command,
     build_restart_command,
     build_rtc_command,
     build_rsync_command,
+    build_sync_file_manifest,
     build_service_command,
     build_smoke_command,
     build_startup_verification_command,
@@ -20,8 +23,12 @@ from scripts.pi_remote import (
     build_whisplay_command,
     load_pi_deploy_config,
     quote_remote_project_dir,
+    resolve_local_executable,
+    should_use_direct_rsync,
+    sync_path_is_excluded,
 )
 from argparse import Namespace
+from pathlib import Path
 
 DEPLOY_CONFIG = PiDeployConfig(
     host="rpi-zero",
@@ -36,7 +43,7 @@ DEPLOY_CONFIG = PiDeployConfig(
     pid_file="/tmp/yoyopod.pid",
     startup_marker="YoyoPod starting",
     screenshot_path="/tmp/yoyopod_screenshot.png",
-    rsync_exclude=(".git/", "logs/"),
+    rsync_exclude=(".git/", ".cache/", "build/", "logs/"),
 )
 
 
@@ -71,7 +78,7 @@ def test_load_pi_deploy_config_merges_local_override(tmp_path) -> None:
                 "pid_file: /tmp/yoyopod.pid",
                 'startup_marker: "YoyoPod starting"',
                 "screenshot_path: /tmp/yoyopod_screenshot.png",
-                "rsync_exclude: [.git/, logs/]",
+                "rsync_exclude: [.git/, .cache/, build/, logs/]",
             ]
         ),
         encoding="utf-8",
@@ -148,6 +155,136 @@ def test_build_rsync_command_uses_excludes_and_remote_target() -> None:
     assert "--exclude" in command
     assert ".git/" in command
     assert "logs/" in command
+
+
+def test_build_rsync_command_supports_custom_executable() -> None:
+    """Dirty-tree sync should be able to use an absolute rsync path."""
+
+    config = RemoteConfig(
+        host="rpi-zero",
+        user="pi",
+        project_dir="~/yoyo-py",
+        branch="main",
+    )
+
+    command = build_rsync_command(
+        config,
+        DEPLOY_CONFIG,
+        executable=r"C:\msys64\usr\bin\rsync.exe",
+    )
+
+    assert command[0] == r"C:\msys64\usr\bin\rsync.exe"
+
+
+def test_resolve_local_executable_uses_common_windows_rsync_paths(monkeypatch) -> None:
+    """Windows helper should find rsync even when the current PATH has not refreshed yet."""
+
+    monkeypatch.setattr("scripts.pi_remote.sys.platform", "win32")
+    monkeypatch.setattr("scripts.pi_remote.shutil.which", lambda _program: None)
+    monkeypatch.setattr(Path, "exists", lambda self: str(self) == r"C:\msys64\usr\bin\rsync.exe")
+
+    assert resolve_local_executable("rsync") == r"C:\msys64\usr\bin\rsync.exe"
+
+
+def test_should_use_direct_rsync_disables_known_windows_msys_builds(monkeypatch) -> None:
+    """Windows should prefer the archive fallback for MSYS/Git rsync builds."""
+
+    monkeypatch.setattr("scripts.pi_remote.sys.platform", "win32")
+    monkeypatch.delenv("YOYOPOD_PI_FORCE_RSYNC", raising=False)
+
+    assert should_use_direct_rsync(r"C:\msys64\usr\bin\rsync.exe") is False
+
+
+def test_should_use_direct_rsync_supports_force_override(monkeypatch) -> None:
+    """An explicit env override should allow direct rsync for debugging."""
+
+    monkeypatch.setattr("scripts.pi_remote.sys.platform", "win32")
+    monkeypatch.setenv("YOYOPOD_PI_FORCE_RSYNC", "1")
+
+    assert should_use_direct_rsync(r"C:\msys64\usr\bin\rsync.exe") is True
+
+
+def test_sync_path_is_excluded_supports_dir_and_glob_patterns() -> None:
+    """Fallback sync should match the same directory and file excludes as rsync."""
+
+    patterns = (".git/", "__pycache__/", "*.pyc", "*.egg-info/")
+
+    assert sync_path_is_excluded(".git/config", patterns, is_dir=False) is True
+    assert sync_path_is_excluded("pkg/__pycache__", patterns, is_dir=True) is True
+    assert sync_path_is_excluded("pkg/module.pyc", patterns, is_dir=False) is True
+    assert sync_path_is_excluded("dist/demo.egg-info/PKG-INFO", patterns, is_dir=False) is True
+    assert sync_path_is_excluded("yoyopy/app.py", patterns, is_dir=False) is False
+
+
+def test_build_sync_file_manifest_skips_excluded_entries(tmp_path) -> None:
+    """Archive fallback should only include files that rsync would have mirrored."""
+
+    deploy_config = PiDeployConfig(
+        host="rpi-zero",
+        user="pi",
+        project_dir="~/yoyo-py",
+        branch="main",
+        venv=".venv",
+        start_cmd="python yoyopod.py",
+        kill_processes=("python", "linphonec"),
+        log_file="logs/yoyopod.log",
+        error_log_file="logs/yoyopod_errors.log",
+        pid_file="/tmp/yoyopod.pid",
+        startup_marker="YoyoPod starting",
+        screenshot_path="/tmp/yoyopod_screenshot.png",
+        rsync_exclude=(".git/", ".cache/", "__pycache__/", "*.pyc", "build/", "logs/"),
+    )
+
+    (tmp_path / "yoyopy").mkdir()
+    (tmp_path / "yoyopy" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (tmp_path / ".cache").mkdir()
+    (tmp_path / ".cache" / "lvgl").mkdir()
+    (tmp_path / ".cache" / "lvgl" / "CMakeLists.txt").write_text("cmake\n", encoding="utf-8")
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "__pycache__" / "app.cpython-312.pyc").write_bytes(b"pyc")
+    (tmp_path / "logs").mkdir()
+    (tmp_path / "logs" / "yoyopod.log").write_text("runtime\n", encoding="utf-8")
+    (tmp_path / "build").mkdir()
+    (tmp_path / "build" / "native.so").write_bytes(b"binary")
+
+    manifest = build_sync_file_manifest(tmp_path, deploy_config)
+
+    assert manifest == ["yoyopy/app.py"]
+
+
+def test_build_native_shim_refresh_command_covers_both_native_builds() -> None:
+    """Restart should be able to rebuild LVGL and Liblinphone when the Pi artifacts are stale."""
+
+    command = build_native_shim_refresh_command(DEPLOY_CONFIG)
+
+    assert "scripts/lvgl_build.py" in command
+    assert "scripts/liblinphone_build.py" in command
+    assert "libyoyopy_lvgl_shim.so" in command
+    assert "libyoyopy_liblinphone_shim.so" in command
+    assert "[pi-remote] info=rebuilding" in command
+    assert command.endswith("} ")
+
+
+def test_build_archive_sync_extract_command_targets_remote_project_dir() -> None:
+    """Fallback sync should unpack into the configured project dir and mirror a manifest."""
+
+    config = RemoteConfig(
+        host="rpi-zero",
+        user="pi",
+        project_dir="~/yoyo-py",
+        branch="main",
+    )
+
+    command = build_archive_sync_extract_command(
+        config,
+        archive_path="/tmp/yoyopod_sync.tar.gz",
+        manifest_path="/tmp/yoyopod_sync_manifest.json",
+    )
+
+    assert "python - <<'PY'" in command
+    assert "Path(os.path.expanduser('~/yoyo-py')).resolve()" in command
+    assert 'payload = json.load(handle)' in command
+    assert 'archive.extractall(project_dir)' in command
 
 
 def test_build_smoke_command_adds_optional_checks() -> None:
@@ -278,10 +415,14 @@ def test_build_restart_command_reuses_pid_and_startup_contract() -> None:
 
     command = build_restart_command(DEPLOY_CONFIG)
 
-    assert "kill -9 $(cat /tmp/yoyopod.pid)" in command
+    assert "scripts/lvgl_build.py" in command
+    assert "scripts/liblinphone_build.py" in command
+    assert 'if systemctl cat yoyopod@"$(id -un)".service >/dev/null 2>&1; then sudo systemctl stop yoyopod@"$(id -un)".service >/dev/null 2>&1 || true;' in command
+    assert 'sudo systemctl start yoyopod@"$(id -un)".service;' in command
+    assert "rm -f /tmp/yoyopod.pid" in command
     assert "killall -9 python" in command
     assert "killall -9 linphonec" in command
-    assert "source .venv/bin/activate && nohup python yoyopod.py > /dev/null 2>&1 &" in command
+    assert "source .venv/bin/activate && (nohup python yoyopod.py > /dev/null 2>&1 &)" in command
     assert "grep -F 'YoyoPod starting' logs/yoyopod.log" in command
 
 

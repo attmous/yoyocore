@@ -16,19 +16,30 @@ if TYPE_CHECKING:
 
 Color = tuple[int, int, int]
 
-BACKGROUND: Color = (18, 21, 28)
-SURFACE: Color = (28, 33, 42)
-SURFACE_RAISED: Color = (35, 40, 52)
-SURFACE_BORDER: Color = (74, 79, 92)
-INK: Color = (243, 247, 250)
-MUTED: Color = (153, 160, 173)
-MUTED_DIM: Color = (111, 118, 132)
+BACKGROUND: Color = (42, 45, 53)
+SURFACE: Color = (49, 52, 60)
+SURFACE_RAISED: Color = (54, 58, 68)
+SURFACE_BORDER: Color = (80, 85, 97)
+FOOTER_BAR: Color = (31, 33, 39)
+INK: Color = (255, 255, 255)
+MUTED: Color = (180, 183, 190)
+MUTED_DIM: Color = (122, 125, 132)
 SUCCESS: Color = (61, 221, 83)
 ERROR: Color = (255, 103, 93)
 FOOTER_SAFE_HEIGHT_PORTRAIT = 20
 FOOTER_SAFE_HEIGHT_LANDSCAPE = 18
 STATUS_SIDE_INSET_PORTRAIT = 16
 STATUS_SIDE_INSET_LANDSCAPE = 10
+STATUS_TEXT_TOP_PORTRAIT = 7
+STATUS_TEXT_TOP_LANDSCAPE = 6
+STATUS_BATTERY_TOP_PORTRAIT = 9
+STATUS_BATTERY_TOP_LANDSCAPE = 8
+STATUS_VOIP_GAP_PORTRAIT = 17
+STATUS_VOIP_GAP_LANDSCAPE = 12
+STATUS_BATTERY_SIDE_INSET_PORTRAIT = 18
+STATUS_BATTERY_SIDE_INSET_LANDSCAPE = 10
+STATUS_BATTERY_GAP_PORTRAIT = 28
+STATUS_BATTERY_GAP_LANDSCAPE = 24
 HEADER_SIDE_INSET_PORTRAIT = 18
 HEADER_SIDE_INSET_LANDSCAPE = 16
 
@@ -40,6 +51,7 @@ class ModeTheme:
     key: str
     label: str
     accent: Color
+    hero_end: Color
     accent_soft: Color
     accent_dim: Color
 
@@ -47,30 +59,34 @@ class ModeTheme:
 LISTEN = ModeTheme(
     key="listen",
     label="Listen",
-    accent=(105, 234, 121),
-    accent_soft=(70, 143, 83),
-    accent_dim=(52, 89, 60),
+    accent=(0, 255, 136),
+    hero_end=(0, 204, 106),
+    accent_soft=(0, 204, 106),
+    accent_dim=(0, 108, 63),
 )
 TALK = ModeTheme(
     key="talk",
     label="Talk",
-    accent=(82, 220, 255),
-    accent_soft=(58, 136, 159),
-    accent_dim=(46, 87, 100),
+    accent=(0, 212, 255),
+    hero_end=(0, 153, 255),
+    accent_soft=(0, 153, 255),
+    accent_dim=(0, 102, 158),
 )
 ASK = ModeTheme(
     key="ask",
     label="Ask",
-    accent=(255, 213, 73),
-    accent_soft=(176, 135, 42),
-    accent_dim=(112, 92, 33),
+    accent=(255, 208, 0),
+    hero_end=(255, 170, 0),
+    accent_soft=(255, 170, 0),
+    accent_dim=(145, 102, 0),
 )
 SETUP = ModeTheme(
     key="setup",
     label="Setup",
-    accent=(183, 190, 200),
-    accent_soft=(118, 125, 136),
-    accent_dim=(77, 84, 92),
+    accent=(156, 163, 175),
+    hero_end=(107, 114, 128),
+    accent_soft=(107, 114, 128),
+    accent_dim=(84, 90, 102),
 )
 
 THEMES = {
@@ -93,11 +109,11 @@ THEMES = {
 
 ICON_ASSET_DIR = Path(__file__).resolve().parent / "assets" / "phosphor"
 PHOSPHOR_ICON_FILES = {
-    "listen": "headphones.png",
-    "talk": "phone-call.png",
-    "ask": "microphone.png",
+    "listen": "hub-listen.png",
+    "talk": "hub-talk.png",
+    "ask": "hub-ask.png",
     "voice_note": "microphone.png",
-    "setup": "gear-six.png",
+    "setup": "hub-setup.png",
     "power": "gear-six.png",
 }
 _ICON_CACHE: dict[str, Image.Image] = {}
@@ -281,40 +297,52 @@ def render_status_bar(
 
     bar_height = display.STATUS_BAR_HEIGHT
     display.rectangle(0, 0, display.WIDTH, bar_height, fill=BACKGROUND)
-    side_inset = STATUS_SIDE_INSET_PORTRAIT if display.is_portrait() else STATUS_SIDE_INSET_LANDSCAPE
+    is_portrait = display.is_portrait()
+    side_inset = STATUS_SIDE_INSET_PORTRAIT if is_portrait else STATUS_SIDE_INSET_LANDSCAPE
+    text_top = STATUS_TEXT_TOP_PORTRAIT if is_portrait else STATUS_TEXT_TOP_LANDSCAPE
+    battery_top = STATUS_BATTERY_TOP_PORTRAIT if is_portrait else STATUS_BATTERY_TOP_LANDSCAPE
+    voip_gap = STATUS_VOIP_GAP_PORTRAIT if is_portrait else STATUS_VOIP_GAP_LANDSCAPE
+    battery_side_inset = (
+        STATUS_BATTERY_SIDE_INSET_PORTRAIT
+        if is_portrait
+        else STATUS_BATTERY_SIDE_INSET_LANDSCAPE
+    )
+    battery_gap = STATUS_BATTERY_GAP_PORTRAIT if is_portrait else STATUS_BATTERY_GAP_LANDSCAPE
 
+    dot_y = (bar_height // 2) + (2 if is_portrait else 1)
     voip_state = _voip_state(context)
-    dot_x = side_inset
-    dot_y = (bar_height // 2) + 1
-    if voip_state == "ready":
-        display.circle(dot_x, dot_y, 4, fill=SUCCESS)
-    elif voip_state == "offline":
-        display.circle(dot_x, dot_y, 4, fill=ERROR)
+    time_x = side_inset
+    if voip_state != "none":
+        dot_x = side_inset + 3
+        display.circle(dot_x, dot_y, 3, fill=SUCCESS if voip_state == "ready" else ERROR)
+        time_x += voip_gap
 
     if show_time:
         time_text = datetime.now().strftime("%H:%M")
-        time_x = side_inset + (10 if voip_state != "none" else 0)
-        display.text(time_text, time_x, 4, color=INK, font_size=13)
+        display.text(time_text, time_x, text_top, color=MUTED, font_size=11)
 
-    battery_level = 100 if context is None else context.battery_percent
+    battery_level = 100 if context is None else int(round(context.battery_percent))
     charging = False if context is None else context.battery_charging
     power_available = True if context is None else context.power_available
 
-    battery_x = display.WIDTH - side_inset - 22
-    battery_y = 6
+    battery_text = f"{max(0, min(100, battery_level))}%"
+    battery_text_width, _ = display.get_text_size(battery_text, 11)
+    battery_text_x = display.WIDTH - battery_side_inset - battery_text_width
+    battery_x = battery_text_x - battery_gap
+    battery_y = battery_top
     display.rectangle(
         battery_x,
         battery_y,
-        battery_x + 20,
-        battery_y + 10,
+        battery_x + 14,
+        battery_y + 8,
         outline=MUTED,
         width=1,
     )
     display.rectangle(
-        battery_x + 20,
-        battery_y + 3,
-        battery_x + 22,
-        battery_y + 7,
+        battery_x + 14,
+        battery_y + 2,
+        battery_x + 16,
+        battery_y + 6,
         fill=MUTED,
     )
 
@@ -327,15 +355,16 @@ def render_status_bar(
         else:
             fill_color = INK
 
-    fill_width = max(0, min(18, int((max(0, min(100, battery_level)) / 100.0) * 18)))
+    fill_width = max(0, min(12, int((max(0, min(100, battery_level)) / 100.0) * 12)))
     if fill_width > 0:
         display.rectangle(
             battery_x + 1,
             battery_y + 1,
             battery_x + 1 + fill_width,
-            battery_y + 9,
+            battery_y + 7,
             fill=fill_color,
         )
+    display.text(battery_text, battery_text_x, text_top, color=MUTED, font_size=11)
 
 
 def render_header(
@@ -489,18 +518,17 @@ def render_footer(display: Display, text: str, *, mode: str) -> None:
     if not text:
         return
 
-    theme = theme_for(mode)
     font_size = 9 if display.is_portrait() else 10
     footer_width, footer_height = display.get_text_size(text, font_size)
     footer_safe_height = FOOTER_SAFE_HEIGHT_PORTRAIT if display.is_portrait() else FOOTER_SAFE_HEIGHT_LANDSCAPE
     footer_top = display.HEIGHT - footer_safe_height
 
     # Reserve a clean bottom strip so helper text never collides with panels or list rows.
-    display.rectangle(0, footer_top, display.WIDTH, display.HEIGHT, fill=BACKGROUND)
+    display.rectangle(0, footer_top, display.WIDTH, display.HEIGHT, fill=FOOTER_BAR)
 
     footer_x = (display.WIDTH - footer_width) // 2
     footer_y = footer_top + max(0, (footer_safe_height - footer_height) // 2) - 1
-    display.text(text, footer_x, footer_y, color=mix(theme.accent, MUTED, 0.72), font_size=font_size)
+    display.text(text, footer_x, footer_y, color=MUTED_DIM, font_size=font_size)
 
 
 def _pill(

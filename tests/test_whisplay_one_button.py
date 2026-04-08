@@ -282,11 +282,11 @@ def test_hub_select_requests_setup_route_for_setup_card(
     assert hub.consume_navigation_request() == NavigationRequest.route("select", payload="Setup")
 
 
-def test_hub_cards_use_mode_tinted_surfaces(
+def test_hub_cards_use_mode_specific_hero_tiles(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """The root cards should tint their surface differently per mode."""
+    """The root cards should tint their centered hero tile differently per mode."""
     hub = HubScreen(
         display,
         one_button_context,
@@ -297,11 +297,11 @@ def test_hub_cards_use_mode_tinted_surfaces(
 
     hub.selected_index = 0
     hub.render()
-    listen_fill = display.get_adapter().buffer.getpixel((40, 84))
+    listen_fill = display.get_adapter().buffer.getpixel((86, 74))
 
     hub.selected_index = 1
     hub.render()
-    talk_fill = display.get_adapter().buffer.getpixel((40, 84))
+    talk_fill = display.get_adapter().buffer.getpixel((86, 74))
 
     assert listen_fill != talk_fill
 

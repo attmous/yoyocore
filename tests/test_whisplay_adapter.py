@@ -62,12 +62,44 @@ def test_simulated_lvgl_flush_keeps_shadow_buffer_for_debug(monkeypatch) -> None
     assert mirrored == [(0, 0, 4, 2, payload)]
 
 
-def test_shadow_screenshot_falls_back_to_lvgl_readback_when_shadow_sync_is_disabled(monkeypatch) -> None:
-    """Hardware LVGL screenshots should use readback instead of per-flush shadow sync."""
+def test_shadow_screenshot_forces_one_redraw_into_buffer_when_shadow_sync_is_disabled(monkeypatch) -> None:
+    """Hardware LVGL screenshots should force one redraw into the PIL buffer."""
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
     adapter.simulate = False
-    adapter.ui_backend = type("Backend", (), {"available": True})()
+    mirrored: list[tuple[int, int, int, int, bytes]] = []
+    saved_paths: list[tuple[str, str]] = []
+    adapter.buffer = type(
+        "Buffer",
+        (),
+        {"save": lambda _self, path, fmt: saved_paths.append((path, fmt))},
+    )()
+    monkeypatch.setattr(
+        adapter,
+        "_paste_rgb565_region",
+        lambda x, y, width, height, pixel_data: mirrored.append((x, y, width, height, pixel_data)),
+    )
+
+    class Backend:
+        available = True
+        initialized = True
+
+        def force_refresh(self) -> None:
+            adapter.draw_rgb565_region(1, 2, 2, 1, b"\x12\x34" * 2)
+
+    adapter.ui_backend = Backend()
+
+    assert adapter.save_screenshot("/tmp/test.png") is True
+    assert mirrored == [(1, 2, 2, 1, b"\x12\x34" * 2)]
+    assert saved_paths == [("/tmp/test.png", "PNG")]
+
+
+def test_shadow_screenshot_falls_back_to_lvgl_readback_when_force_refresh_is_unavailable(monkeypatch) -> None:
+    """Hardware LVGL screenshots should still fall back to readback when needed."""
+
+    adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
+    adapter.simulate = False
+    adapter.ui_backend = type("Backend", (), {"available": True, "initialized": False})()
 
     readback_calls: list[str] = []
     monkeypatch.setattr(
