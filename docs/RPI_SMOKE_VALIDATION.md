@@ -1,6 +1,6 @@
 # Raspberry Pi Smoke Validation
 
-This guide separates the validation work that is safe in CI from the checks that still require Raspberry Pi hardware, Mopidy, and a reachable SIP account.
+This guide separates the validation work that is safe in CI from the checks that still require Raspberry Pi hardware, the mpv music backend, and a reachable SIP account.
 
 ## Validation Layers
 
@@ -39,23 +39,23 @@ Expected result:
 
 ### 3. Raspberry Pi service smoke
 
-Add Mopidy and SIP checks when the services are expected to be available:
+Add music-backend and SIP checks when the services are expected to be available:
 
 ```bash
-uv run python scripts/pi_smoke.py --with-mopidy --with-voip
-uv run python scripts/pi_smoke.py --with-power --with-rtc --with-mopidy --with-voip
+uv run python scripts/pi_smoke.py --with-music --with-voip
+uv run python scripts/pi_smoke.py --with-power --with-rtc --with-music --with-voip
 ```
 
 What it checks:
 
 - PiSugar battery telemetry and RTC state when requested
-- Mopidy JSON-RPC connectivity using `config/yoyopod_config.yaml`
+- mpv music-backend startup using `config/yoyopod_config.yaml`
 - Liblinphone startup and SIP registration using `config/voip_config.yaml`
 - Liblinphone media/codec defaults from `config/liblinphone_factory.conf`
 
 Useful flags:
 
-- `--mopidy-timeout 10`
+- `--music-timeout 10`
 - `--voip-timeout 15`
 - `--verbose`
 
@@ -92,10 +92,11 @@ Use this when SIP registration works but incoming-call parsing or callback deliv
 ### Whisplay display-only debug
 
 ```bash
-uv run python test_hal_whisplay.py
+uv run python scripts/lvgl_build.py
+uv run python scripts/lvgl_probe.py --scene carousel --duration-seconds 10
 ```
 
-Use this only on a Pi with the Whisplay hardware attached. It is a manual hardware smoke script, not part of CI.
+Use this only on a Pi with the Whisplay hardware attached. It validates the display/LVGL path without starting the full app and is not part of CI.
 
 ### Whisplay gesture tuning
 
@@ -149,7 +150,7 @@ Use this when you want a focused battery, charging, RTC, shutdown-threshold, and
 1. `uv sync --extra dev`
 2. `uv run pytest -q`
 3. `uv run python scripts/pi_smoke.py`
-4. `uv run python scripts/pi_smoke.py --with-mopidy --with-voip`
+4. `uv run python scripts/pi_smoke.py --with-music --with-voip`
 5. `uv run python scripts/pi_smoke.py --with-lvgl-soak`
 6. `uv run python yoyopod.py`
 
@@ -157,7 +158,7 @@ Use this when you want a focused battery, charging, RTC, shutdown-threshold, and
 
 - `display` fails: check attached HAT, driver/library install, and `display.hardware` config
 - `input` fails: check the matching display adapter initialized correctly first
-- `mopidy` fails: verify Mopidy is running and reachable at the configured host/port
+- `music` fails: verify `mpv` is installed, the configured socket path is writable, and the configured `audio.music_dir` exists
 - `voip` fails: verify the Liblinphone shim build, `config/liblinphone_factory.conf`, SIP credentials, network reachability, and audio device configuration
 
 ## Notes

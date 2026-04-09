@@ -22,7 +22,7 @@ If the file does not exist yet, run `uv run python scripts/pi_remote.py config e
 
 2. **Present the result.** Prefer a compact summary with:
    - git branch and commit
-   - Mopidy status
+   - music backend status
    - YoyoPod service status
    - PiSugar server status
    - PID file state
