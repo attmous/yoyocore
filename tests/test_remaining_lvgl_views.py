@@ -438,8 +438,8 @@ def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> No
     assert binding.talk_actions_destroy_calls == 1
 
 
-def test_power_screen_cycles_three_lvgl_pages() -> None:
-    """PowerScreen should expose all three Setup pages through LVGL."""
+def test_power_screen_cycles_four_lvgl_pages() -> None:
+    """PowerScreen should expose all four Setup pages through LVGL."""
 
     binding = FakeLvglBinding()
     screen = PowerScreen(
@@ -471,7 +471,7 @@ def test_power_screen_cycles_three_lvgl_pages() -> None:
     assert payload["page_text"] is None
     assert payload["icon_key"] == "battery"
     assert payload["current_page_index"] == 0
-    assert payload["total_pages"] == 3
+    assert payload["total_pages"] == 4
     assert payload["footer"] == "Tap = Page / Hold = Back"
     assert payload["items"] == [
         "Source: Unavailable",
@@ -492,6 +492,19 @@ def test_power_screen_cycles_three_lvgl_pages() -> None:
     assert payload["title_text"] == "Care"
     assert payload["icon_key"] == "care"
     assert payload["page_text"] is None
+
+    screen.on_advance()
+    screen.render()
+    payload = binding.power_sync_payloads[-1]
+    assert payload["title_text"] == "Voice"
+    assert payload["icon_key"] == "voice_note"
+    assert payload["page_text"] is None
+    assert payload["items"] == [
+        "Voice Cmds: On",
+        "AI Requests: On",
+        "Screen Read: Off",
+        "Mic: Live",
+    ]
 
     screen.exit()
     assert binding.power_destroy_calls == 1

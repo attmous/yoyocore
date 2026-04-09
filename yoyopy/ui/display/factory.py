@@ -53,11 +53,13 @@ def get_display(
 
     if simulate:
         if hardware == "auto":
-            hardware = "whisplay"
-        logger.info(
-            "Forcing simulation mode (--simulate flag) while preserving {} display profile",
-            hardware,
-        )
+            hardware = "simulation"
+            logger.info("Forcing simulation mode (--simulate flag)")
+        else:
+            logger.info(
+                "Forcing simulation mode (--simulate flag) while preserving {} display profile",
+                hardware,
+            )
     elif hardware == "auto":
         hardware = detect_hardware()
 
