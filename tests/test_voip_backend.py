@@ -191,6 +191,7 @@ def test_liblinphone_backend_starts_and_drains_native_events() -> None:
     assert binding.start_kwargs["conference_factory_uri"] == ""
     assert binding.start_kwargs["file_transfer_server_url"] == "https://transfer.example.com"
     assert binding.start_kwargs["lime_server_url"] == ""
+    assert binding.start_kwargs["mic_gain"] == 0
     assert binding.start_kwargs["output_volume"] == 100
     assert binding.start_kwargs["factory_config_path"].endswith("config\\liblinphone_factory.conf") or binding.start_kwargs[
         "factory_config_path"
@@ -248,6 +249,7 @@ def test_liblinphone_backend_uses_shared_output_volume_and_capture_only_alsa(mon
     assert all("Playback" not in command for command in commands)
     assert any("Capture" in command for command in commands)
     assert any("ADC PCM" in command for command in commands)
+    assert any("sset 'Capture' 26" in command for command in commands)
     assert all("-c 0" in command for command in commands)
 
 

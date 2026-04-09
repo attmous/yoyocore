@@ -165,7 +165,7 @@ class LiblinphoneBackend:
                 capture_device_id=self.config.capture_dev_id,
                 media_device_id=self.config.media_dev_id,
                 echo_cancellation=True,
-                mic_gain=self.config.mic_gain,
+                mic_gain=self._linphone_software_mic_gain(),
                 output_volume=self.config.output_volume,
                 voice_note_store_dir=self.config.voice_note_store_dir,
             )
@@ -505,6 +505,12 @@ class LiblinphoneBackend:
         if raw.upper().startswith("ALSA:"):
             raw = raw.split(":", 1)[1]
         return "".join(ch for ch in raw.lower() if ch.isalnum())
+
+    @staticmethod
+    def _linphone_software_mic_gain() -> int:
+        """Leave Liblinphone's own mic gain neutral and rely on ALSA capture tuning."""
+
+        return 0
 
     def _alsa_capture_config(self) -> _AlsaCaptureConfig:
         capture_pct = min(100, max(0, self.config.mic_gain))
