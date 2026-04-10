@@ -202,6 +202,27 @@ class AppInputConfig:
 
 
 @dataclass(slots=True)
+class AppVoiceConfig:
+    """Local voice-command and spoken-response settings."""
+
+    commands_enabled: bool = config_value(default=True, env="YOYOPOD_VOICE_COMMANDS_ENABLED")
+    ai_requests_enabled: bool = config_value(default=True, env="YOYOPOD_AI_REQUESTS_ENABLED")
+    screen_read_enabled: bool = config_value(default=False, env="YOYOPOD_SCREEN_READ_ENABLED")
+    stt_enabled: bool = config_value(default=True, env="YOYOPOD_STT_ENABLED")
+    tts_enabled: bool = config_value(default=True, env="YOYOPOD_TTS_ENABLED")
+    stt_backend: str = config_value(default="vosk", env="YOYOPOD_STT_BACKEND")
+    tts_backend: str = config_value(default="espeak-ng", env="YOYOPOD_TTS_BACKEND")
+    vosk_model_path: str = config_value(
+        default="models/vosk-model-small-en-us",
+        env="YOYOPOD_VOSK_MODEL_PATH",
+    )
+    record_seconds: int = config_value(default=4, env="YOYOPOD_VOICE_RECORD_SECONDS")
+    sample_rate_hz: int = config_value(default=16000, env="YOYOPOD_VOICE_SAMPLE_RATE_HZ")
+    tts_rate_wpm: int = config_value(default=155, env="YOYOPOD_TTS_RATE_WPM")
+    tts_voice: str = config_value(default="en", env="YOYOPOD_TTS_VOICE")
+
+
+@dataclass(slots=True)
 class AppPowerConfig:
     """Power-management backend settings."""
 
@@ -322,6 +343,7 @@ class YoyoPodConfig:
     voip: AppVoIPConfig = config_value(default_factory=AppVoIPConfig)
     ui: AppUiConfig = config_value(default_factory=AppUiConfig)
     input: AppInputConfig = config_value(default_factory=AppInputConfig)
+    voice: AppVoiceConfig = config_value(default_factory=AppVoiceConfig)
     power: AppPowerConfig = config_value(default_factory=AppPowerConfig)
     display: AppDisplayConfig = config_value(default_factory=AppDisplayConfig)
     logging: AppLoggingConfig = config_value(default_factory=AppLoggingConfig)

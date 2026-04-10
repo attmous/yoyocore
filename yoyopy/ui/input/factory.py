@@ -13,6 +13,32 @@ from yoyopy.ui.input.hal import InputAction, InteractionProfile
 from yoyopy.ui.input.manager import InputManager
 
 
+def _get_display_type(display_adapter: object) -> str:
+    """Return the typed display identity used by the factories."""
+
+    display_type = getattr(display_adapter, "DISPLAY_TYPE", None)
+    if isinstance(display_type, str) and display_type.strip():
+        return display_type.strip().lower()
+
+    adapter_name = display_adapter.__class__.__name__
+    if adapter_name == "WhisplayDisplayAdapter":
+        return "whisplay"
+    if adapter_name == "PimoroniDisplayAdapter":
+        return "pimoroni"
+    if adapter_name == "SimulationDisplayAdapter":
+        return "simulation"
+    return adapter_name.lower()
+
+
+def _get_simulated_hardware(display_adapter: object) -> str | None:
+    """Return the hardware profile mirrored by a simulation adapter, if any."""
+
+    simulated_hardware = getattr(display_adapter, "SIMULATED_HARDWARE", None)
+    if not isinstance(simulated_hardware, str) or not simulated_hardware.strip():
+        return None
+    return simulated_hardware.strip().lower()
+
+
 def get_input_manager(
     display_adapter: object,
     config: Optional[Dict[str, Any]] = None,
@@ -37,11 +63,13 @@ def get_input_manager(
 
     manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
     adapter_name = display_adapter.__class__.__name__
+    display_type = _get_display_type(display_adapter)
 
     logger.info("Creating input manager...")
     logger.debug(f"  Display adapter: {adapter_name}")
+    logger.debug(f"  Display type: {display_type}")
 
-    if adapter_name == "PimoroniDisplayAdapter":
+    if display_type == "pimoroni":
         logger.info("  Detected Pimoroni Display HAT Mini")
         display_device = getattr(display_adapter, "device", None)
 
@@ -57,7 +85,7 @@ def get_input_manager(
         else:
             logger.warning("  -> No display device available for button input")
 
-    elif adapter_name == "WhisplayDisplayAdapter":
+    elif display_type == "whisplay":
         logger.info("  Detected Whisplay HAT")
         whisplay_device = getattr(display_adapter, "device", None)
         enable_navigation = input_config.get("ptt_navigation", True)
@@ -70,8 +98,9 @@ def get_input_manager(
         debounce_time = float(input_config.get("whisplay_debounce_ms", 50)) / 1000.0
         double_click_time = float(input_config.get("whisplay_double_tap_ms", 300)) / 1000.0
         long_press_time = float(input_config.get("whisplay_long_hold_ms", 800)) / 1000.0
+        adapter_simulate = bool(simulate or display_type == "simulation" or whisplay_device is None)
 
-        if whisplay_device or simulate:
+        if whisplay_device or adapter_simulate:
             from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
 
             ptt_adapter = PTTInputAdapter(
@@ -80,7 +109,7 @@ def get_input_manager(
                 debounce_time=debounce_time,
                 double_click_time=double_click_time,
                 long_press_time=long_press_time,
-                simulate=simulate,
+                simulate=adapter_simulate,
             )
             manager.add_adapter(ptt_adapter)
 
@@ -99,11 +128,49 @@ def get_input_manager(
         else:
             logger.warning("  -> No Whisplay device available for PTT input")
 
+        if simulate:
+            try:
+                from yoyopy.ui.web_server import get_server
+
+                server = get_server()
+
+                def web_input_handler(action: str) -> None:
+                    """Handle browser button input while simulating the Whisplay profile."""
+                    if enable_navigation:
+                        action_map = {
+                            "UP": InputAction.ADVANCE,
+                            "DOWN": InputAction.ADVANCE,
+                            "SELECT": InputAction.SELECT,
+                            "BACK": InputAction.BACK,
+                        }
+                    else:
+                        action_map = {
+                            "SELECT": InputAction.PTT_PRESS,
+                            "BACK": InputAction.PTT_RELEASE,
+                        }
+
+                    mapped_action = action_map.get(action)
+                    if mapped_action is not None:
+                        manager.simulate_action(mapped_action)
+
+                server.set_input_callback(web_input_handler)
+                logger.info("  -> Added web button input (browser UI)")
+            except Exception as exc:
+                logger.warning(f"  -> Failed to connect web input: {exc}")
+
         if input_config.get("enable_voice", False):
             logger.info("  -> Voice input requested but not yet implemented")
 
-    elif adapter_name == "SimulationDisplayAdapter":
-        logger.info("  Detected Simulation Display Adapter")
+    elif display_type == "simulation":
+        simulated_hardware = _get_simulated_hardware(display_adapter)
+        if simulated_hardware:
+            logger.info(
+                "  Detected simulation display with {} output profile",
+                simulated_hardware,
+            )
+        else:
+            logger.info("  Detected simulation display")
+
         from yoyopy.ui.input.adapters.keyboard import get_keyboard_adapter
 
         keyboard_adapter = get_keyboard_adapter()
@@ -116,7 +183,7 @@ def get_input_manager(
             server = get_server()
 
             def web_input_handler(action: str) -> None:
-                """Handle input from web UI buttons."""
+                """Handle input from the simulation web UI buttons."""
                 action_map = {
                     "SELECT": InputAction.SELECT,
                     "BACK": InputAction.BACK,
@@ -124,8 +191,9 @@ def get_input_manager(
                     "DOWN": InputAction.DOWN,
                 }
 
-                if action in action_map:
-                    manager.simulate_action(action_map[action])
+                mapped_action = action_map.get(action)
+                if mapped_action is not None:
+                    manager.simulate_action(mapped_action)
 
             server.set_input_callback(web_input_handler)
             logger.info("  -> Added web button input (browser UI)")
@@ -163,8 +231,10 @@ def get_input_info(display_adapter: object) -> Dict[str, Any]:
         Dict with input hardware information
     """
     adapter_name = display_adapter.__class__.__name__
+    display_type = _get_display_type(display_adapter)
+    simulated_hardware = _get_simulated_hardware(display_adapter)
 
-    if adapter_name == "PimoroniDisplayAdapter":
+    if display_type == "pimoroni":
         return {
             "type": "four_button",
             "hardware": "Pimoroni Display HAT Mini",
@@ -179,7 +249,7 @@ def get_input_info(display_adapter: object) -> Dict[str, Any]:
             "description": "4-button interface for menu navigation",
         }
 
-    if adapter_name == "WhisplayDisplayAdapter":
+    if display_type == "whisplay":
         return {
             "type": "ptt_button",
             "hardware": "Whisplay HAT",
@@ -190,6 +260,20 @@ def get_input_info(display_adapter: object) -> Dict[str, Any]:
                 "BACK (Long hold)",
             ],
             "description": "Single-button carousel and list navigation",
+        }
+
+    if display_type == "simulation" and simulated_hardware == "whisplay":
+        return {
+            "type": "keyboard",
+            "hardware": "Simulation (Whisplay display profile)",
+            "buttons": 4,
+            "capabilities": [
+                "SELECT (Enter / browser select)",
+                "BACK (Esc / browser back)",
+                "UP (Arrow Up / browser up)",
+                "DOWN (Arrow Down / browser down)",
+            ],
+            "description": "Whisplay-sized simulation with standard keyboard/web input",
         }
 
     return {

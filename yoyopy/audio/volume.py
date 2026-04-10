@@ -29,6 +29,7 @@ class OutputVolumeController:
         self.amixer_binary = amixer_binary
         self.mixer_control = mixer_control
         self._last_requested_volume: int | None = None
+        self._last_system_volume_available: bool | None = None
 
     def attach_music_backend(self, music_backend: "MusicBackend | None") -> None:
         """Attach or replace the active music backend."""
@@ -96,9 +97,12 @@ class OutputVolumeController:
 
             match = _PERCENT_RE.search(result.stdout)
             if match is not None:
+                self._last_system_volume_available = True
                 return int(match.group(1))
 
-        logger.warning("Could not read ALSA output volume for {}", self.mixer_control)
+        if self._last_system_volume_available is not False:
+            logger.warning("Could not read ALSA output volume for {}", self.mixer_control)
+        self._last_system_volume_available = False
         return None
 
     def set_system_volume(self, volume: int) -> bool:
@@ -113,9 +117,12 @@ class OutputVolumeController:
                 applied = True
 
         if applied:
+            self._last_system_volume_available = True
             return True
 
-        logger.warning("Failed to set ALSA output volume to {}%", target)
+        if self._last_system_volume_available is not False:
+            logger.warning("Failed to set ALSA output volume to {}%", target)
+        self._last_system_volume_available = False
         return False
 
     def _amixer_get_candidates(self) -> list[list[str]]:
@@ -127,6 +134,8 @@ class OutputVolumeController:
                 (None, self.mixer_control),
                 ("1", self.mixer_control),
                 ("0", self.mixer_control),
+                ("1", "Headset"),
+                ("0", "Headset"),
                 ("1", "Speaker"),
                 ("1", "Headphone"),
                 ("0", "Speaker"),
@@ -143,6 +152,8 @@ class OutputVolumeController:
                 (None, self.mixer_control),
                 ("1", self.mixer_control),
                 ("0", self.mixer_control),
+                ("1", "Headset"),
+                ("0", "Headset"),
                 ("1", "Speaker"),
                 ("1", "Headphone"),
                 ("0", "Speaker"),

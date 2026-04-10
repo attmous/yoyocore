@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -164,7 +165,7 @@ class LiblinphoneBackend:
                 capture_device_id=self.config.capture_dev_id,
                 media_device_id=self.config.media_dev_id,
                 echo_cancellation=True,
-                mic_gain=self.config.mic_gain,
+                mic_gain=self._linphone_software_mic_gain(),
                 output_volume=self.config.output_volume,
                 voice_note_store_dir=self.config.voice_note_store_dir,
             )
@@ -446,7 +447,7 @@ class LiblinphoneBackend:
 
     def _configure_alsa_capture_path(self) -> None:
         mixer = self._alsa_capture_config()
-        card = "1"
+        card = self._resolve_alsa_capture_card()
         commands = [
             f"amixer -c {card} sset 'Capture' {mixer.capture_raw}",
             f"amixer -c {card} sset 'ADC PCM' 195",
@@ -459,6 +460,57 @@ class LiblinphoneBackend:
                 subprocess.run(command, shell=True, capture_output=True, timeout=5, check=False)
             except Exception as exc:
                 logger.warning("ALSA mixer command failed: {}: {}", command, exc)
+
+    def _resolve_alsa_capture_card(self) -> str:
+        """Resolve the ALSA card index matching the configured capture device."""
+
+        target = self._normalize_alsa_name(self.config.capture_dev_id)
+        try:
+            result = subprocess.run(
+                ["arecord", "-l"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except Exception as exc:
+            logger.debug("Failed to inspect ALSA capture cards: {}", exc)
+            return "0"
+
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                match = re.search(r"card\s+(\d+):\s*([^\s]+)\s*\[([^\]]+)\]", line)
+                if match is None:
+                    continue
+                card_index, short_name, long_name = match.groups()
+                normalized_names = {
+                    self._normalize_alsa_name(short_name),
+                    self._normalize_alsa_name(long_name),
+                }
+                if target and target in normalized_names:
+                    return card_index
+
+            for line in result.stdout.splitlines():
+                match = re.search(r"card\s+(\d+):", line)
+                if match is not None:
+                    return match.group(1)
+
+        return "0"
+
+    @staticmethod
+    def _normalize_alsa_name(value: str) -> str:
+        """Normalize ALSA identifiers for loose matching."""
+
+        raw = value.strip()
+        if raw.upper().startswith("ALSA:"):
+            raw = raw.split(":", 1)[1]
+        return "".join(ch for ch in raw.lower() if ch.isalnum())
+
+    @staticmethod
+    def _linphone_software_mic_gain() -> int:
+        """Leave Liblinphone's own mic gain neutral and rely on ALSA capture tuning."""
+
+        return 0
 
     def _alsa_capture_config(self) -> _AlsaCaptureConfig:
         capture_pct = min(100, max(0, self.config.mic_gain))

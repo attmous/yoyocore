@@ -109,6 +109,16 @@ class ScreenRouter:
             },
             "ask": {
                 "back": NavigationRequest.pop(),
+                "select:Voice Commands": NavigationRequest.push("voice_commands"),
+                "select:AI Requests": NavigationRequest.push("ai_requests"),
+            },
+            "voice_commands": {
+                "back": NavigationRequest.pop(),
+                "call_started": NavigationRequest.push("outgoing_call"),
+                "shuffle_started": NavigationRequest.push("now_playing"),
+            },
+            "ai_requests": {
+                "back": NavigationRequest.pop(),
             },
             "power": {
                 "back": NavigationRequest.pop(),

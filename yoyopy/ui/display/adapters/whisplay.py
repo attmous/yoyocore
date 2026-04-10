@@ -16,17 +16,20 @@ Author: YoyoPod Team
 Date: 2025-11-30
 """
 
-from yoyopy.ui.display.hal import DisplayHAL
-from yoyopy.ui.display.adapters.whisplay_paths import ensure_whisplay_driver_on_path
-from typing import Optional, Tuple
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont
+from typing import Optional, Tuple
+
 from loguru import logger
+from PIL import Image, ImageDraw, ImageFont
+
+from yoyopy.ui.display.adapters.whisplay_paths import ensure_whisplay_driver_on_path
+from yoyopy.ui.display.hal import DisplayHAL
 
 DRIVER_PATH = ensure_whisplay_driver_on_path()
 
 try:
     from WhisPlay import WhisPlayBoard
+
     HAS_HARDWARE = True
 except ImportError:
     HAS_HARDWARE = False
@@ -56,6 +59,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
     """
 
     # Display configuration
+    DISPLAY_TYPE = "whisplay"
     WIDTH = 240
     HEIGHT = 280
     ORIENTATION = "portrait"
@@ -99,7 +103,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 self.simulate = True
                 self.device = None
         else:
-            logger.info("Whisplay display adapter running in simulation mode")
+            logger.info("Whisplay display adapter running in local render-only simulation mode")
 
         if self.renderer == "lvgl":
             try:
@@ -110,7 +114,9 @@ class WhisplayDisplayAdapter(DisplayHAL):
                     buffer_lines=self.lvgl_buffer_lines,
                 )
                 if not self.ui_backend.available:
-                    logger.warning("Whisplay LVGL renderer requested but native shim is unavailable")
+                    logger.warning(
+                        "Whisplay LVGL renderer requested but native shim is unavailable"
+                    )
             except Exception as e:
                 logger.warning(f"Failed to prepare LVGL backend: {e}")
                 self.ui_backend = None
@@ -135,7 +141,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
 
     def _create_buffer(self) -> None:
         """Create a new PIL drawing buffer."""
-        self.buffer = Image.new('RGB', (self.WIDTH, self.HEIGHT), self.COLOR_BLACK)
+        self.buffer = Image.new("RGB", (self.WIDTH, self.HEIGHT), self.COLOR_BLACK)
         self.draw = ImageDraw.Draw(self.buffer)
 
     def _convert_to_rgb565(self) -> bytes:
@@ -227,7 +233,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         y: int,
         color: Optional[Tuple[int, int, int]] = None,
         font_size: int = 16,
-        font_path: Optional[Path] = None
+        font_path: Optional[Path] = None,
     ) -> None:
         """Draw text at specified position."""
         if color is None:
@@ -240,10 +246,9 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 # Try to use default system font
                 try:
                     font = ImageFont.truetype(
-                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                        font_size
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size
                     )
-                except:
+                except Exception:
                     font = ImageFont.load_default()
         except Exception as e:
             logger.warning(f"Failed to load font: {e}, using default")
@@ -259,7 +264,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         y2: int,
         fill: Optional[Tuple[int, int, int]] = None,
         outline: Optional[Tuple[int, int, int]] = None,
-        width: int = 1
+        width: int = 1,
     ) -> None:
         """Draw a rectangle."""
         self.draw.rectangle([(x1, y1), (x2, y2)], fill=fill, outline=outline, width=width)
@@ -271,7 +276,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         radius: int,
         fill: Optional[Tuple[int, int, int]] = None,
         outline: Optional[Tuple[int, int, int]] = None,
-        width: int = 1
+        width: int = 1,
     ) -> None:
         """Draw a circle."""
         bbox = [x - radius, y - radius, x + radius, y + radius]
@@ -284,7 +289,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         x2: int,
         y2: int,
         color: Optional[Tuple[int, int, int]] = None,
-        width: int = 1
+        width: int = 1,
     ) -> None:
         """Draw a line."""
         if color is None:
@@ -298,7 +303,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         x: int,
         y: int,
         width: Optional[int] = None,
-        height: Optional[int] = None
+        height: Optional[int] = None,
     ) -> None:
         """Draw an image from file."""
         try:
@@ -327,11 +332,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         to accommodate the narrower width.
         """
         # Draw background
-        self.rectangle(
-            0, 0,
-            self.WIDTH, self.STATUS_BAR_HEIGHT,
-            fill=self.COLOR_DARK_GRAY
-        )
+        self.rectangle(0, 0, self.WIDTH, self.STATUS_BAR_HEIGHT, fill=self.COLOR_DARK_GRAY)
 
         # Draw time (centered) - adjusted for narrower width
         time_x = (self.WIDTH - len(time_str) * 7) // 2
@@ -345,17 +346,21 @@ class WhisplayDisplayAdapter(DisplayHAL):
 
         # Battery outline
         self.rectangle(
-            battery_x, battery_y,
-            battery_x + battery_width, battery_y + battery_height,
+            battery_x,
+            battery_y,
+            battery_x + battery_width,
+            battery_y + battery_height,
             outline=self.COLOR_WHITE,
-            width=1
+            width=1,
         )
 
         # Battery tip
         self.rectangle(
-            battery_x + battery_width, battery_y + 3,
-            battery_x + battery_width + 3, battery_y + battery_height - 3,
-            fill=self.COLOR_WHITE
+            battery_x + battery_width,
+            battery_y + 3,
+            battery_x + battery_width + 3,
+            battery_y + battery_height - 3,
+            fill=self.COLOR_WHITE,
         )
 
         # Battery fill
@@ -363,9 +368,11 @@ class WhisplayDisplayAdapter(DisplayHAL):
         if fill_width > 0:
             battery_color = self.COLOR_GREEN if battery_percent > 20 else self.COLOR_RED
             self.rectangle(
-                battery_x + 2, battery_y + 2,
-                battery_x + 2 + fill_width, battery_y + battery_height - 2,
-                fill=battery_color
+                battery_x + 2,
+                battery_y + 2,
+                battery_x + 2 + fill_width,
+                battery_y + battery_height - 2,
+                fill=battery_color,
             )
 
         indicator = ""
@@ -400,7 +407,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
                 signal_y + (12 - bar_height),
                 signal_x + (i * (bar_width + bar_spacing)) + bar_width,
                 signal_y + 12,
-                fill=bar_color
+                fill=bar_color,
             )
 
     def update(self) -> None:
@@ -555,11 +562,8 @@ class WhisplayDisplayAdapter(DisplayHAL):
     def get_text_size(self, text: str, font_size: int = 16) -> Tuple[int, int]:
         """Calculate rendered text dimensions."""
         try:
-            font = ImageFont.truetype(
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                font_size
-            )
-        except:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
+        except Exception:
             font = ImageFont.load_default()
 
         bbox = self.draw.textbbox((0, 0), text, font=font)
@@ -575,9 +579,9 @@ class WhisplayDisplayAdapter(DisplayHAL):
 
         if self.device:
             try:
-                self.device.set_backlight(0)    # Turn off backlight
-                self.device.set_rgb(0, 0, 0)    # Turn off LED
-                self.device.cleanup()           # Call driver cleanup
+                self.device.set_backlight(0)  # Turn off backlight
+                self.device.set_rgb(0, 0, 0)  # Turn off LED
+                self.device.cleanup()  # Call driver cleanup
                 logger.info("Whisplay display cleaned up")
             except Exception as e:
                 logger.error(f"Error during Whisplay cleanup: {e}")

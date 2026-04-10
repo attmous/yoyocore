@@ -191,6 +191,7 @@ def test_liblinphone_backend_starts_and_drains_native_events() -> None:
     assert binding.start_kwargs["conference_factory_uri"] == ""
     assert binding.start_kwargs["file_transfer_server_url"] == "https://transfer.example.com"
     assert binding.start_kwargs["lime_server_url"] == ""
+    assert binding.start_kwargs["mic_gain"] == 0
     assert binding.start_kwargs["output_volume"] == 100
     assert binding.start_kwargs["factory_config_path"].endswith("config\\liblinphone_factory.conf") or binding.start_kwargs[
         "factory_config_path"
@@ -224,7 +225,13 @@ def test_liblinphone_backend_uses_shared_output_volume_and_capture_only_alsa(mon
 
     commands: list[str] = []
 
-    def fake_run(command: str, **kwargs) -> subprocess.CompletedProcess[str]:
+    def fake_run(command, **kwargs) -> subprocess.CompletedProcess[str]:
+        if command == ["arecord", "-l"]:
+            stdout = (
+                "**** List of CAPTURE Hardware Devices ****\n"
+                "card 0: wm8960soundcard [wm8960-soundcard], device 0: foo [bar]\n"
+            )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
@@ -242,6 +249,34 @@ def test_liblinphone_backend_uses_shared_output_volume_and_capture_only_alsa(mon
     assert all("Playback" not in command for command in commands)
     assert any("Capture" in command for command in commands)
     assert any("ADC PCM" in command for command in commands)
+    assert any("sset 'Capture' 26" in command for command in commands)
+    assert all("-c 0" in command for command in commands)
+
+
+def test_liblinphone_backend_matches_wm8960_card_from_capture_device(monkeypatch) -> None:
+    """The ALSA capture mixer should target the card matching the configured device name."""
+
+    commands: list[str] = []
+
+    def fake_run(command, **kwargs) -> subprocess.CompletedProcess[str]:
+        if command == ["arecord", "-l"]:
+            stdout = (
+                "**** List of CAPTURE Hardware Devices ****\n"
+                "card 2: other [Other Card], device 0: foo [bar]\n"
+                "card 0: wm8960soundcard [wm8960-soundcard], device 0: foo [bar]\n"
+            )
+            return subprocess.CompletedProcess(command, 0, stdout, "")
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr("yoyopy.voip.backend.subprocess.run", fake_run)
+
+    backend = LiblinphoneBackend(build_config(), binding=FakeBinding())
+
+    backend._configure_alsa_capture_path()
+
+    assert commands
+    assert all("-c 0" in command for command in commands)
 
 
 def test_liblinphone_binding_decodes_c_string_arrays() -> None:

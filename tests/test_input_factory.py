@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from yoyopy.ui.input.hal import InputAction
 from yoyopy.ui.input import InteractionProfile, get_input_manager
 from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
 
@@ -9,8 +10,17 @@ from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
 class WhisplayDisplayAdapter:
     """Minimal Whisplay display-adapter double for factory tests."""
 
+    DISPLAY_TYPE = "whisplay"
+
     def __init__(self) -> None:
         self.device = None
+
+
+class SimulationDisplayAdapter:
+    """Minimal simulation display-adapter double mirroring Whisplay."""
+
+    DISPLAY_TYPE = "simulation"
+    SIMULATED_HARDWARE = "whisplay"
 
 
 def test_whisplay_factory_applies_one_button_profile_and_custom_timings() -> None:
@@ -55,3 +65,54 @@ def test_whisplay_factory_keeps_standard_profile_when_navigation_disabled() -> N
     adapter = manager.adapters[0]
     assert isinstance(adapter, PTTInputAdapter)
     assert adapter.enable_navigation is False
+
+
+def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatch) -> None:
+    """Simulation should keep standard keyboard/web controls despite Whisplay sizing."""
+
+    class FakeServer:
+        def __init__(self) -> None:
+            self.callback = None
+
+        def set_input_callback(self, callback) -> None:
+            self.callback = callback
+
+    server = FakeServer()
+
+    import yoyopy.ui.web_server as web_server
+
+    monkeypatch.setattr(web_server, "get_server", lambda *args, **kwargs: server)
+
+    manager = get_input_manager(
+        SimulationDisplayAdapter(),
+        config={"input": {"ptt_navigation": True}},
+        simulate=False,
+    )
+
+    observed: list[InputAction] = []
+    assert manager is not None
+    assert manager.interaction_profile == InteractionProfile.STANDARD
+    manager.on_action(InputAction.UP, lambda data=None: observed.append(InputAction.UP))
+    manager.on_action(InputAction.SELECT, lambda data=None: observed.append(InputAction.SELECT))
+    manager.on_action(InputAction.BACK, lambda data=None: observed.append(InputAction.BACK))
+
+    assert server.callback is not None
+    server.callback("DOWN")
+    server.callback("SELECT")
+    server.callback("BACK")
+
+    assert observed == [
+        InputAction.SELECT,
+        InputAction.BACK,
+    ]
+
+    observed.clear()
+    server.callback("UP")
+    server.callback("SELECT")
+    server.callback("BACK")
+
+    assert observed == [
+        InputAction.UP,
+        InputAction.SELECT,
+        InputAction.BACK,
+    ]

@@ -34,6 +34,7 @@ class PowerPage:
 
     title: str
     rows: list[tuple[str, str]]
+    interactive: bool = False
 
 
 class PowerScreen(Screen):
@@ -46,11 +47,20 @@ class PowerScreen(Screen):
         *,
         power_manager: Optional["PowerManager"] = None,
         status_provider: Optional[Callable[[], dict[str, object]]] = None,
+        volume_up_action: Optional[Callable[[int], int | None]] = None,
+        volume_down_action: Optional[Callable[[int], int | None]] = None,
+        mute_action: Optional[Callable[[], bool]] = None,
+        unmute_action: Optional[Callable[[], bool]] = None,
     ) -> None:
         super().__init__(display, context, "PowerStatus")
         self.power_manager = power_manager
         self.status_provider = status_provider or (lambda: {})
+        self.volume_up_action = volume_up_action
+        self.volume_down_action = volume_down_action
+        self.mute_action = mute_action
+        self.unmute_action = unmute_action
         self.page_index = 0
+        self.selected_row = 0
         self._lvgl_view: "ScreenView | None" = None
 
     def enter(self) -> None:
@@ -73,7 +83,9 @@ class PowerScreen(Screen):
         if getattr(self.display, "backend_kind", "pil") != "lvgl":
             return None
 
-        ui_backend = self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        ui_backend = (
+            self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
+        )
         if ui_backend is None or not getattr(ui_backend, "initialized", False):
             return None
 
@@ -93,12 +105,17 @@ class PowerScreen(Screen):
         pages = self.build_pages(snapshot=snapshot, status=status)
         self.page_index %= len(pages)
         active_page = pages[self.page_index]
+        if active_page.rows:
+            self.selected_row %= len(active_page.rows)
+        else:
+            self.selected_row = 0
         render_backdrop(self.display, "setup")
         render_status_bar(self.display, self.context, show_time=False)
+        page_text = f"{self.page_index + 1}/{len(pages)}"
 
-        halo_size = 56
+        halo_size = 44
         halo_left = (self.display.WIDTH - halo_size) // 2
-        halo_top = self.display.STATUS_BAR_HEIGHT + 16
+        halo_top = self.display.STATUS_BAR_HEIGHT + 10
         rounded_panel(
             self.display,
             halo_left,
@@ -107,57 +124,87 @@ class PowerScreen(Screen):
             halo_top + halo_size,
             fill=(73, 77, 89),
             outline=None,
-            radius=28,
+            radius=22,
         )
         draw_icon(
             self.display,
             self._page_icon_key(active_page.title),
-            halo_left + 14,
-            halo_top + 14,
-            28,
+            halo_left + 10,
+            halo_top + 10,
+            24,
             (225, 228, 234),
         )
 
-        title_width, _ = self.display.get_text_size(active_page.title, 22)
+        title_y = halo_top + halo_size + 8
+        title_width, _ = self.display.get_text_size(active_page.title, 18)
         self.display.text(
             active_page.title,
             (self.display.WIDTH - title_width) // 2,
-            halo_top + halo_size + 12,
+            title_y,
             color=INK,
-            font_size=22,
+            font_size=18,
         )
 
-        row_y = halo_top + halo_size + 44
-        row_height = 30
-        row_gap = 6
-        for label, value in active_page.rows:
+        page_width, _ = self.display.get_text_size(page_text, 10)
+        rounded_panel(
+            self.display,
+            self.display.WIDTH - page_width - 34,
+            halo_top + 10,
+            self.display.WIDTH - 18,
+            halo_top + 30,
+            fill=SETUP.accent_dim,
+            outline=None,
+            radius=10,
+        )
+        self.display.text(
+            page_text,
+            self.display.WIDTH - page_width - 26,
+            halo_top + 15,
+            color=SETUP.accent,
+            font_size=10,
+        )
+
+        row_y = title_y + 18
+        row_height = 20
+        row_gap = 4
+        max_row_bottom = self.display.HEIGHT - 60
+        for row_index, (label, value) in enumerate(active_page.rows):
             row_bottom = row_y + row_height
-            if row_bottom > self.display.HEIGHT - 42:
+            if row_bottom > max_row_bottom:
                 break
+            is_selected = active_page.interactive and row_index == self.selected_row
             rounded_panel(
                 self.display,
                 16,
                 row_y,
                 self.display.WIDTH - 16,
                 row_bottom,
-                fill=SURFACE_RAISED,
+                fill=SETUP.accent_dim if is_selected else SURFACE_RAISED,
                 outline=None,
-                radius=12,
+                radius=11,
             )
-            label_text = text_fit(self.display, label, 100, 11)
+            label_text = text_fit(self.display, label, 92, 10)
             value_text = text_fit(self.display, value, self.display.WIDTH - 130, 12)
-            self.display.text(label_text, 28, row_y + 8, color=MUTED, font_size=11)
+            self.display.text(
+                label_text,
+                26,
+                row_y + 5,
+                color=SETUP.accent if is_selected else MUTED,
+                font_size=10,
+            )
             value_width, _ = self.display.get_text_size(value_text, 12)
-            self.display.text(value_text, self.display.WIDTH - value_width - 28, row_y + 8, color=INK, font_size=12)
+            self.display.text(
+                value_text,
+                self.display.WIDTH - value_width - 26,
+                row_y + 4,
+                color=INK,
+                font_size=12,
+            )
             row_y += row_height + row_gap
 
         self._render_page_dots(total_pages=len(pages))
 
-        help_text = (
-            "Tap = Page  ·  Hold = Back"
-            if self.is_one_button_mode()
-            else "A page | B back | X/Y page"
-        )
+        help_text = self._instruction_text(active_page)
         render_footer(self.display, help_text, mode="setup")
         self.display.update()
 
@@ -168,6 +215,8 @@ class PowerScreen(Screen):
             return "battery"
         if title == "Time":
             return "clock"
+        if title == "Voice":
+            return "voice_note"
         return "care"
 
     def _render_page_dots(self, *, total_pages: int) -> None:
@@ -197,6 +246,28 @@ class PowerScreen(Screen):
             PowerPage(title="Power", rows=battery_rows[:4]),
             PowerPage(title="Time", rows=battery_rows[4:6] + runtime_rows[:2]),
             PowerPage(title="Care", rows=runtime_rows[2:]),
+            PowerPage(title="Voice", rows=self._build_voice_rows(), interactive=True),
+        ]
+
+    def _build_voice_rows(self) -> list[tuple[str, str]]:
+        """Build the voice-related settings page."""
+
+        if self.context is None:
+            return [
+                ("Voice Cmds", "Unknown"),
+                ("AI Requests", "Unknown"),
+                ("Screen Read", "Unknown"),
+                ("Mic", "Unknown"),
+                ("Volume", "--"),
+            ]
+
+        voice = self.context.voice
+        return [
+            ("Voice Cmds", "On" if voice.commands_enabled else "Off"),
+            ("AI Requests", "On" if voice.ai_requests_enabled else "Off"),
+            ("Screen Read", "On" if voice.screen_read_enabled else "Off"),
+            ("Mic", "Muted" if voice.mic_muted else "Live"),
+            ("Volume", f"{voice.output_volume}%"),
         ]
 
     def _get_snapshot(self) -> Optional["PowerSnapshot"]:
@@ -264,7 +335,10 @@ class PowerScreen(Screen):
             ("Idle", self._format_duration_short(status.get("screen_idle_seconds"))),
             ("Timeout", self._format_duration_short(status.get("screen_timeout_seconds"))),
             ("Warn/Crit", f"{warning_percent}/{critical_percent}"),
-            ("Shutdown", shutdown_value if delay_seconds == "0s" else f"{shutdown_value} ({delay_seconds})"),
+            (
+                "Shutdown",
+                shutdown_value if delay_seconds == "0s" else f"{shutdown_value} ({delay_seconds})",
+            ),
             ("Watchdog", self._format_watchdog(status)),
         ]
 
@@ -370,20 +444,109 @@ class PowerScreen(Screen):
             return text
         return text[: max_length - 3] + "..."
 
+    def _instruction_text(self, page: PowerPage) -> str:
+        """Return footer hints for the current page."""
+
+        if page.interactive:
+            if self.is_one_button_mode():
+                return "Tap item / Double change / Hold back"
+            return "A change | B back | X/Y item | L/R page"
+        return "Tap page / Hold back" if self.is_one_button_mode() else "A page | B back | X/Y page"
+
+    def _active_pages(self) -> list[PowerPage]:
+        """Return the current page list for navigation helpers."""
+
+        return self.build_pages(snapshot=self._get_snapshot(), status=self._get_status())
+
+    def _active_page(self) -> PowerPage:
+        """Return the current active page."""
+
+        pages = self._active_pages()
+        self.page_index %= len(pages)
+        page = pages[self.page_index]
+        if page.rows:
+            self.selected_row %= len(page.rows)
+        else:
+            self.selected_row = 0
+        return page
+
+    def _is_voice_page(self) -> bool:
+        """Return True when the interactive voice settings page is active."""
+
+        return self._active_page().interactive
+
+    def _select_next_row(self) -> None:
+        """Move to the next row inside an interactive page."""
+
+        page = self._active_page()
+        if not page.rows:
+            return
+        self.selected_row = (self.selected_row + 1) % len(page.rows)
+
+    def _select_previous_row(self) -> None:
+        """Move to the previous row inside an interactive page."""
+
+        page = self._active_page()
+        if not page.rows:
+            return
+        self.selected_row = (self.selected_row - 1) % len(page.rows)
+
+    def _apply_voice_setting(self, direction: int = 1) -> None:
+        """Toggle or adjust the selected voice setting."""
+
+        if self.context is None:
+            return
+
+        row_index = self.selected_row
+        if row_index == 0:
+            self.context.configure_voice(commands_enabled=not self.context.voice.commands_enabled)
+            return
+        if row_index == 1:
+            self.context.configure_voice(
+                ai_requests_enabled=not self.context.voice.ai_requests_enabled
+            )
+            return
+        if row_index == 2:
+            self.context.configure_voice(
+                screen_read_enabled=not self.context.voice.screen_read_enabled
+            )
+            return
+        if row_index == 3:
+            self._apply_mic_state(not self.context.voice.mic_muted)
+            return
+        current = None
+        if direction > 0 and self.volume_up_action is not None:
+            current = self.volume_up_action(5)
+        elif direction < 0 and self.volume_down_action is not None:
+            current = self.volume_down_action(5)
+        else:
+            volume = self.context.voice.output_volume + (5 * direction)
+            self.context.set_volume(max(0, min(100, volume)))
+            return
+        self._sync_context_output_volume(current)
+
     def _next_page(self) -> None:
         """Advance to the next page with wraparound."""
-        self.page_index = (self.page_index + 1) % 3
+        self.page_index = (self.page_index + 1) % len(self._active_pages())
+        self.selected_row = 0
 
     def _previous_page(self) -> None:
         """Return to the previous page with wraparound."""
-        self.page_index = (self.page_index - 1) % 3
+        self.page_index = (self.page_index - 1) % len(self._active_pages())
+        self.selected_row = 0
 
     def on_advance(self, data=None) -> None:
         """Single-button tap cycles pages."""
+        if self._is_voice_page():
+            self._select_next_row()
+            return
         self._next_page()
 
     def on_select(self, data=None) -> None:
         """Select also cycles pages."""
+        if self._is_voice_page():
+            self._apply_voice_setting(+1)
+            return
         self._next_page()
 
     def on_back(self, data=None) -> None:
@@ -392,16 +555,45 @@ class PowerScreen(Screen):
 
     def on_up(self, data=None) -> None:
         """Up goes to the previous page."""
+        if self._is_voice_page():
+            self._select_previous_row()
+            return
         self._previous_page()
 
     def on_down(self, data=None) -> None:
         """Down goes to the next page."""
+        if self._is_voice_page():
+            self._select_next_row()
+            return
         self._next_page()
 
     def on_left(self, data=None) -> None:
         """Left goes to the previous page."""
+        if self._is_voice_page():
+            self._apply_voice_setting(-1)
+            return
         self._previous_page()
 
     def on_right(self, data=None) -> None:
         """Right goes to the next page."""
+        if self._is_voice_page():
+            self._apply_voice_setting(+1)
+            return
         self._next_page()
+
+    def _apply_mic_state(self, muted: bool) -> None:
+        """Keep the cached voice mic state aligned with the live VoIP mute path when available."""
+
+        if self.context is not None:
+            self.context.set_mic_muted(muted)
+        action = self.mute_action if muted else self.unmute_action
+        if action is not None:
+            action()
+
+    def _sync_context_output_volume(self, volume: int | None) -> None:
+        """Refresh cached volume state after routing through the real output path."""
+
+        if volume is None or self.context is None:
+            return
+        self.context.playback.volume = volume
+        self.context.voice.output_volume = volume

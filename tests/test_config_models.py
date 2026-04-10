@@ -19,6 +19,8 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     monkeypatch.delenv("YOYOPOD_ALSA_DEVICE", raising=False)
     monkeypatch.delenv("YOYOPOD_AUTO_RESUME_AFTER_CALL", raising=False)
     monkeypatch.delenv("YOYOPOD_DISPLAY", raising=False)
+    monkeypatch.delenv("YOYOPOD_VOICE_COMMANDS_ENABLED", raising=False)
+    monkeypatch.delenv("YOYOPOD_VOSK_MODEL_PATH", raising=False)
 
     config_file = tmp_path / "yoyopod_config.yaml"
     settings = load_config_model_from_yaml(YoyoPodConfig, config_file)
@@ -34,6 +36,14 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.input.ptt_navigation is True
     assert settings.input.whisplay_double_tap_ms == 300
     assert settings.input.whisplay_long_hold_ms == 800
+    assert settings.voice.commands_enabled is True
+    assert settings.voice.ai_requests_enabled is True
+    assert settings.voice.screen_read_enabled is False
+    assert settings.voice.stt_backend == "vosk"
+    assert settings.voice.tts_backend == "espeak-ng"
+    assert settings.voice.vosk_model_path == "models/vosk-model-small-en-us"
+    assert settings.voice.sample_rate_hz == 16000
+    assert settings.voice.tts_rate_wpm == 155
     assert settings.power.enabled is True
     assert settings.power.backend == "pisugar"
     assert settings.power.transport == "auto"
@@ -108,6 +118,9 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     monkeypatch.setenv("YOYOPOD_DISPLAY", "whisplay")
     monkeypatch.setenv("YOYOPOD_WHISPLAY_RENDERER", "lvgl")
     monkeypatch.setenv("YOYOPOD_LVGL_BUFFER_LINES", "24")
+    monkeypatch.setenv("YOYOPOD_VOICE_COMMANDS_ENABLED", "false")
+    monkeypatch.setenv("YOYOPOD_SCREEN_READ_ENABLED", "true")
+    monkeypatch.setenv("YOYOPOD_VOSK_MODEL_PATH", "/srv/models/vosk-small")
     monkeypatch.setenv("YOYOPOD_LOG_FILE", "/var/log/yoyopod.log")
     monkeypatch.setenv("YOYOPOD_ERROR_LOG_FILE", "/var/log/yoyopod_errors.log")
     monkeypatch.setenv("YOYOPOD_PID_FILE", "/run/yoyopod.pid")
@@ -139,6 +152,9 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert settings.display.hardware == "whisplay"
     assert settings.display.whisplay_renderer == "lvgl"
     assert settings.display.lvgl_buffer_lines == 24
+    assert settings.voice.commands_enabled is False
+    assert settings.voice.screen_read_enabled is True
+    assert settings.voice.vosk_model_path == "/srv/models/vosk-small"
     assert settings.logging.level == "DEBUG"
     assert settings.logging.file == "/var/log/yoyopod.log"
     assert settings.logging.error_file == "/var/log/yoyopod_errors.log"
@@ -150,6 +166,9 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert config_dict["display"]["hardware"] == "whisplay"
     assert config_dict["display"]["whisplay_renderer"] == "lvgl"
     assert config_dict["display"]["lvgl_buffer_lines"] == 24
+    assert config_dict["voice"]["commands_enabled"] is False
+    assert config_dict["voice"]["screen_read_enabled"] is True
+    assert config_dict["voice"]["vosk_model_path"] == "/srv/models/vosk-small"
     assert config_dict["logging"]["file"] == "/var/log/yoyopod.log"
 
 

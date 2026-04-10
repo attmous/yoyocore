@@ -78,6 +78,24 @@ class PlaybackState:
     is_muted: bool = False
 
 
+@dataclass
+class VoiceState:
+    """Runtime voice settings and recent voice activity."""
+
+    commands_enabled: bool = True
+    ai_requests_enabled: bool = True
+    screen_read_enabled: bool = False
+    stt_enabled: bool = True
+    tts_enabled: bool = True
+    mic_muted: bool = False
+    stt_available: bool = False
+    tts_available: bool = False
+    last_transcript: str = ""
+    last_spoken_text: str = ""
+    last_mode: str = ""
+    output_volume: int = 50
+
+
 class AppContext:
     """
     Central application context.
@@ -117,6 +135,7 @@ class AppContext:
             "parental_controls_enabled": False,
             "max_volume": 80,  # Parental control default
         }
+        self.voice = VoiceState(output_volume=self.playback.volume)
 
         # System status
         self.battery_percent: int = 100
@@ -234,6 +253,7 @@ class AppContext:
         max_volume = self.settings.get("max_volume", 100)
         volume = max(0, min(volume, max_volume))
         self.playback.volume = volume
+        self.voice.output_volume = volume
 
         # Sync with audio manager if available
         if self.audio_manager:
@@ -436,3 +456,53 @@ class AppContext:
         self.voice_note_status_text = status_text
         self.voice_note_file_path = file_path
         self.voice_note_duration_ms = max(0, int(duration_ms))
+
+    def configure_voice(
+        self,
+        *,
+        commands_enabled: bool | None = None,
+        ai_requests_enabled: bool | None = None,
+        screen_read_enabled: bool | None = None,
+        stt_enabled: bool | None = None,
+        tts_enabled: bool | None = None,
+    ) -> None:
+        """Update persistent voice feature toggles cached in context."""
+
+        if commands_enabled is not None:
+            self.voice.commands_enabled = commands_enabled
+        if ai_requests_enabled is not None:
+            self.voice.ai_requests_enabled = ai_requests_enabled
+        if screen_read_enabled is not None:
+            self.voice.screen_read_enabled = screen_read_enabled
+        if stt_enabled is not None:
+            self.voice.stt_enabled = stt_enabled
+        if tts_enabled is not None:
+            self.voice.tts_enabled = tts_enabled
+
+    def update_voice_backend_status(self, *, stt_available: bool, tts_available: bool) -> None:
+        """Update backend availability flags used by voice UI flows."""
+
+        self.voice.stt_available = stt_available
+        self.voice.tts_available = tts_available
+
+    def set_mic_muted(self, muted: bool) -> None:
+        """Cache the app-facing microphone mute state."""
+
+        self.voice.mic_muted = muted
+
+    def toggle_mic_muted(self) -> bool:
+        """Toggle and return the cached app-facing microphone mute state."""
+
+        self.voice.mic_muted = not self.voice.mic_muted
+        return self.voice.mic_muted
+
+    def record_voice_transcript(self, transcript: str, *, mode: str) -> None:
+        """Cache the latest transcript for command or AI request flows."""
+
+        self.voice.last_transcript = transcript.strip()
+        self.voice.last_mode = mode
+
+    def record_voice_response(self, text: str) -> None:
+        """Cache the latest spoken response text."""
+
+        self.voice.last_spoken_text = text.strip()

@@ -58,13 +58,15 @@ def test_simulated_lvgl_flush_keeps_shadow_buffer_for_debug(monkeypatch) -> None
         lambda x, y, width, height, pixel_data: mirrored.append((x, y, width, height, pixel_data)),
     )
 
-    payload = b"\xAA\x55" * 8
+    payload = b"\xaa\x55" * 8
     adapter.draw_rgb565_region(0, 0, 4, 2, payload)
 
     assert mirrored == [(0, 0, 4, 2, payload)]
 
 
-def test_shadow_screenshot_forces_one_redraw_into_buffer_when_shadow_sync_is_disabled(monkeypatch) -> None:
+def test_shadow_screenshot_forces_one_redraw_into_buffer_when_shadow_sync_is_disabled(
+    monkeypatch,
+) -> None:
     """Hardware LVGL screenshots should force one redraw into the PIL buffer."""
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
@@ -96,7 +98,9 @@ def test_shadow_screenshot_forces_one_redraw_into_buffer_when_shadow_sync_is_dis
     assert saved_paths == [("/tmp/test.png", "PNG")]
 
 
-def test_shadow_screenshot_falls_back_to_lvgl_readback_when_force_refresh_is_unavailable(monkeypatch) -> None:
+def test_shadow_screenshot_falls_back_to_lvgl_readback_when_force_refresh_is_unavailable(
+    monkeypatch,
+) -> None:
     """Hardware LVGL screenshots should still fall back to readback when needed."""
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
@@ -138,7 +142,7 @@ def test_readback_screenshot_decodes_rgb565_swapped_pixels(tmp_path) -> None:
     """Readback screenshots should decode the shim's RGB565_SWAPPED contract."""
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="lvgl")
-    pixel_data = b"\xF8\x00" * (adapter.WIDTH * adapter.HEIGHT)
+    pixel_data = b"\xf8\x00" * (adapter.WIDTH * adapter.HEIGHT)
 
     class Binding:
         def snapshot(self, width: int, height: int) -> bytes:
@@ -162,3 +166,13 @@ def test_readback_screenshot_decodes_rgb565_swapped_pixels(tmp_path) -> None:
     with Image.open(screenshot_path) as screenshot:
         assert screenshot.size == (adapter.WIDTH, adapter.HEIGHT)
         assert screenshot.getpixel((0, 0)) == (255, 0, 0)
+
+
+def test_simulated_whisplay_adapter_does_not_own_browser_preview() -> None:
+    """The hardware adapter should stay independent from the simulation web preview."""
+
+    adapter = WhisplayDisplayAdapter(simulate=True, renderer="pil")
+    adapter.clear()
+    adapter.update()
+
+    assert not hasattr(adapter, "web_server")

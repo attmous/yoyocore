@@ -99,5 +99,96 @@ Simple mixer control 'Master',0
         ["amixer", "sget", "Master"],
         ["amixer", "-c", "1", "sget", "Master"],
         ["amixer", "-c", "0", "sget", "Master"],
-        ["amixer", "-c", "1", "sget", "Speaker"],
+        ["amixer", "-c", "1", "sget", "Headset"],
+    ]
+
+
+def test_output_volume_controller_warns_only_once_when_system_control_missing(
+    monkeypatch,
+) -> None:
+    warnings: list[str] = []
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            args=args,
+            returncode=1,
+            stdout="",
+            stderr="amixer: Unable to find simple control",
+        )
+
+    monkeypatch.setattr("yoyopy.audio.volume.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "yoyopy.audio.volume.logger.warning",
+        lambda message, *args: warnings.append(message.format(*args)),
+    )
+
+    controller = OutputVolumeController()
+
+    assert controller.get_system_volume() is None
+    assert controller.get_system_volume() is None
+    assert warnings == ["Could not read ALSA output volume for Master"]
+
+
+def test_output_volume_controller_prefers_headset_when_present(
+    monkeypatch,
+) -> None:
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        if args == ["amixer", "-c", "1", "sget", "Headset"]:
+            return subprocess.CompletedProcess(
+                args=args,
+                returncode=0,
+                stdout="""
+Simple mixer control 'Headset',0
+  Front Left: Playback 58982 [90%] [on]
+""",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="")
+
+    monkeypatch.setattr("yoyopy.audio.volume.subprocess.run", fake_run)
+
+    controller = OutputVolumeController()
+
+    assert controller.get_system_volume() == 90
+
+
+def test_output_volume_controller_marks_system_available_again_after_success(
+    monkeypatch,
+) -> None:
+    warnings: list[str] = []
+    headset_reads = 0
+
+    def fake_run(args: list[str], **_kwargs) -> subprocess.CompletedProcess[str]:
+        nonlocal headset_reads
+        if args == ["amixer", "-c", "1", "sget", "Headset"]:
+            headset_reads += 1
+            if headset_reads == 1:
+                return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="missing")
+            if headset_reads == 2:
+                return subprocess.CompletedProcess(
+                    args=args,
+                    returncode=0,
+                    stdout="""
+Simple mixer control 'Headset',0
+  Front Left: Playback 32768 [50%] [on]
+""",
+                    stderr="",
+                )
+            return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="missing")
+        return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="missing")
+
+    monkeypatch.setattr("yoyopy.audio.volume.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "yoyopy.audio.volume.logger.warning",
+        lambda message, *args: warnings.append(message.format(*args)),
+    )
+
+    controller = OutputVolumeController()
+
+    assert controller.get_system_volume() is None
+    assert controller.get_system_volume() == 50
+    assert controller.get_system_volume() is None
+    assert warnings == [
+        "Could not read ALSA output volume for Master",
+        "Could not read ALSA output volume for Master",
     ]
