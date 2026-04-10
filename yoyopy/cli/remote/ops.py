@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import fnmatch
 import json
 import os
@@ -956,3 +957,296 @@ def preflight(
     )
     if rc != 0:
         raise typer.Exit(code=rc)
+
+
+# ---------------------------------------------------------------------------
+# Compat builder functions (argparse.Namespace-based, used by tests and legacy
+# callers; these mirror the old scripts/pi_remote.py builder API)
+# ---------------------------------------------------------------------------
+
+def build_logs_command(
+    args: argparse.Namespace,
+    deploy_config: PiDeployConfig | None = None,
+) -> str:
+    """Create the remote file-log inspection command."""
+    deploy = deploy_config or load_pi_deploy_config()
+    target_log = deploy.error_log_file if args.errors else deploy.log_file
+    tail_mode = "-F" if args.follow else ""
+    base_tail = f"tail -n {args.lines} {tail_mode} {shell_quote(target_log)}".strip()
+
+    if args.filter:
+        return (
+            f"test -f {shell_quote(target_log)} && "
+            f"{base_tail} | grep --line-buffered -i -- {shell_quote(args.filter)}"
+        )
+
+    return f"test -f {shell_quote(target_log)} && {base_tail}"
+
+
+def build_whisplay_command(args: argparse.Namespace) -> str:
+    """Create the remote Whisplay tuning command."""
+    parts = ["uv run python scripts/whisplay_tune.py"]
+    if args.verbose:
+        parts.append("--verbose")
+    if args.no_display:
+        parts.append("--no-display")
+    if args.duration_seconds != 30.0:
+        parts.extend(["--duration-seconds", str(args.duration_seconds)])
+    if args.debounce_ms is not None:
+        parts.extend(["--debounce-ms", str(args.debounce_ms)])
+    if args.double_tap_ms is not None:
+        parts.extend(["--double-tap-ms", str(args.double_tap_ms)])
+    if args.long_hold_ms is not None:
+        parts.extend(["--long-hold-ms", str(args.long_hold_ms)])
+    return " ".join(parts)
+
+
+def build_rtc_command(args: argparse.Namespace) -> str:
+    """Create the remote PiSugar RTC command."""
+    parts = ["uv run python scripts/pisugar_rtc.py"]
+    if args.verbose:
+        parts.append("--verbose")
+    parts.append(args.rtc_action)
+    if args.rtc_action == "set-alarm":
+        if not args.time:
+            raise SystemExit("--time is required for `rtc set-alarm`")
+        parts.extend(["--time", shlex.quote(args.time)])
+        if args.repeat_mask != 127:
+            parts.extend(["--repeat-mask", str(args.repeat_mask)])
+    return " ".join(parts)
+
+
+def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
+    """Create the legacy argparse command-line parser (mirrors old scripts/pi_remote.py)."""
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run common YoyoPod Raspberry Pi development tasks over SSH. "
+            "Defaults can be provided with YOYOPOD_PI_HOST, "
+            "YOYOPOD_PI_USER, YOYOPOD_PI_PROJECT_DIR, and YOYOPOD_PI_BRANCH, "
+            "or through deploy/pi-deploy.yaml plus the optional "
+            "deploy/pi-deploy.local.yaml override."
+        )
+    )
+    parser.add_argument(
+        "--host",
+        default=os.getenv("YOYOPOD_PI_HOST", deploy_config.host),
+        help="SSH host or alias for the Raspberry Pi",
+    )
+    parser.add_argument(
+        "--user",
+        default=os.getenv("YOYOPOD_PI_USER", deploy_config.user),
+        help="SSH user for the Raspberry Pi (optional)",
+    )
+    parser.add_argument(
+        "--project-dir",
+        default=os.getenv("YOYOPOD_PI_PROJECT_DIR", deploy_config.project_dir),
+        help="Project directory on the Raspberry Pi (default: ~/yoyo-py)",
+    )
+    parser.add_argument(
+        "--branch",
+        default=os.getenv("YOYOPOD_PI_BRANCH", deploy_config.branch),
+        help="Git branch to sync on the Raspberry Pi (default: main)",
+    )
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    config_parser = subparsers.add_parser(
+        "config",
+        help="Show or edit the merged Raspberry Pi deploy config",
+    )
+    config_parser.add_argument(
+        "config_action",
+        nargs="?",
+        default="show",
+        choices=["show", "paths", "init-local", "edit"],
+        help="Config action to run locally (default: show)",
+    )
+    config_parser.add_argument(
+        "--editor",
+        help="Override the editor command for `config edit`",
+    )
+
+    subparsers.add_parser(
+        "status",
+        help="Show remote repo, music backend, and process status",
+    )
+
+    sync_parser = subparsers.add_parser(
+        "sync",
+        help="Fetch, checkout, pull, and optionally run uv sync on the Raspberry Pi",
+    )
+    sync_parser.add_argument(
+        "--skip-uv-sync",
+        action="store_true",
+        help="Skip `uv sync --extra dev` after pulling",
+    )
+
+    screenshot_parser = subparsers.add_parser(
+        "screenshot",
+        help="Capture a screenshot from the running app on the Raspberry Pi",
+    )
+    screenshot_parser.add_argument(
+        "--readback",
+        action="store_true",
+        help=(
+            "Use LVGL readback/default capture (SIGUSR1) instead of the "
+            "legacy shadow-first path (SIGUSR2)"
+        ),
+    )
+    screenshot_parser.add_argument(
+        "--output",
+        default="pi_screenshot.png",
+        help="Local path for the downloaded screenshot (default: ./pi_screenshot.png)",
+    )
+
+    smoke_parser = subparsers.add_parser(
+        "smoke",
+        help="Run the Raspberry Pi smoke validator remotely",
+    )
+    smoke_parser.add_argument("--with-power", action="store_true")
+    smoke_parser.add_argument("--with-rtc", action="store_true")
+    smoke_parser.add_argument("--with-music", action="store_true")
+    smoke_parser.add_argument("--with-voip", action="store_true")
+    smoke_parser.add_argument("--with-lvgl-soak", action="store_true")
+    smoke_parser.add_argument("--verbose", action="store_true")
+    smoke_parser.add_argument("--music-timeout", type=int, default=5)
+    smoke_parser.add_argument("--voip-timeout", type=float, default=10.0)
+
+    whisplay_parser = subparsers.add_parser(
+        "whisplay",
+        help="Run the Whisplay gesture-tuning helper remotely",
+    )
+    whisplay_parser.add_argument("--verbose", action="store_true")
+    whisplay_parser.add_argument("--duration-seconds", type=float, default=30.0)
+    whisplay_parser.add_argument("--debounce-ms", type=int)
+    whisplay_parser.add_argument("--double-tap-ms", type=int)
+    whisplay_parser.add_argument("--long-hold-ms", type=int)
+    whisplay_parser.add_argument("--no-display", action="store_true")
+
+    lvgl_soak_parser = subparsers.add_parser(
+        "lvgl-soak",
+        help="Run the LVGL Whisplay soak helper remotely",
+    )
+    lvgl_soak_parser.add_argument("--cycles", type=int, default=2)
+    lvgl_soak_parser.add_argument("--hold-seconds", type=float, default=0.2)
+    lvgl_soak_parser.add_argument("--skip-sleep", action="store_true")
+    lvgl_soak_parser.add_argument("--verbose", action="store_true")
+
+    rtc_parser = subparsers.add_parser(
+        "rtc",
+        help="Inspect or control PiSugar RTC state remotely",
+    )
+    rtc_parser.add_argument(
+        "rtc_action",
+        nargs="?",
+        default="status",
+        choices=["status", "sync-to-rtc", "sync-from-rtc", "set-alarm", "disable-alarm"],
+    )
+    rtc_parser.add_argument("--time")
+    rtc_parser.add_argument("--repeat-mask", type=int, default=127)
+    rtc_parser.add_argument("--verbose", action="store_true")
+
+    power_parser = subparsers.add_parser(
+        "power",
+        help="Inspect PiSugar power telemetry remotely",
+    )
+    power_parser.add_argument("--verbose", action="store_true")
+
+    logs_parser = subparsers.add_parser(
+        "logs",
+        help="Tail the file-based YoyoPod logs on the Raspberry Pi",
+    )
+    logs_parser.add_argument("--errors", action="store_true")
+    logs_parser.add_argument("--follow", action="store_true")
+    logs_parser.add_argument("--filter")
+    logs_parser.add_argument("--lines", type=int, default=100)
+
+    service_parser = subparsers.add_parser(
+        "service",
+        help="Install or inspect the production YoyoPod systemd service",
+    )
+    service_parser.add_argument(
+        "service_action",
+        nargs="?",
+        default="status",
+        choices=["status", "install", "start", "stop", "restart", "logs"],
+    )
+    service_parser.add_argument("--lines", type=int, default=100)
+
+    return parser
+
+
+def run_screenshot(
+    config: RemoteConfig,
+    deploy_config: PiDeployConfig,
+    args: argparse.Namespace,
+) -> int:
+    """Capture a screenshot from the remote app and copy it locally."""
+    pid_file = shell_quote(deploy_config.pid_file)
+    screenshot_path = shell_quote(deploy_config.screenshot_path)
+
+    alive_result = run_remote_capture(
+        config,
+        f"test -f {pid_file} && kill -0 $(cat {pid_file}) 2>/dev/null && echo ALIVE || echo DEAD",
+    )
+    if alive_result.returncode != 0 or alive_result.stdout.strip() != "ALIVE":
+        print("Remote app is not running; restart it before requesting a screenshot.")
+        if alive_result.stderr.strip():
+            print(alive_result.stderr.strip())
+        return 1
+
+    clear_result = run_remote_capture(
+        config,
+        f"rm -f {screenshot_path}",
+    )
+    if clear_result.returncode != 0:
+        print("Failed to clear the previous screenshot on the Raspberry Pi.")
+        if clear_result.stderr.strip():
+            print(clear_result.stderr.strip())
+        return clear_result.returncode
+
+    signal_name = "USR1" if args.readback else "USR2"
+    signal_result = run_remote_capture(
+        config,
+        f"kill -{signal_name} $(cat {pid_file})",
+    )
+    if signal_result.returncode != 0:
+        print("Failed to trigger screenshot capture on the Raspberry Pi.")
+        if signal_result.stderr.strip():
+            print(signal_result.stderr.strip())
+        return signal_result.returncode
+
+    verify_result = run_remote_capture(
+        config,
+        (
+            "for _ in $(seq 1 10); do "
+            f"test -f {screenshot_path} && echo READY && exit 0; "
+            "sleep 1; "
+            "done; "
+            "echo MISSING"
+        ),
+    )
+    if verify_result.returncode != 0 or verify_result.stdout.strip() != "READY":
+        print(
+            "Screenshot was not created on the Raspberry Pi. "
+            "Confirm the app is running and screenshot handlers are installed."
+        )
+        if verify_result.stderr.strip():
+            print(verify_result.stderr.strip())
+        return 1
+
+    output_path = Path(args.output).expanduser().resolve()
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    scp_command = [
+        "scp",
+        f"{config.ssh_target}:{deploy_config.screenshot_path}",
+        str(output_path),
+    ]
+    print("")
+    print("[pi-remote] local=screenshot-copy")
+    print(f"[pi-remote] cmd={shlex.join(scp_command)}")
+    print("")
+    copy_result = subprocess.run(scp_command, check=False)
+    if copy_result.returncode == 0:
+        print(f"Saved screenshot to {output_path}")
+    return copy_result.returncode

@@ -37,7 +37,7 @@ def _load_app_config(config_dir: Path) -> dict[str, Any]:
     return config_to_dict(load_config_model_from_yaml(YoyoPodConfig, config_file))
 
 
-def _apply_timing_overrides(
+def apply_timing_overrides(
     app_config: dict[str, Any],
     *,
     debounce_ms: int | None,
@@ -59,7 +59,11 @@ def _apply_timing_overrides(
     return merged
 
 
-def _summarize_timings(app_config: dict[str, Any]) -> str:
+# Private alias for internal use
+_apply_timing_overrides = apply_timing_overrides
+
+
+def summarize_timings(app_config: dict[str, Any]) -> str:
     """Return one short timing summary for logs and display."""
     input_config = app_config.get("input", {})
     debounce_ms = int(input_config.get("whisplay_debounce_ms", 50))
@@ -70,6 +74,10 @@ def _summarize_timings(app_config: dict[str, Any]) -> str:
         f"double={double_tap_ms}ms, "
         f"hold={long_hold_ms}ms"
     )
+
+
+# Private alias for internal use
+_summarize_timings = summarize_timings
 
 
 def _record_event(events: list[GestureEvent], start_time: float, action: object, data: Any) -> None:
