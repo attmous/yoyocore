@@ -68,7 +68,7 @@ def test_whisplay_factory_keeps_standard_profile_when_navigation_disabled() -> N
 
 
 def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatch) -> None:
-    """Simulation should expose the same one-button browser controls as Whisplay."""
+    """Simulation should keep standard keyboard/web controls despite Whisplay sizing."""
 
     class FakeServer:
         def __init__(self) -> None:
@@ -91,8 +91,8 @@ def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatc
 
     observed: list[InputAction] = []
     assert manager is not None
-    assert manager.interaction_profile == InteractionProfile.ONE_BUTTON
-    manager.on_action(InputAction.ADVANCE, lambda data=None: observed.append(InputAction.ADVANCE))
+    assert manager.interaction_profile == InteractionProfile.STANDARD
+    manager.on_action(InputAction.UP, lambda data=None: observed.append(InputAction.UP))
     manager.on_action(InputAction.SELECT, lambda data=None: observed.append(InputAction.SELECT))
     manager.on_action(InputAction.BACK, lambda data=None: observed.append(InputAction.BACK))
 
@@ -102,7 +102,17 @@ def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatc
     server.callback("BACK")
 
     assert observed == [
-        InputAction.ADVANCE,
+        InputAction.SELECT,
+        InputAction.BACK,
+    ]
+
+    observed.clear()
+    server.callback("UP")
+    server.callback("SELECT")
+    server.callback("BACK")
+
+    assert observed == [
+        InputAction.UP,
         InputAction.SELECT,
         InputAction.BACK,
     ]

@@ -64,7 +64,6 @@ def get_input_manager(
     manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
     adapter_name = display_adapter.__class__.__name__
     display_type = _get_display_type(display_adapter)
-    simulated_hardware = _get_simulated_hardware(display_adapter)
 
     logger.info("Creating input manager...")
     logger.debug(f"  Display adapter: {adapter_name}")
@@ -86,17 +85,9 @@ def get_input_manager(
         else:
             logger.warning("  -> No display device available for button input")
 
-    elif display_type == "whisplay" or (
-        display_type == "simulation" and simulated_hardware == "whisplay"
-    ):
-        if display_type == "simulation":
-            logger.info("  Detected simulation display using the Whisplay one-button profile")
-        else:
-            logger.info("  Detected Whisplay HAT")
-
-        whisplay_device = (
-            getattr(display_adapter, "device", None) if display_type == "whisplay" else None
-        )
+    elif display_type == "whisplay":
+        logger.info("  Detected Whisplay HAT")
+        whisplay_device = getattr(display_adapter, "device", None)
         enable_navigation = input_config.get("ptt_navigation", True)
         if enable_navigation:
             manager.set_interaction_profile(InteractionProfile.ONE_BUTTON)
@@ -137,7 +128,7 @@ def get_input_manager(
         else:
             logger.warning("  -> No Whisplay device available for PTT input")
 
-        if simulate or display_type == "simulation":
+        if simulate:
             try:
                 from yoyopy.ui.web_server import get_server
 
@@ -169,6 +160,45 @@ def get_input_manager(
 
         if input_config.get("enable_voice", False):
             logger.info("  -> Voice input requested but not yet implemented")
+
+    elif display_type == "simulation":
+        simulated_hardware = _get_simulated_hardware(display_adapter)
+        if simulated_hardware:
+            logger.info(
+                "  Detected simulation display with {} output profile",
+                simulated_hardware,
+            )
+        else:
+            logger.info("  Detected simulation display")
+
+        from yoyopy.ui.input.adapters.keyboard import get_keyboard_adapter
+
+        keyboard_adapter = get_keyboard_adapter()
+        manager.add_adapter(keyboard_adapter)
+        logger.info("  -> Added keyboard input (Enter, Esc, Arrow keys)")
+
+        try:
+            from yoyopy.ui.web_server import get_server
+
+            server = get_server()
+
+            def web_input_handler(action: str) -> None:
+                """Handle input from the simulation web UI buttons."""
+                action_map = {
+                    "SELECT": InputAction.SELECT,
+                    "BACK": InputAction.BACK,
+                    "UP": InputAction.UP,
+                    "DOWN": InputAction.DOWN,
+                }
+
+                mapped_action = action_map.get(action)
+                if mapped_action is not None:
+                    manager.simulate_action(mapped_action)
+
+            server.set_input_callback(web_input_handler)
+            logger.info("  -> Added web button input (browser UI)")
+        except Exception as exc:
+            logger.warning(f"  -> Failed to connect web input: {exc}")
 
     else:
         logger.info(f"  Unknown display adapter: {adapter_name}")
@@ -234,15 +264,16 @@ def get_input_info(display_adapter: object) -> Dict[str, Any]:
 
     if display_type == "simulation" and simulated_hardware == "whisplay":
         return {
-            "type": "ptt_button",
-            "hardware": "Simulation (Whisplay profile)",
-            "buttons": 1,
+            "type": "keyboard",
+            "hardware": "Simulation (Whisplay display profile)",
+            "buttons": 4,
             "capabilities": [
-                "ADVANCE (Single tap / browser up-down)",
-                "SELECT (Double tap / browser select)",
-                "BACK (Long hold / browser back)",
+                "SELECT (Enter / browser select)",
+                "BACK (Esc / browser back)",
+                "UP (Arrow Up / browser up)",
+                "DOWN (Arrow Down / browser down)",
             ],
-            "description": "Whisplay-like one-button simulation profile",
+            "description": "Whisplay-sized simulation with standard keyboard/web input",
         }
 
     return {
