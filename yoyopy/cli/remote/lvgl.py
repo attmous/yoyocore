@@ -25,7 +25,7 @@ def build_lvgl_soak_command(
     verbose: bool = False,
 ) -> str:
     """Create the remote LVGL soak command."""
-    parts = ["yoyoctl pi lvgl soak"]
+    parts = ["uv run yoyoctl pi lvgl soak"]
     if verbose:
         parts.append("--verbose")
     if cycles != 2:

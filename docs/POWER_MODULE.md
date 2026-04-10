@@ -28,8 +28,7 @@ Main files:
 - `yoyopy/power/events.py`
 - `yoyopy/coordinators/power.py`
 - `yoyopy/ui/screens/system/power.py`
-- `scripts/pisugar_power.py`
-- `scripts/pisugar_rtc.py`
+- `yoyopy/cli/pi/power.py` (`yoyoctl pi power battery`, `yoyoctl pi power rtc`)
 
 Runtime flow:
 
@@ -204,17 +203,17 @@ Supported RTC operations:
 Primary helper:
 
 ```bash
-uv run python scripts/pisugar_rtc.py status
-uv run python scripts/pisugar_rtc.py sync-to-rtc
-uv run python scripts/pisugar_rtc.py sync-from-rtc
-uv run python scripts/pisugar_rtc.py set-alarm --time 2026-04-06T07:30:00+02:00
-uv run python scripts/pisugar_rtc.py disable-alarm
+yoyoctl pi power rtc status
+yoyoctl pi power rtc sync-to
+yoyoctl pi power rtc sync-from
+yoyoctl pi power rtc set-alarm --time 2026-04-06T07:30:00+02:00
+yoyoctl pi power rtc disable-alarm
 ```
 
 Remote helper:
 
 ```bash
-uv run python scripts/pi_remote.py rtc status --host rpi-zero
+yoyoctl remote rtc status --host rpi-zero
 ```
 
 ## Watchdog Support
@@ -272,7 +271,7 @@ Note:
 Focused power helper:
 
 ```bash
-uv run python scripts/pisugar_power.py
+yoyoctl pi power battery
 ```
 
 This prints:
@@ -290,21 +289,21 @@ This prints:
 Remote power helper:
 
 ```bash
-uv run python scripts/pi_remote.py power --host rpi-zero
+yoyoctl remote power --host rpi-zero
 ```
 
 Smoke validation:
 
 ```bash
-uv run python scripts/pi_smoke.py --with-power
-uv run python scripts/pi_smoke.py --with-power --with-rtc
+yoyoctl pi smoke --with-power
+yoyoctl pi smoke --with-power --with-rtc
 ```
 
 Recommended hardware sequence:
 1. `uv run pytest -q`
-2. `uv run python scripts/pi_smoke.py --with-power --with-rtc`
-3. `uv run python scripts/pisugar_power.py`
-4. `uv run python scripts/pisugar_rtc.py status`
+2. `yoyoctl pi smoke --with-power --with-rtc`
+3. `yoyoctl pi power battery`
+4. `yoyoctl pi power rtc status`
 
 ## Dependencies On The Pi
 
@@ -321,7 +320,7 @@ The PiSugar server should expose at least one of:
 If power telemetry fails:
 - check `pisugar-server` is running
 - check `/tmp/pisugar-server.sock` exists or TCP `8423` is listening
-- run `uv run python scripts/pisugar_power.py`
+- run `yoyoctl pi power battery`
 - run `i2cdetect -y 1` on the Pi
 
 Expected PiSugar 3 visibility usually includes:
@@ -334,7 +333,7 @@ If watchdog commands fail:
 - confirm passwordless `sudo` is not required for your chosen flow, because the watchdog uses direct I2C tools
 
 If RTC sync behaves strangely:
-- validate with `scripts/pisugar_rtc.py`
+- validate with `yoyoctl pi power rtc status`
 - check whether the distro image has a working `hwclock` path
 
 If the app shuts down too aggressively:

@@ -194,17 +194,10 @@ yoyoctl remote preflight --branch main --skip-sync --with-voip
 yoyoctl remote preflight --branch main --skip-uv-sync --with-music --with-voip
 ```
 
-### Launch the production app remotely
+### Restart the production app remotely
 
 ```bash
-yoyoctl remote run
-```
-
-Pass extra args through when needed:
-
-```bash
-yoyoctl remote run --simulate
-yoyoctl remote run --app-arg=--your-extra-flag
+yoyoctl remote restart
 ```
 
 ## Suggested Daily Loop
@@ -214,7 +207,7 @@ yoyoctl remote run --app-arg=--your-extra-flag
 3. Run the combined preflight:
    `yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-lvgl-soak`
 4. Launch the app:
-   `yoyoctl remote run`
+   `yoyoctl remote restart`
 
 If you are validating the production boot path rather than an interactive SSH run, use:
 
@@ -226,7 +219,7 @@ If you are validating the production boot path rather than an interactive SSH ru
 - Local branch is green with `uv run pytest -q`
 - Branch is pushed and reviewed
 - `yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-lvgl-soak` passes
-- `yoyoctl remote run` starts cleanly
+- `yoyoctl remote restart` starts cleanly
 - Manual sanity:
   - display renders correctly
   - input works on target hardware

@@ -305,7 +305,7 @@ def test_build_smoke_command_adds_optional_checks() -> None:
         voip_timeout=15.0,
     )
 
-    assert command.startswith("yoyoctl pi smoke")
+    assert command.startswith("uv run yoyoctl pi smoke")
     assert "--with-power" in command
     assert "--with-rtc" in command
     assert "--with-music" in command
@@ -341,7 +341,7 @@ def test_build_whisplay_command_adds_timing_overrides() -> None:
 
     command = build_whisplay_command(args)
 
-    assert command.startswith("yoyoctl pi tune")
+    assert command.startswith("uv run yoyoctl pi tune")
     assert "--verbose" in command
     assert "--no-display" in command
     assert "--duration-seconds 45.0" in command
@@ -369,8 +369,8 @@ def test_build_rtc_command_supports_status_and_set_alarm() -> None:
     status_command = build_rtc_command(status_args)
     set_alarm_command = build_rtc_command(set_alarm_args)
 
-    assert status_command == "yoyoctl pi power rtc status"
-    assert set_alarm_command.startswith("yoyoctl pi power rtc --verbose set-alarm")
+    assert status_command == "uv run yoyoctl pi power rtc status"
+    assert set_alarm_command.startswith("uv run yoyoctl pi power rtc --verbose set-alarm")
     assert "--time 2026-04-06T07:30:00+02:00" in set_alarm_command
     assert "--repeat-mask 31" in set_alarm_command
 
@@ -379,7 +379,7 @@ def test_build_power_command_supports_verbose_status() -> None:
     """Power helper command should forward the optional verbose flag."""
     command = build_power_command(verbose=True)
 
-    assert command == "yoyoctl pi power battery --verbose"
+    assert command == "uv run yoyoctl pi power battery --verbose"
 
 
 def test_build_lvgl_soak_command_supports_cycles_and_sleep_toggle() -> None:
@@ -392,7 +392,7 @@ def test_build_lvgl_soak_command_supports_cycles_and_sleep_toggle() -> None:
         skip_sleep=True,
     )
 
-    assert command.startswith("yoyoctl pi lvgl soak")
+    assert command.startswith("uv run yoyoctl pi lvgl soak")
     assert "--verbose" in command
     assert "--cycles 3" in command
     assert "--hold-seconds 0.35" in command

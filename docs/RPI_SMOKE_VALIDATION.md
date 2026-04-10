@@ -131,8 +131,8 @@ Use this when Whisplay rendering feels fast but you still want a hardware pass f
 ### PiSugar RTC drill
 
 ```bash
-yoyoctl pi rtc status
-yoyoctl pi rtc sync-to-rtc
+yoyoctl pi power rtc status
+yoyoctl pi power rtc sync-to
 ```
 
 Use this when you want a focused RTC read/sync pass without running the full app.
@@ -140,7 +140,7 @@ Use this when you want a focused RTC read/sync pass without running the full app
 ### PiSugar power drill
 
 ```bash
-yoyoctl pi power
+yoyoctl pi power battery
 ```
 
 Use this when you want a focused battery, charging, RTC, shutdown-threshold, and watchdog readout without the full smoke flow.

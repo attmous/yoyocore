@@ -378,13 +378,13 @@ def build_native_shim_refresh_command(deploy_config: PiDeployConfig) -> str:
         "        'LVGL',\n"
         "        Path('yoyopy/ui/lvgl_binding/native/build/libyoyopy_lvgl_shim.so'),\n"
         "        [Path('yoyopy/ui/lvgl_binding/native')],\n"
-        "        ['yoyoctl', 'build', 'lvgl'],\n"
+        "        ['uv', 'run', 'yoyoctl', 'build', 'lvgl'],\n"
         "    ),\n"
         "    (\n"
         "        'Liblinphone',\n"
         "        Path('yoyopy/voip/liblinphone_binding/native/build/libyoyopy_liblinphone_shim.so'),\n"
         "        [Path('yoyopy/voip/liblinphone_binding/native')],\n"
-        "        ['yoyoctl', 'build', 'liblinphone'],\n"
+        "        ['uv', 'run', 'yoyoctl', 'build', 'liblinphone'],\n"
         "    ),\n"
         "]\n"
         "\n"
@@ -793,7 +793,7 @@ def build_smoke_command(
     voip_timeout: float = 10.0,
 ) -> str:
     """Create the remote smoke-validation command."""
-    parts = ["yoyoctl pi smoke"]
+    parts = ["uv run yoyoctl pi smoke"]
     if with_power:
         parts.append("--with-power")
     if with_rtc:
@@ -1069,7 +1069,7 @@ def rtc(
     user: Annotated[str, typer.Option("--user", help="SSH user for the Raspberry Pi (optional).")] = "",
     project_dir: Annotated[str, typer.Option("--project-dir", help="Project directory on the Raspberry Pi.")] = "",
     branch: Annotated[str, typer.Option("--branch", help="Git branch to sync on the Raspberry Pi.")] = "",
-    action: Annotated[str, typer.Argument(help="RTC action: status, sync-to-rtc, sync-from-rtc, set-alarm, disable-alarm.")] = "status",
+    action: Annotated[str, typer.Argument(help="RTC action: status, sync-to, sync-from, set-alarm, disable-alarm.")] = "status",
     time: Annotated[Optional[str], typer.Option("--time", help="Alarm time in ISO 8601 format (for set-alarm).")] = None,
     repeat_mask: Annotated[int, typer.Option("--repeat-mask", help="Repeat bitmask (default: every day).")] = 127,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable debug logging.")] = False,
@@ -1114,7 +1114,7 @@ def build_logs_command(
 
 def build_whisplay_command(args: argparse.Namespace) -> str:
     """Create the remote Whisplay tuning command."""
-    parts = ["yoyoctl pi tune"]
+    parts = ["uv run yoyoctl pi tune"]
     if args.verbose:
         parts.append("--verbose")
     if args.no_display:
@@ -1132,7 +1132,7 @@ def build_whisplay_command(args: argparse.Namespace) -> str:
 
 def build_rtc_command(args: argparse.Namespace) -> str:
     """Create the remote PiSugar RTC command."""
-    parts = ["yoyoctl pi power rtc"]
+    parts = ["uv run yoyoctl pi power rtc"]
     if args.verbose:
         parts.append("--verbose")
     parts.append(args.rtc_action)
@@ -1269,7 +1269,7 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         "rtc_action",
         nargs="?",
         default="status",
-        choices=["status", "sync-to-rtc", "sync-from-rtc", "set-alarm", "disable-alarm"],
+        choices=["status", "sync-to", "sync-from", "set-alarm", "disable-alarm"],
     )
     rtc_parser.add_argument("--time")
     rtc_parser.add_argument("--repeat-mask", type=int, default=127)

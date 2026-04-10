@@ -70,9 +70,9 @@ Notes:
 
 ```bash
 pgrep -af mpv
-uv run python scripts/pi_smoke.py --with-music
-uv run python scripts/pi_remote.py smoke --with-music
-uv run python scripts/pi_remote.py logs --filter music --lines 100
+yoyoctl pi smoke --with-music
+yoyoctl remote smoke --with-music
+yoyoctl remote logs --filter music --lines 100
 ```
 
 Expected checks:

@@ -154,7 +154,7 @@ def build_service_command(
 
 def build_power_command(*, verbose: bool = False) -> str:
     """Create the remote PiSugar power-status command."""
-    parts = ["yoyoctl pi power battery"]
+    parts = ["uv run yoyoctl pi power battery"]
     if verbose:
         parts.append("--verbose")
     return " ".join(parts)
