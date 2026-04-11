@@ -111,8 +111,54 @@ def format_device_label(device_id: str | None) -> str:
         return "Auto"
 
     normalized = _normalize_alsa_selector(device_id)
+
+    # If the selector is of the form "<route>:CARD=XYZ,DEV=0", prefer showing the
+    # card (and dev) with a route suffix. This reads much better than raw ALSA
+    # strings like "iec958:CARD=SE,DEV=0".
+    route = ""
+    spec = normalized
+    if ":" in normalized:
+        route, spec = normalized.split(":", 1)
+        route = route.strip()
+        spec = spec.strip()
+
+    card = ""
+    dev = ""
+    upper_spec = spec.upper()
+    if "CARD=" in upper_spec:
+        start = upper_spec.index("CARD=") + len("CARD=")
+        end = spec.find(",", start)
+        card = spec[start:] if end == -1 else spec[start:end]
+        card = card.strip()
+    if "DEV=" in upper_spec:
+        start = upper_spec.index("DEV=") + len("DEV=")
+        end = spec.find(",", start)
+        dev = spec[start:] if end == -1 else spec[start:end]
+        dev = dev.strip()
+
+    if card:
+        label = card
+        if route:
+            label = f"{label} {route}"
+        if dev:
+            label = f"{label} {dev}"
+        label = label.strip()
+        if len(label) > 18:
+            return label[:17] + "..."
+        return label
+
     # Keep the full selector for power users, but avoid noisy prefixes.
-    for prefix in ("default:", "sysdefault:", "plughw:", "front:", "dsnoop:", "dmix:", "hw:"):
+    for prefix in (
+        "default:",
+        "sysdefault:",
+        "plughw:",
+        "front:",
+        "dsnoop:",
+        "dmix:",
+        "hw:",
+        "iec958:",
+        "hdmi:",
+    ):
         if normalized.lower().startswith(prefix):
             normalized = normalized[len(prefix) :]
             break
@@ -122,6 +168,5 @@ def format_device_label(device_id: str | None) -> str:
         return "Auto"
 
     if len(normalized) > 18:
-        return normalized[:17] + "…"
+        return normalized[:17] + "..."
     return normalized
-
