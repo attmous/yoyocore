@@ -695,10 +695,23 @@ class YoyoPodApp:
                         if voice_cfg is not None
                         else "models/vosk-model-small-en-us"
                     ),
+                    speaker_device_id=(
+                        self.context.voice.speaker_device_id
+                        if self.context is not None and self.context.voice.speaker_device_id is not None
+                        else (
+                            self.config_manager.get_ring_output_device()
+                            if self.config_manager is not None
+                            else None
+                        )
+                    ),
                     capture_device_id=(
-                        self.config_manager.get_capture_device_id()
-                        if self.config_manager is not None
-                        else None
+                        self.context.voice.capture_device_id
+                        if self.context is not None and self.context.voice.capture_device_id is not None
+                        else (
+                            self.config_manager.get_capture_device_id()
+                            if self.config_manager is not None
+                            else None
+                        )
                     ),
                     sample_rate_hz=voice_cfg.sample_rate_hz if voice_cfg is not None else 16000,
                     record_seconds=voice_cfg.record_seconds if voice_cfg is not None else 4,

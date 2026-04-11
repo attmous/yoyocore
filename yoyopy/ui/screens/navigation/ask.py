@@ -415,6 +415,16 @@ class AskScreen(Screen):
         defaults = self._default_voice_settings()
         if self.context is not None:
             voice = self.context.voice
+            capture_device_id = (
+                voice.capture_device_id
+                if voice.capture_device_id is not None
+                else defaults.capture_device_id
+            )
+            speaker_device_id = (
+                voice.speaker_device_id
+                if voice.speaker_device_id is not None
+                else defaults.speaker_device_id
+            )
             return replace(
                 defaults,
                 commands_enabled=voice.commands_enabled,
@@ -424,6 +434,8 @@ class AskScreen(Screen):
                 tts_enabled=voice.tts_enabled,
                 mic_muted=voice.mic_muted,
                 output_volume=voice.output_volume,
+                capture_device_id=capture_device_id,
+                speaker_device_id=speaker_device_id,
             )
         return defaults
 
@@ -434,7 +446,14 @@ class AskScreen(Screen):
         if self.config_manager is not None:
             capture_device_id = self.config_manager.get_capture_device_id()
 
-        defaults = VoiceSettings(capture_device_id=capture_device_id)
+        speaker_device_id = None
+        if self.config_manager is not None:
+            speaker_device_id = getattr(self.config_manager, "get_ring_output_device", lambda: None)()
+
+        defaults = VoiceSettings(
+            capture_device_id=capture_device_id,
+            speaker_device_id=speaker_device_id or None,
+        )
         if self.config_manager is None:
             return defaults
 
@@ -961,7 +980,10 @@ class AskScreen(Screen):
             with NamedTemporaryFile(prefix="yoyopy-beep-", suffix=".wav", delete=False) as handle:
                 beep_path = Path(handle.name)
             self._write_beep_wav(beep_path)
-            self._output_player.play_wav(beep_path, timeout_seconds=2.0)
+            device_id = None
+            if self.context is not None:
+                device_id = getattr(self.context.voice, "speaker_device_id", None)
+            self._output_player.play_wav(beep_path, device_id=device_id, timeout_seconds=2.0)
         except Exception:
             logger.debug("Voice attention tone unavailable")
         finally:

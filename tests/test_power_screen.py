@@ -79,8 +79,10 @@ def test_power_screen_builds_battery_and_runtime_pages() -> None:
         assert ("Timeout", "30s") in pages[2].rows
         assert ("Watchdog", "Active") in pages[2].rows
         assert ("Voice Cmds", "On") in pages[3].rows
+        assert ("Speaker", "Auto") in pages[3].rows
+        assert ("Mic Device", "Auto") in pages[3].rows
         assert ("Mic", "Live") in pages[3].rows
-        assert all(len(page.rows) <= 5 for page in pages)
+        assert all(len(page.rows) <= 7 for page in pages)
     finally:
         display.cleanup()
 
@@ -143,6 +145,8 @@ def test_power_screen_voice_page_toggles_runtime_voice_settings() -> None:
         )
 
         screen.page_index = 3
+        screen.on_select()
+        assert screen.in_detail is True
         assert screen._is_voice_page() is True
 
         screen.on_select()
@@ -156,6 +160,8 @@ def test_power_screen_voice_page_toggles_runtime_voice_settings() -> None:
         screen.on_select()
         assert context.voice.screen_read_enabled is True
 
+        screen.on_advance()
+        screen.on_advance()
         screen.on_advance()
         screen.on_select()
         assert context.voice.mic_muted is True

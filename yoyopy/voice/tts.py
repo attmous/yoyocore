@@ -82,7 +82,11 @@ class EspeakNgTextToSpeechBackend:
             logger.warning("espeak-ng render failed: {}", result.stderr.strip())
             return False
         try:
-            if not self.output_player.play_wav(audio_path, timeout_seconds=10.0):
+            if not self.output_player.play_wav(
+                audio_path,
+                device_id=settings.speaker_device_id,
+                timeout_seconds=10.0,
+            ):
                 logger.warning("espeak-ng playback could not find a usable ALSA device")
                 return False
             return True
