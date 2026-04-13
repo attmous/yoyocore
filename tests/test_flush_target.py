@@ -30,13 +30,16 @@ def test_cubie_pimoroni_is_flush_target():
     adapter.cleanup()
 
 
-def test_simulation_get_flush_target_returns_none():
-    """Simulation adapter returns None (no LVGL in CI)."""
+def test_simulation_is_flush_target():
+    """Simulation adapter returns self as flush target for LVGL rendering."""
     from yoyopy.ui.display.adapters.simulation import SimulationDisplayAdapter
 
     adapter = SimulationDisplayAdapter()
     target = adapter.get_flush_target()
-    assert target is None
+    assert target is adapter
+    assert hasattr(target, "draw_rgb565_region")
+    assert hasattr(target, "WIDTH")
+    assert hasattr(target, "HEIGHT")
     adapter.cleanup()
 
 
