@@ -33,7 +33,7 @@ class NetworkManager:
         cls, config_manager: "ConfigManager", event_bus: "EventBus | None" = None
     ) -> "NetworkManager":
         """Build a network manager from the typed app configuration."""
-        config = config_manager.settings.network
+        config = config_manager.get_app_settings().network
         return cls(config=config, event_bus=event_bus)
 
     def start(self) -> None:
