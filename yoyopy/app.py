@@ -64,6 +64,8 @@ from yoyopy.ui.screens import (
     TalkContactScreen,
     VoiceNoteScreen,
 )
+from yoyopy.network import NetworkManager
+from yoyopy.events import NetworkPppUpEvent
 from yoyopy.voice import VoiceSettings
 from yoyopy.voip import CallHistoryStore, VoIPConfig, VoIPManager
 
@@ -131,6 +133,7 @@ class YoyoPodApp:
         self.local_music_service: Optional[LocalMusicService] = None
         self.output_volume: Optional[OutputVolumeController] = None
         self.power_manager: Optional[PowerManager] = None
+        self.network_manager: Optional[NetworkManager] = None
         self.call_history_store: Optional[CallHistoryStore] = None
         self.recent_track_store: Optional[RecentTrackHistoryStore] = None
 
@@ -537,6 +540,25 @@ class YoyoPodApp:
                 )
             else:
                 logger.info("    Power backend disabled in config")
+
+            logger.info("  - NetworkManager")
+            self.network_manager = NetworkManager.from_config_manager(
+                self.config_manager, event_bus=self.event_bus
+            )
+            if self.network_manager.config.enabled and not self.simulate:
+                try:
+                    self.network_manager.start()
+                    state = self.network_manager.modem_state
+                    if state.signal and self.context:
+                        self.context.update_network_status(
+                            signal_bars=state.signal.bars,
+                            connection_type="4g" if self.network_manager.is_online else "none",
+                            connected=self.network_manager.is_online,
+                        )
+                except Exception as exc:
+                    logger.error("Network manager start failed: {}", exc)
+            else:
+                logger.info("    Network module disabled in config")
 
             return True
         except Exception:
@@ -1036,7 +1058,14 @@ class YoyoPodApp:
     def _handle_user_activity_event(self, event: UserActivityEvent) -> None:
         """Wake the display and reset the inactivity timer on user activity."""
         logger.debug(f"User activity received: {event.action_name or 'unknown'}")
-        self._mark_user_activity(now=time.monotonic(), render_on_wake=True)
+        # Raw physical activity (for example the first Whisplay button press before
+        # one-button gesture resolution) should wake the backlight without forcing
+        # an immediate redraw of the current screen. The semantic action render that
+        # follows should own the visible transition.
+        self._mark_user_activity(
+            now=time.monotonic(),
+            render_on_wake=event.action_name is not None,
+        )
 
     def _handle_recovery_attempt_completed_event(
         self,
@@ -1774,6 +1803,13 @@ class YoyoPodApp:
 
         self._ensure_coordinators()
         self.call_coordinator.cleanup()
+
+        if self.network_manager is not None:
+            try:
+                logger.info("  - Stopping network manager")
+                self.network_manager.stop()
+            except Exception as exc:
+                logger.error("Network manager cleanup failed: {}", exc)
 
         if self.voip_manager:
             logger.info("  - Stopping VoIP manager")

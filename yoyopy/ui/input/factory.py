@@ -72,18 +72,38 @@ def get_input_manager(
     if display_type == "pimoroni":
         logger.info("  Detected Pimoroni Display HAT Mini")
         display_device = getattr(display_adapter, "device", None)
+        gpio_input_config = input_config.get("pimoroni_gpio", {})
 
+        # Try Pi-native displayhatmini button reading first
+        _has_displayhatmini = False
         if display_device or simulate:
-            from yoyopy.ui.input.adapters.four_button import FourButtonInputAdapter
+            try:
+                if not simulate:
+                    from displayhatmini import DisplayHATMini  # noqa: F401
+                from yoyopy.ui.input.adapters.four_button import FourButtonInputAdapter
 
-            button_adapter = FourButtonInputAdapter(
-                display_device=display_device,
+                button_adapter = FourButtonInputAdapter(
+                    display_device=display_device,
+                    simulate=simulate,
+                )
+                manager.add_adapter(button_adapter)
+                logger.info("  -> Added 4-button input (A, B, X, Y) via displayhatmini")
+                _has_displayhatmini = True
+            except ImportError:
+                pass
+
+        # Fallback: gpiod-based buttons
+        if not _has_displayhatmini and gpio_input_config:
+            from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+
+            button_adapter = GpiodButtonAdapter(
+                pin_config=gpio_input_config,
                 simulate=simulate,
             )
             manager.add_adapter(button_adapter)
-            logger.info("  -> Added 4-button input (A, B, X, Y)")
-        else:
-            logger.warning("  -> No display device available for button input")
+            logger.info("  -> Added 4-button input (A, B, X, Y) via gpiod")
+        elif not _has_displayhatmini:
+            logger.warning("  -> No displayhatmini or GPIO config for button input")
 
     elif display_type == "whisplay":
         logger.info("  Detected Whisplay HAT")

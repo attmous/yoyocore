@@ -1,5 +1,8 @@
 # YoyoPod Unified Configuration
 # Phase 5: VoIP + Music Integration
+# Known board configs live under `config/boards/<board>/yoyopod_config.yaml`.
+# `YOYOPOD_CONFIG_BOARD` can force a board, and known hardware such as
+# Raspberry Pi Zero 2W and Radxa Cubie A7Z is auto-detected.
 
 app:
   name: "YoyoPod"
@@ -101,3 +104,12 @@ logging:
   enqueue: false                  # Write immediately for near-real-time tails
   backtrace: true
   diagnose: true
+
+# 4G Cellular Network Settings
+network:
+  enabled: false
+  serial_port: /dev/ttyUSB2
+  ppp_port: /dev/ttyUSB3
+  baud_rate: 115200
+  apn: ""
+  gps_enabled: true

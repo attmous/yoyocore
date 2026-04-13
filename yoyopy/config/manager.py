@@ -18,9 +18,21 @@ from loguru import logger
 from yoyopy.config.models import (
     VoIPFileConfig,
     YoyoPodConfig,
+    build_config_model,
     config_to_dict,
-    load_config_model_from_yaml,
 )
+
+
+def _deep_merge_mappings(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge one config mapping into another."""
+
+    merged = dict(base)
+    for key, value in overlay.items():
+        if isinstance(merged.get(key), dict) and isinstance(value, dict):
+            merged[key] = _deep_merge_mappings(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
 
 
 @dataclass
@@ -50,11 +62,20 @@ class ConfigManager:
     Loads typed application and VoIP settings plus contacts from YAML files.
     """
 
-    def __init__(self, config_dir: str = "config") -> None:
+    def __init__(
+        self,
+        config_dir: str = "config",
+        config_board: str | None = None,
+    ) -> None:
         self.config_dir = Path(config_dir)
-        self.app_config_file = self.config_dir / "yoyopod_config.yaml"
-        self.voip_config_file = self.config_dir / "voip_config.yaml"
-        self.contacts_file = self.config_dir / "contacts.yaml"
+        self.config_board = self._resolve_config_board(explicit_board=config_board)
+        self.app_config_layers = self._resolve_config_layers("yoyopod_config.yaml")
+        self.voip_config_layers = self._resolve_config_layers("voip_config.yaml")
+        self.contacts_layers = self._resolve_config_layers("contacts.yaml")
+
+        self.app_config_file = self.app_config_layers[-1]
+        self.voip_config_file = self.voip_config_layers[-1]
+        self.contacts_file = self.contacts_layers[-1]
 
         self.app_settings = YoyoPodConfig()
         self.voip_settings = VoIPFileConfig()
@@ -67,7 +88,10 @@ class ConfigManager:
         self.voip_config_loaded = False
         self.contacts_loaded = False
 
-        logger.info(f"ConfigManager initialized (config_dir: {config_dir})")
+        logger.info(
+            "ConfigManager initialized "
+            f"(config_dir: {config_dir}, config_board: {self.config_board or 'default'})"
+        )
 
         self.load_app_config()
         self.load_voip_config()
@@ -81,15 +105,22 @@ class ConfigManager:
             True if loaded from file, False if defaults were used.
         """
 
-        self.app_config_loaded = self.app_config_file.exists()
+        self.app_config_loaded = any(path.exists() for path in self.app_config_layers)
         try:
-            self.app_settings = load_config_model_from_yaml(YoyoPodConfig, self.app_config_file)
+            data = self._load_yaml_layers(self.app_config_layers)
+            self.app_settings = build_config_model(YoyoPodConfig, data)
             self.app_config = config_to_dict(self.app_settings)
 
             if self.app_config_loaded:
-                logger.info("App configuration loaded successfully")
+                logger.info(
+                    "App configuration loaded successfully from "
+                    + ", ".join(str(path) for path in self.app_config_layers if path.exists())
+                )
             else:
-                logger.warning(f"App config file not found: {self.app_config_file}")
+                logger.warning(
+                    "App config file not found: "
+                    + ", ".join(str(path) for path in self.app_config_layers)
+                )
                 logger.info("Using default app configuration")
 
             logger.debug(f"Music directory: {self.app_settings.audio.music_dir}")
@@ -126,13 +157,17 @@ class ConfigManager:
             True if loaded from file, False if a default file was created.
         """
 
-        self.voip_config_loaded = self.voip_config_file.exists()
+        self.voip_config_loaded = any(path.exists() for path in self.voip_config_layers)
         if not self.voip_config_loaded:
-            logger.warning(f"VoIP config file not found: {self.voip_config_file}")
+            logger.warning(
+                "VoIP config file not found: "
+                + ", ".join(str(path) for path in self.voip_config_layers)
+            )
             self._create_default_voip_config()
 
         try:
-            self.voip_settings = load_config_model_from_yaml(VoIPFileConfig, self.voip_config_file)
+            data = self._load_yaml_layers(self.voip_config_layers)
+            self.voip_settings = build_config_model(VoIPFileConfig, data)
             self.voip_config = config_to_dict(self.voip_settings)
 
             logger.info("VoIP configuration loaded successfully")
@@ -153,15 +188,17 @@ class ConfigManager:
             True if loaded successfully, False otherwise.
         """
 
-        self.contacts_loaded = self.contacts_file.exists()
+        self.contacts_loaded = any(path.exists() for path in self.contacts_layers)
         if not self.contacts_loaded:
-            logger.warning(f"Contacts file not found: {self.contacts_file}")
+            logger.warning(
+                "Contacts file not found: "
+                + ", ".join(str(path) for path in self.contacts_layers)
+            )
             self._create_default_contacts()
             return False
 
         try:
-            with open(self.contacts_file, "r", encoding="utf-8") as handle:
-                data = yaml.safe_load(handle) or {}
+            data = self._load_yaml_layers(self.contacts_layers)
 
             self.contacts = [
                 Contact(
@@ -237,6 +274,7 @@ class ConfigManager:
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
         default_config = config_to_dict(VoIPFileConfig())
+        self.voip_config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.voip_config_file, "w", encoding="utf-8") as handle:
             yaml.dump(default_config, handle, default_flow_style=False, sort_keys=False)
 
@@ -254,10 +292,73 @@ class ConfigManager:
             "speed_dial": {},
         }
 
+        self.contacts_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.contacts_file, "w", encoding="utf-8") as handle:
             yaml.dump(default_contacts, handle, default_flow_style=False, sort_keys=False)
 
         self.load_contacts()
+
+    @classmethod
+    def _detect_config_board(cls) -> str | None:
+        """Return the known board config that matches the current hardware."""
+
+        model = cls._read_device_tree_text(Path("/proc/device-tree/model")).lower()
+        compatible = cls._read_device_tree_text(Path("/proc/device-tree/compatible")).lower()
+
+        if "cubie a7z" in model or "radxa,cubie-a7z" in compatible:
+            return "radxa-cubie-a7z"
+        if "raspberry pi zero 2" in model:
+            return "rpi-zero-2w"
+
+        return None
+
+    @staticmethod
+    def _read_device_tree_text(path: Path) -> str:
+        """Read one device-tree text node, tolerating missing files off-device."""
+
+        try:
+            return path.read_bytes().replace(b"\x00", b"\n").decode("utf-8", errors="ignore")
+        except OSError:
+            return ""
+
+    def _resolve_config_board(
+        self,
+        *,
+        explicit_board: str | None,
+    ) -> str | None:
+        """Resolve the active board config from args, env, or hardware detection."""
+
+        if explicit_board:
+            return explicit_board
+
+        env_board = os.getenv("YOYOPOD_CONFIG_BOARD", "").strip()
+        if env_board:
+            return env_board
+
+        return self._detect_config_board()
+
+    def _resolve_config_layers(self, filename: str) -> tuple[Path, ...]:
+        """Return the base config file plus any matching board overlay."""
+
+        layers = [self.config_dir / filename]
+        if self.config_board:
+            board_file = self.config_dir / "boards" / self.config_board / filename
+            if board_file.exists():
+                layers.append(board_file)
+        return tuple(layers)
+
+    def _load_yaml_layers(self, paths: tuple[Path, ...]) -> dict[str, Any]:
+        """Load and merge YAML mappings from lowest to highest precedence."""
+
+        merged: dict[str, Any] = {}
+        for path in paths:
+            if not path.exists():
+                continue
+            with open(path, "r", encoding="utf-8") as handle:
+                loaded = yaml.safe_load(handle) or {}
+            if isinstance(loaded, dict):
+                merged = _deep_merge_mappings(merged, loaded)
+        return merged
 
     def get_app_settings(self) -> YoyoPodConfig:
         """Return the typed application configuration model."""

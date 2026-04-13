@@ -1,0 +1,51 @@
+# Radxa Cubie A7Z board overrides.
+#
+# This board is auto-selected on known Cubie A7Z hardware, or can be forced with:
+#   YOYOPOD_CONFIG_BOARD=radxa-cubie-a7z
+
+audio:
+  music_dir: "/home/radxa/Music"
+
+power:
+  watchdog_i2c_bus: 7
+
+display:
+  pimoroni_gpio:
+    spi_bus: 1
+    spi_device: 0
+    spi_speed_hz: 60000000
+    # PD13 = SPI1-MISO on PIN_21, freed by custom spi1-no-miso overlay.
+    # PD13 = gpiochip0 line 109. Used as DC (data/command) for ST7789.
+    dc:
+      chip: "gpiochip0"
+      line: 109
+    cs:
+      chip: "gpiochip0"
+      line: 110
+    backlight:
+      chip: "gpiochip1"
+      line: 35
+    led_r:
+      chip: "gpiochip0"
+      line: 33
+    led_g:
+      chip: "gpiochip1"
+      line: 6
+    led_b:
+      chip: "gpiochip1"
+      line: 7
+
+input:
+  pimoroni_gpio:
+    button_a:
+      chip: "gpiochip0"
+      line: 34
+    button_b:
+      chip: "gpiochip0"
+      line: 35
+    button_x:
+      chip: "gpiochip0"
+      line: 36
+    button_y:
+      chip: "gpiochip0"
+      line: 313

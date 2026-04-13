@@ -27,6 +27,15 @@ Run on hardware:
 python yoyopod.py
 ```
 
+Board-specific hardware defaults can live in `config/boards/<board>/`.
+Known boards currently include `rpi-zero-2w` and `radxa-cubie-a7z`, and
+the app auto-selects those on matching hardware. You can also force one:
+
+```bash
+YOYOPOD_CONFIG_BOARD=radxa-cubie-a7z python yoyopod.py
+YOYOPOD_CONFIG_BOARD=rpi-zero-2w python yoyopod.py
+```
+
 ## Docs
 
 - [Development Guide](docs/DEVELOPMENT_GUIDE.md)

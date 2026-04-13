@@ -6,6 +6,11 @@ Current target hardware:
 - Raspberry Pi Zero 2W
 - PiSugar 3 battery HAT
 
+Board-specific overrides can now live under `config/boards/<board>/`.
+Known hardware boards:
+- `rpi-zero-2w` -> PiSugar watchdog on `i2c-1`
+- `radxa-cubie-a7z` -> PiSugar watchdog on `i2c-7`
+
 This module is responsible for:
 - UPS-style telemetry
 - low-battery warning
@@ -321,7 +326,8 @@ If power telemetry fails:
 - check `pisugar-server` is running
 - check `/tmp/pisugar-server.sock` exists or TCP `8423` is listening
 - run `yoyoctl pi power battery`
-- run `i2cdetect -y 1` on the Pi
+- run `i2cdetect -y 1` on Raspberry Pi Zero 2W hardware
+- run `i2cdetect -y 7` on Radxa Cubie A7Z hardware
 
 Expected PiSugar 3 visibility usually includes:
 - `0x57`

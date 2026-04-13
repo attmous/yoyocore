@@ -22,6 +22,7 @@ dependencies = [
     "pygame>=2.5.0",
     "requests>=2.31.0",
     "loguru>=0.7.0",
+    "gpiod<2; platform_system == 'Linux'",
     "displayhatmini>=0.0.1; platform_system == 'Linux'",
     "pyyaml>=6.0.3",
     "vosk>=0.3.45",
@@ -31,6 +32,7 @@ dependencies = [
     "python-socketio>=5.11.0",
     "pynput>=1.7.0",
     "tinytag>=2.2.1",
+    "pyserial>=3.5",
 ]
 
 [project.optional-dependencies]

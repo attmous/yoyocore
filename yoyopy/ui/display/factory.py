@@ -11,10 +11,22 @@ import os
 
 from loguru import logger
 
+from yoyopy.config.models import PimoroniGpioConfig
 from yoyopy.ui.display.hal import DisplayHAL
 from yoyopy.ui.display.adapters.whisplay_paths import find_whisplay_driver
 
 VALID_DISPLAY_TYPES = {"auto", "whisplay", "pimoroni", "simulation"}
+
+
+def _get_pimoroni_gpio_config() -> PimoroniGpioConfig | None:
+    """Return PimoroniGpioConfig from the active board config, or None."""
+    try:
+        from yoyopy.config.manager import ConfigManager
+
+        mgr = ConfigManager()
+        return mgr.app_settings.display.pimoroni_gpio
+    except Exception:
+        return None
 
 
 def _normalize_display_hardware(hardware: str) -> str:
@@ -118,10 +130,30 @@ def get_display(
         )
 
     if hardware == "pimoroni":
-        logger.info("Creating Pimoroni display adapter (320x240 landscape)")
-        from yoyopy.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
+        # Try Pi-native displayhatmini first
+        try:
+            import displayhatmini  # noqa: F401
 
-        return PimoroniDisplayAdapter(simulate=False)
+            logger.info("Creating Pimoroni display adapter (320x240 landscape, displayhatmini)")
+            from yoyopy.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
+
+            return PimoroniDisplayAdapter(simulate=False)
+        except Exception:
+            pass
+
+        # Fallback: Cubie-native spidev + gpiod adapter
+        gpio_config = _get_pimoroni_gpio_config()
+        if gpio_config is not None and (gpio_config.dc is not None or gpio_config.cs is not None):
+            logger.info("Creating Cubie Pimoroni display adapter (320x240 landscape, spidev + gpiod)")
+            from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+
+            return CubiePimoroniAdapter(simulate=False, gpio_config=gpio_config)
+
+        logger.warning("Pimoroni requested but no displayhatmini or GPIO config available")
+        logger.info("Falling back to Pimoroni simulation mode")
+        from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+
+        return CubiePimoroniAdapter(simulate=True)
 
     if hardware == "simulation":
         logger.info("Creating simulation display adapter (240x280 portrait, Whisplay profile)")
