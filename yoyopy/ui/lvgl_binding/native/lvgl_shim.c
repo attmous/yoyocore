@@ -883,18 +883,24 @@ int yoyopy_lvgl_hub_build(void) {
     lv_obj_set_style_bg_opa(g_hub_scene.screen, LV_OPA_COVER, 0);
     yoyopy_status_bar_build(g_hub_scene.screen, &g_hub_scene.status_bar, 1);
 
+    /* Icon glow — centered horizontally, below status bar */
+    int glow_size = 116;
+    int card_size = 96;
+    int content_top = YOYOPY_STATUS_BAR_H + 16;
+
     g_hub_scene.icon_glow = lv_obj_create(g_hub_scene.screen);
     lv_obj_remove_style_all(g_hub_scene.icon_glow);
-    lv_obj_set_size(g_hub_scene.icon_glow, 116, 116);
-    lv_obj_set_pos(g_hub_scene.icon_glow, 62, 48);
+    lv_obj_set_size(g_hub_scene.icon_glow, glow_size, glow_size);
+    lv_obj_set_pos(g_hub_scene.icon_glow, center_x() - glow_size / 2, content_top);
     lv_obj_set_style_radius(g_hub_scene.icon_glow, 24, 0);
     lv_obj_set_style_border_width(g_hub_scene.icon_glow, 0, 0);
     lv_obj_set_style_bg_opa(g_hub_scene.icon_glow, LV_OPA_40, 0);
 
+    /* Card panel — centered on the glow */
     g_hub_scene.card_panel = lv_obj_create(g_hub_scene.screen);
     lv_obj_remove_style_all(g_hub_scene.card_panel);
-    lv_obj_set_size(g_hub_scene.card_panel, 96, 96);
-    lv_obj_set_pos(g_hub_scene.card_panel, 72, 58);
+    lv_obj_set_size(g_hub_scene.card_panel, card_size, card_size);
+    lv_obj_set_pos(g_hub_scene.card_panel, center_x() - card_size / 2, content_top + (glow_size - card_size) / 2);
     lv_obj_set_style_radius(g_hub_scene.card_panel, 16, 0);
     lv_obj_set_style_border_width(g_hub_scene.card_panel, 0, 0);
     lv_obj_set_style_pad_all(g_hub_scene.card_panel, 0, 0);
@@ -908,20 +914,27 @@ int yoyopy_lvgl_hub_build(void) {
     lv_obj_set_style_image_opa(g_hub_scene.icon_image, LV_OPA_COVER, 0);
     lv_obj_center(g_hub_scene.icon_image);
 
+    /* Title — centered, below card */
+    int label_width = g_display_width / 2;
+    int label_x = g_display_width / 4;
+    int title_y = content_top + glow_size + 12;
+
     g_hub_scene.title_label = lv_label_create(g_hub_scene.screen);
-    lv_obj_set_width(g_hub_scene.title_label, 120);
-    lv_obj_set_pos(g_hub_scene.title_label, 60, 176);
+    lv_obj_set_width(g_hub_scene.title_label, label_width);
+    lv_obj_set_pos(g_hub_scene.title_label, label_x, title_y);
     lv_obj_set_style_text_font(g_hub_scene.title_label, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_align(g_hub_scene.title_label, LV_TEXT_ALIGN_CENTER, 0);
 
+    /* Subtitle — below title */
     g_hub_scene.subtitle_label = lv_label_create(g_hub_scene.screen);
-    lv_obj_set_width(g_hub_scene.subtitle_label, 120);
-    lv_obj_set_pos(g_hub_scene.subtitle_label, 60, 204);
+    lv_obj_set_width(g_hub_scene.subtitle_label, label_width);
+    lv_obj_set_pos(g_hub_scene.subtitle_label, label_x, title_y + 28);
     lv_label_set_long_mode(g_hub_scene.subtitle_label, LV_LABEL_LONG_MODE_CLIP);
     lv_obj_set_style_text_font(g_hub_scene.subtitle_label, &lv_font_montserrat_12, 0);
     lv_obj_set_style_text_align(g_hub_scene.subtitle_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_add_flag(g_hub_scene.subtitle_label, LV_OBJ_FLAG_HIDDEN);
 
+    /* Navigation dots */
     for(int index = 0; index < 4; ++index) {
         g_hub_scene.dots[index] = lv_obj_create(g_hub_scene.screen);
         lv_obj_remove_style_all(g_hub_scene.dots[index]);
@@ -929,10 +942,11 @@ int yoyopy_lvgl_hub_build(void) {
         lv_obj_set_style_radius(g_hub_scene.dots[index], LV_RADIUS_CIRCLE, 0);
     }
 
+    /* Footer bar — full width, pinned to bottom */
     g_hub_scene.footer_bar = lv_obj_create(g_hub_scene.screen);
     lv_obj_remove_style_all(g_hub_scene.footer_bar);
-    lv_obj_set_size(g_hub_scene.footer_bar, 240, 32);
-    lv_obj_set_pos(g_hub_scene.footer_bar, 0, 248);
+    lv_obj_set_size(g_hub_scene.footer_bar, g_display_width, YOYOPY_FOOTER_BAR_H);
+    lv_obj_set_pos(g_hub_scene.footer_bar, 0, footer_bar_top());
     lv_obj_set_style_bg_opa(g_hub_scene.footer_bar, LV_OPA_COVER, 0);
 
     g_hub_scene.footer_label = lv_label_create(g_hub_scene.screen);
@@ -1010,7 +1024,8 @@ int yoyopy_lvgl_hub_sync(
 
     int dot_spacing = 10;
     int dots_width = ((total_cards - 1) * dot_spacing) + 4;
-    int first_x = (240 - dots_width) / 2;
+    int first_x = (g_display_width - dots_width) / 2;
+    int dots_y = footer_bar_top() - 30;
     for(int index = 0; index < 4; ++index) {
         if(index >= total_cards) {
             lv_obj_add_flag(g_hub_scene.dots[index], LV_OBJ_FLAG_HIDDEN);
@@ -1019,7 +1034,7 @@ int yoyopy_lvgl_hub_sync(
 
         int selected = index == selected_index;
         lv_obj_clear_flag(g_hub_scene.dots[index], LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_pos(g_hub_scene.dots[index], first_x + (index * dot_spacing), 218);
+        lv_obj_set_pos(g_hub_scene.dots[index], first_x + (index * dot_spacing), dots_y);
         yoyopy_hub_style_dot(g_hub_scene.dots[index], ink, selected);
     }
 
