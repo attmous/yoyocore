@@ -227,3 +227,65 @@ def test_config_manager_exposes_conference_factory_uri(tmp_path, monkeypatch) ->
 
     assert config_manager.voip_settings.messaging.conference_factory_uri == "sip:conference-factory@example.com"
     assert config_manager.get_conference_factory_uri() == "sip:conference-factory@example.com"
+
+
+def test_gpio_pin_config_from_yaml_dict():
+    """GpioPin and PimoroniGpioConfig should load from nested YAML dicts."""
+    from yoyopy.config.models import (
+        AppDisplayConfig,
+        GpioPin,
+        PimoroniGpioConfig,
+        build_config_model,
+    )
+
+    data = {
+        "pimoroni_gpio": {
+            "spi_bus": 1,
+            "spi_device": 0,
+            "spi_speed_hz": 60000000,
+            "dc": {"chip": "gpiochip0", "line": 109},
+            "cs": {"chip": "gpiochip0", "line": 110},
+            "backlight": {"chip": "gpiochip1", "line": 35},
+            "led_r": {"chip": "gpiochip0", "line": 33},
+            "led_g": {"chip": "gpiochip1", "line": 6},
+            "led_b": {"chip": "gpiochip1", "line": 7},
+        }
+    }
+    config = build_config_model(AppDisplayConfig, data)
+    assert config.pimoroni_gpio is not None
+    assert config.pimoroni_gpio.spi_bus == 1
+    assert config.pimoroni_gpio.dc == GpioPin(chip="gpiochip0", line=109)
+    assert config.pimoroni_gpio.cs == GpioPin(chip="gpiochip0", line=110)
+    assert config.pimoroni_gpio.backlight == GpioPin(chip="gpiochip1", line=35)
+    assert config.pimoroni_gpio.led_r == GpioPin(chip="gpiochip0", line=33)
+
+
+def test_gpio_input_config_from_yaml_dict():
+    """PimoroniGpioInputConfig should load from nested YAML dicts."""
+    from yoyopy.config.models import (
+        AppInputConfig,
+        GpioPin,
+        PimoroniGpioInputConfig,
+        build_config_model,
+    )
+
+    data = {
+        "pimoroni_gpio": {
+            "button_a": {"chip": "gpiochip0", "line": 34},
+            "button_b": {"chip": "gpiochip0", "line": 35},
+            "button_x": {"chip": "gpiochip0", "line": 36},
+            "button_y": {"chip": "gpiochip0", "line": 313},
+        }
+    }
+    config = build_config_model(AppInputConfig, data)
+    assert config.pimoroni_gpio is not None
+    assert config.pimoroni_gpio.button_a == GpioPin(chip="gpiochip0", line=34)
+    assert config.pimoroni_gpio.button_y == GpioPin(chip="gpiochip0", line=313)
+
+
+def test_display_config_defaults_pimoroni_gpio_to_none():
+    """When no pimoroni_gpio section exists, it should default to None."""
+    from yoyopy.config.models import AppDisplayConfig, build_config_model
+
+    config = build_config_model(AppDisplayConfig, {})
+    assert config.pimoroni_gpio is None

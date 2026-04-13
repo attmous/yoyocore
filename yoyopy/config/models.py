@@ -65,7 +65,7 @@ def build_config_model(model_cls: type[T], data: dict[str, Any] | None = None) -
                 kwargs[model_field.name] = _coerce_value(raw_value, field_type)
             continue
 
-        if _is_dataclass_type(nested_type):
+        if _is_dataclass_type(nested_type) and model_field.default is not None:
             kwargs[model_field.name] = build_config_model(nested_type, {})
         elif model_field.default is not MISSING:
             kwargs[model_field.name] = model_field.default
@@ -199,6 +199,7 @@ class AppInputConfig:
         default=800,
         env="YOYOPOD_WHISPLAY_LONG_HOLD_MS",
     )
+    pimoroni_gpio: PimoroniGpioInputConfig | None = None
 
 
 @dataclass(slots=True)
@@ -295,6 +296,39 @@ class AppPowerConfig:
 
 
 @dataclass(slots=True)
+class GpioPin:
+    """A single GPIO pin reference: chip name and line number."""
+
+    chip: str = ""
+    line: int = 0
+
+
+@dataclass(slots=True)
+class PimoroniGpioConfig:
+    """GPIO pin mapping for driving the Pimoroni Display HAT Mini via spidev + gpiod."""
+
+    spi_bus: int = 1
+    spi_device: int = 0
+    spi_speed_hz: int = 60_000_000
+    dc: GpioPin | None = None
+    cs: GpioPin | None = None
+    backlight: GpioPin | None = None
+    led_r: GpioPin | None = None
+    led_g: GpioPin | None = None
+    led_b: GpioPin | None = None
+
+
+@dataclass(slots=True)
+class PimoroniGpioInputConfig:
+    """GPIO pin mapping for the Pimoroni Display HAT Mini 4-button input via gpiod."""
+
+    button_a: GpioPin | None = None
+    button_b: GpioPin | None = None
+    button_x: GpioPin | None = None
+    button_y: GpioPin | None = None
+
+
+@dataclass(slots=True)
 class AppDisplayConfig:
     """Display hardware configuration."""
 
@@ -310,6 +344,7 @@ class AppDisplayConfig:
     brightness: int = 80
     rotation: int = 0
     backlight_timeout_seconds: int = 60
+    pimoroni_gpio: PimoroniGpioConfig | None = None
 
 
 @dataclass(slots=True)
