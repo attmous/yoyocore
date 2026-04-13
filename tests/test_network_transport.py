@@ -1,4 +1,4 @@
-"""Unit tests for the UART serial transport."""
+"""Unit tests for the UART serial transport and AT command layer."""
 
 from __future__ import annotations
 
@@ -6,6 +6,23 @@ import threading
 from unittest.mock import MagicMock, patch
 
 from yoyopy.network.transport import SerialTransport, TransportError
+from yoyopy.network.at_commands import AtCommandSet
+from yoyopy.network.models import SignalInfo
+
+
+class FakeTransport:
+    """Minimal transport double for AT command tests."""
+
+    def __init__(self) -> None:
+        self.responses: dict[str, str] = {}
+        self.sent: list[str] = []
+
+    def send_command(self, command: str, timeout: float | None = None) -> str:
+        self.sent.append(command)
+        for prefix, response in self.responses.items():
+            if command.strip().startswith(prefix):
+                return response
+        return "OK"
 
 
 class FakeSerial:
@@ -63,3 +80,55 @@ def test_send_command_raises_on_closed_port():
         assert False, "Expected TransportError"
     except TransportError:
         pass
+
+
+def test_parse_signal_quality():
+    """get_signal_quality should parse AT+CSQ response into SignalInfo."""
+    transport = FakeTransport()
+    transport.responses["AT+CSQ"] = "+CSQ: 18,0\nOK"
+    at = AtCommandSet(transport)
+    info = at.get_signal_quality()
+    assert info.csq == 18
+    assert info.bars == 3
+
+
+def test_check_sim_ready():
+    """check_sim should return True when SIM is READY."""
+    transport = FakeTransport()
+    transport.responses["AT+CPIN?"] = "+CPIN: READY\nOK"
+    at = AtCommandSet(transport)
+    assert at.check_sim() is True
+
+
+def test_check_sim_not_inserted():
+    """check_sim should return False when SIM is missing."""
+    transport = FakeTransport()
+    transport.responses["AT+CPIN?"] = "+CME ERROR: 10"
+    at = AtCommandSet(transport)
+    assert at.check_sim() is False
+
+
+def test_get_carrier():
+    """get_carrier should parse AT+COPS? response."""
+    transport = FakeTransport()
+    transport.responses["AT+COPS?"] = '+COPS: 0,0,"T-Mobile",7\nOK'
+    at = AtCommandSet(transport)
+    carrier, network_type = at.get_carrier()
+    assert carrier == "T-Mobile"
+    assert network_type == "4G"
+
+
+def test_get_registration_registered():
+    """get_registration should detect home registration."""
+    transport = FakeTransport()
+    transport.responses["AT+CEREG?"] = "+CEREG: 0,1\nOK"
+    at = AtCommandSet(transport)
+    assert at.get_registration() is True
+
+
+def test_get_registration_not_registered():
+    """get_registration should detect unregistered state."""
+    transport = FakeTransport()
+    transport.responses["AT+CEREG?"] = "+CEREG: 0,0\nOK"
+    at = AtCommandSet(transport)
+    assert at.get_registration() is False
