@@ -3059,7 +3059,7 @@ int yoyopy_lvgl_power_sync(
         lv_obj_clear_flag(g_power_scene.dots[index], LV_OBJ_FLAG_HIDDEN);
         int size = 4;
         int first_x = (center_x() - 2) - (((total_pages - 1) * 10) / 2);
-        lv_obj_set_pos(g_power_scene.dots[index], first_x + (index * 10), 238);
+        lv_obj_set_pos(g_power_scene.dots[index], first_x + (index * 10), footer_bar_top() - 10);
         lv_obj_set_size(g_power_scene.dots[index], size, size);
         lv_obj_set_style_bg_color(g_power_scene.dots[index], index == current_page_index ? accent : muted, 0);
     }

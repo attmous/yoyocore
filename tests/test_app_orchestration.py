@@ -735,14 +735,14 @@ def test_app_stop_uses_silent_voip_teardown() -> None:
     assert app.voip_manager.stop_notify_events == [False]
 
 
-def test_standard_profile_starts_on_menu() -> None:
-    """Standard multi-button devices should keep the existing menu root."""
+def test_standard_profile_starts_on_hub() -> None:
+    """All profiles now start on the hub for unified LVGL UX."""
     app = YoyoPodApp(simulate=True)
     app.context = AppContext()
     app.input_manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
 
-    assert app._get_initial_screen_name() == "menu"
-    assert app._get_initial_ui_state() == AppRuntimeState.MENU
+    assert app._get_initial_screen_name() == "hub"
+    assert app._get_initial_ui_state() == AppRuntimeState.HUB
 
 
 def test_one_button_profile_starts_on_hub() -> None:
