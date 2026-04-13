@@ -329,6 +329,20 @@ class PimoroniGpioInputConfig:
 
 
 @dataclass(slots=True)
+class AppNetworkConfig:
+    """4G cellular modem settings."""
+
+    enabled: bool = config_value(default=False, env="YOYOPOD_NETWORK_ENABLED")
+    serial_port: str = config_value(default="/dev/ttyUSB2", env="YOYOPOD_MODEM_PORT")
+    ppp_port: str = config_value(default="/dev/ttyUSB3", env="YOYOPOD_MODEM_PPP_PORT")
+    baud_rate: int = config_value(default=115200, env="YOYOPOD_MODEM_BAUD")
+    apn: str = config_value(default="", env="YOYOPOD_MODEM_APN")
+    pin: str | None = config_value(default=None)
+    gps_enabled: bool = config_value(default=True, env="YOYOPOD_MODEM_GPS_ENABLED")
+    ppp_timeout: int = config_value(default=30, env="YOYOPOD_MODEM_PPP_TIMEOUT")
+
+
+@dataclass(slots=True)
 class AppDisplayConfig:
     """Display hardware configuration."""
 
@@ -382,6 +396,7 @@ class YoyoPodConfig:
     power: AppPowerConfig = config_value(default_factory=AppPowerConfig)
     display: AppDisplayConfig = config_value(default_factory=AppDisplayConfig)
     logging: AppLoggingConfig = config_value(default_factory=AppLoggingConfig)
+    network: AppNetworkConfig = config_value(default_factory=AppNetworkConfig)
 
 
 @dataclass(slots=True)

@@ -395,6 +395,21 @@ class AppContext:
         self.voip_configured = configured
         self.voip_ready = ready
 
+    def update_network_status(
+        self,
+        *,
+        signal_bars: int | None = None,
+        connection_type: str | None = None,
+        connected: bool | None = None,
+    ) -> None:
+        """Update cached network telemetry from the modem backend."""
+        if signal_bars is not None:
+            self.signal_strength = max(0, min(4, signal_bars))
+        if connection_type is not None:
+            self.connection_type = connection_type
+        if connected is not None:
+            self.is_connected = connected
+
     def update_screen_runtime(
         self,
         *,
