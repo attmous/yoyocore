@@ -21,15 +21,10 @@ from yoyopy.ui.screens.theme import (
     rounded_panel,
     text_fit,
 )
-from yoyopy.voice.devices import (
-    format_device_label,
-    list_capture_devices,
-    list_playback_devices,
-)
+from yoyopy.voice.devices import format_device_label
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
-    from yoyopy.config import ConfigManager
     from yoyopy.power import PowerManager, PowerSnapshot
     from yoyopy.ui.screens import ScreenView
 
@@ -53,7 +48,11 @@ class PowerScreen(Screen):
         *,
         power_manager: Optional["PowerManager"] = None,
         status_provider: Optional[Callable[[], dict[str, object]]] = None,
-        config_manager: Optional["ConfigManager"] = None,
+        refresh_voice_device_options_action: Optional[Callable[[], None]] = None,
+        playback_device_options_provider: Optional[Callable[[], list[str]]] = None,
+        capture_device_options_provider: Optional[Callable[[], list[str]]] = None,
+        persist_speaker_device_action: Optional[Callable[[str | None], bool]] = None,
+        persist_capture_device_action: Optional[Callable[[str | None], bool]] = None,
         volume_up_action: Optional[Callable[[int], int | None]] = None,
         volume_down_action: Optional[Callable[[int], int | None]] = None,
         mute_action: Optional[Callable[[], bool]] = None,
@@ -62,7 +61,11 @@ class PowerScreen(Screen):
         super().__init__(display, context, "PowerStatus")
         self.power_manager = power_manager
         self.status_provider = status_provider or (lambda: {})
-        self.config_manager = config_manager
+        self.refresh_voice_device_options_action = refresh_voice_device_options_action
+        self.playback_device_options_provider = playback_device_options_provider
+        self.capture_device_options_provider = capture_device_options_provider
+        self.persist_speaker_device_action = persist_speaker_device_action
+        self.persist_capture_device_action = persist_capture_device_action
         self.volume_up_action = volume_up_action
         self.volume_down_action = volume_down_action
         self.mute_action = mute_action
@@ -71,8 +74,6 @@ class PowerScreen(Screen):
         self.selected_row = 0
         self.in_detail = False
         self._lvgl_view: "ScreenView | None" = None
-        self._cached_playback_devices: list[str] | None = None
-        self._cached_capture_devices: list[str] | None = None
 
     def enter(self) -> None:
         """Create the LVGL view when the screen becomes active."""
@@ -81,8 +82,8 @@ class PowerScreen(Screen):
         self.page_index = 0
         self.selected_row = 0
         self.in_detail = False
-        self._cached_playback_devices = None
-        self._cached_capture_devices = None
+        if self.refresh_voice_device_options_action is not None:
+            self.refresh_voice_device_options_action()
         self._ensure_lvgl_view()
 
     def exit(self) -> None:
@@ -189,7 +190,9 @@ class PowerScreen(Screen):
             if active_page.interactive and rows:
                 max_visible = max(1, (max_row_bottom - row_y) // (row_height + row_gap))
                 max_visible = min(max_visible, len(rows))
-                start_row = max(0, min(self.selected_row - (max_visible // 2), len(rows) - max_visible))
+                start_row = max(
+                    0, min(self.selected_row - (max_visible // 2), len(rows) - max_visible)
+                )
 
             for row_offset, (label, value) in enumerate(rows[start_row:]):
                 row_index = start_row + row_offset
@@ -252,7 +255,9 @@ class PowerScreen(Screen):
             row_bottom = panel_bottom - 8
             available = max(0, row_bottom - row_top)
             max_visible = max(1, min(len(picker_items), available // item_height))
-            start_index = max(0, min(self.page_index - (max_visible // 2), len(picker_items) - max_visible))
+            start_index = max(
+                0, min(self.page_index - (max_visible // 2), len(picker_items) - max_visible)
+            )
 
             for offset in range(max_visible):
                 index = start_index + offset
@@ -534,7 +539,11 @@ class PowerScreen(Screen):
         """Return footer hints for the current page."""
 
         if not self.in_detail:
-            return "Tap next / Double open / Hold back" if self.is_one_button_mode() else "A open | B back | X/Y move"
+            return (
+                "Tap next / Double open / Hold back"
+                if self.is_one_button_mode()
+                else "A open | B back | X/Y move"
+            )
 
         if page.interactive:
             if self.is_one_button_mode():
@@ -623,16 +632,18 @@ class PowerScreen(Screen):
     def _playback_device_options(self) -> list[str | None]:
         """Return selectable playback options, with None representing Auto."""
 
-        if self._cached_playback_devices is None:
-            self._cached_playback_devices = list_playback_devices()
-        return [None, *self._cached_playback_devices]
+        devices = []
+        if self.playback_device_options_provider is not None:
+            devices = list(self.playback_device_options_provider())
+        return [None, *devices]
 
     def _capture_device_options(self) -> list[str | None]:
         """Return selectable capture options, with None representing Auto."""
 
-        if self._cached_capture_devices is None:
-            self._cached_capture_devices = list_capture_devices()
-        return [None, *self._cached_capture_devices]
+        devices = []
+        if self.capture_device_options_provider is not None:
+            devices = list(self.capture_device_options_provider())
+        return [None, *devices]
 
     @staticmethod
     def _cycle_option(
@@ -658,8 +669,8 @@ class PowerScreen(Screen):
             direction,
         )
         self.context.configure_voice(speaker_device_id=next_device)
-        if self.config_manager is not None:
-            self.config_manager.set_voice_speaker_device_id(next_device)
+        if self.persist_speaker_device_action is not None:
+            self.persist_speaker_device_action(next_device)
 
     def _cycle_capture_device(self, direction: int) -> None:
         if self.context is None:
@@ -670,8 +681,8 @@ class PowerScreen(Screen):
             direction,
         )
         self.context.configure_voice(capture_device_id=next_device)
-        if self.config_manager is not None:
-            self.config_manager.set_voice_capture_device_id(next_device)
+        if self.persist_capture_device_action is not None:
+            self.persist_capture_device_action(next_device)
 
     def _next_page(self) -> None:
         """Advance to the next page with wraparound."""

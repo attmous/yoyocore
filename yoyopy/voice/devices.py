@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -263,3 +264,64 @@ def format_device_label(device_id: str | None) -> str:
     if len(normalized) > 18:
         return normalized[:17] + "..."
     return normalized
+
+
+class VoiceDeviceCatalog:
+    """Cache voice-device options and refresh them off the UI input path."""
+
+    def __init__(
+        self,
+        *,
+        aplay_binary: str = "aplay",
+        arecord_binary: str = "arecord",
+    ) -> None:
+        self.aplay_binary = aplay_binary
+        self.arecord_binary = arecord_binary
+        self._lock = threading.Lock()
+        self._refresh_lock = threading.Lock()
+        self._refresh_thread: threading.Thread | None = None
+        self._playback_devices: list[str] = []
+        self._capture_devices: list[str] = []
+
+    def playback_devices(self) -> list[str]:
+        """Return the latest cached playback-device options."""
+
+        with self._lock:
+            return list(self._playback_devices)
+
+    def capture_devices(self) -> list[str]:
+        """Return the latest cached capture-device options."""
+
+        with self._lock:
+            return list(self._capture_devices)
+
+    def refresh(self) -> None:
+        """Refresh both playback and capture options synchronously."""
+
+        playback_devices = list_playback_devices(aplay_binary=self.aplay_binary)
+        capture_devices = list_capture_devices(arecord_binary=self.arecord_binary)
+        with self._lock:
+            self._playback_devices = playback_devices
+            self._capture_devices = capture_devices
+
+    def refresh_async(self) -> None:
+        """Refresh device options on a background thread when needed."""
+
+        with self._refresh_lock:
+            worker = self._refresh_thread
+            if worker is not None and worker.is_alive():
+                return
+
+            worker = threading.Thread(
+                target=self._refresh_worker,
+                name="voice-device-catalog-refresh",
+                daemon=True,
+            )
+            self._refresh_thread = worker
+            worker.start()
+
+    def _refresh_worker(self) -> None:
+        try:
+            self.refresh()
+        except Exception as exc:
+            logger.debug("Voice-device refresh failed: {}", exc)

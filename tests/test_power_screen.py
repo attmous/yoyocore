@@ -182,3 +182,51 @@ def test_power_screen_voice_page_toggles_runtime_voice_settings() -> None:
         assert volume_calls == [("up", 5), ("down", 5)]
     finally:
         display.cleanup()
+
+
+def test_power_screen_uses_injected_voice_device_hooks() -> None:
+    """Setup should use injected device providers and persistence hooks."""
+
+    display = Display(simulate=True)
+    try:
+        context = AppContext()
+        refresh_calls: list[str] = []
+        persisted_devices: list[tuple[str, str | None]] = []
+
+        screen = PowerScreen(
+            display,
+            context,
+            power_manager=StubPowerManager(_snapshot()),
+            status_provider=lambda: {},
+            refresh_voice_device_options_action=lambda: refresh_calls.append("refresh"),
+            playback_device_options_provider=lambda: ["plughw:CARD=wm8960soundcard,DEV=0"],
+            capture_device_options_provider=lambda: ["plughw:CARD=USB,DEV=0"],
+            persist_speaker_device_action=(
+                lambda device_id: persisted_devices.append(("speaker", device_id)) or True
+            ),
+            persist_capture_device_action=(
+                lambda device_id: persisted_devices.append(("capture", device_id)) or True
+            ),
+        )
+
+        screen.enter()
+        assert refresh_calls == ["refresh"]
+
+        screen.page_index = 3
+        screen.on_select()
+        assert screen.in_detail is True
+
+        screen.selected_row = 3
+        screen.on_select()
+        assert context.voice.speaker_device_id == "plughw:CARD=wm8960soundcard,DEV=0"
+
+        screen.selected_row = 4
+        screen.on_select()
+        assert context.voice.capture_device_id == "plughw:CARD=USB,DEV=0"
+
+        assert persisted_devices == [
+            ("speaker", "plughw:CARD=wm8960soundcard,DEV=0"),
+            ("capture", "plughw:CARD=USB,DEV=0"),
+        ]
+    finally:
+        display.cleanup()
