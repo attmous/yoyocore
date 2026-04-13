@@ -15,6 +15,8 @@ typedef struct {
 } yoyopy_key_event_t;
 
 typedef struct {
+    lv_obj_t * signal_bars[4];
+    lv_obj_t * gps_dot;
     lv_obj_t * voip_dot;
     lv_obj_t * time_label;
     lv_obj_t * battery_outline;
@@ -22,6 +24,13 @@ typedef struct {
     lv_obj_t * battery_tip;
     lv_obj_t * battery_label;
 } yoyopy_status_bar_t;
+
+typedef struct {
+    int32_t network_enabled;
+    int32_t network_connected;
+    int32_t signal_strength;
+    int32_t gps_has_fix;
+} yoyopy_status_bar_state_t;
 
 static const uint32_t YOYOPY_THEME_BACKGROUND_RGB = 0x2A2D35;
 static const uint32_t YOYOPY_THEME_SURFACE_RGB = 0x31343C;
@@ -37,6 +46,8 @@ static const uint32_t YOYOPY_THEME_ERROR_RGB = 0xFF675D;
 static const uint32_t YOYOPY_THEME_NEUTRAL_RGB = 0x9CA3AF;
 static const uint32_t YOYOPY_MODE_LISTEN_RGB = 0x00FF88;
 static const uint32_t YOYOPY_MODE_TALK_RGB = 0x00D4FF;
+static const int YOYOPY_STATUS_SIGNAL_BAR_HEIGHTS[4] = {4, 7, 10, 13};
+static yoyopy_status_bar_state_t g_status_bar_state = {0, 0, 0, 0};
 
 typedef struct {
     int built;
@@ -680,6 +691,9 @@ static const char * yoyopy_symbol_for_empty_icon(const char * icon_key) {
     if(strcmp(icon_key, "battery") == 0) {
         return LV_SYMBOL_POWER;
     }
+    if(strcmp(icon_key, "signal") == 0) {
+        return LV_SYMBOL_WIFI;
+    }
     if(strcmp(icon_key, "care") == 0) {
         return LV_SYMBOL_SETTINGS;
     }
@@ -739,6 +753,13 @@ static lv_color_t yoyopy_color_for_kind(int32_t color_kind, uint32_t accent_rgb)
 #define YOYOPY_STATUS_DOT_Y 15
 #define YOYOPY_STATUS_TIME_X 38
 #define YOYOPY_STATUS_TIME_Y 9
+#define YOYOPY_STATUS_DOT_X_WITH_NETWORK 54
+#define YOYOPY_STATUS_TIME_X_WITH_NETWORK 68
+#define YOYOPY_STATUS_SIGNAL_X 18
+#define YOYOPY_STATUS_SIGNAL_BASE_Y 19
+#define YOYOPY_STATUS_SIGNAL_GAP 4
+#define YOYOPY_STATUS_GPS_X 42
+#define YOYOPY_STATUS_GPS_Y 16
 #define YOYOPY_STATUS_BATTERY_X 172
 #define YOYOPY_STATUS_BATTERY_Y 11
 #define YOYOPY_STATUS_BATTERY_TIP_X 186
@@ -774,8 +795,80 @@ static void yoyopy_apply_footer_label(lv_obj_t * label, const char * text, lv_co
     lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, YOYOPY_FOOTER_OFFSET_Y);
 }
 
+static void yoyopy_apply_signal_bars(
+    yoyopy_status_bar_t * bar,
+    int32_t network_enabled,
+    int32_t network_connected,
+    int32_t signal_strength
+) {
+    lv_color_t active_color = yoyopy_color_u24(
+        network_connected ? YOYOPY_THEME_SUCCESS_RGB : YOYOPY_THEME_MUTED_RGB
+    );
+    lv_color_t inactive_color = yoyopy_color_u24(0x3C3F46);
+
+    for(int index = 0; index < 4; index++) {
+        lv_obj_t * signal_bar = bar->signal_bars[index];
+        if(signal_bar == NULL) {
+            continue;
+        }
+
+        if(!network_enabled) {
+            lv_obj_add_flag(signal_bar, LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+
+        int height = YOYOPY_STATUS_SIGNAL_BAR_HEIGHTS[index];
+        lv_obj_set_size(signal_bar, 3, height);
+        lv_obj_set_pos(
+            signal_bar,
+            YOYOPY_STATUS_SIGNAL_X + (index * YOYOPY_STATUS_SIGNAL_GAP),
+            YOYOPY_STATUS_SIGNAL_BASE_Y - height
+        );
+        lv_obj_set_style_bg_color(
+            signal_bar,
+            index < signal_strength ? active_color : inactive_color,
+            0
+        );
+        lv_obj_clear_flag(signal_bar, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+static void yoyopy_apply_gps_dot(yoyopy_status_bar_t * bar, int32_t network_enabled, int32_t gps_has_fix) {
+    if(bar->gps_dot == NULL) {
+        return;
+    }
+
+    if(!network_enabled) {
+        lv_obj_add_flag(bar->gps_dot, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+
+    lv_obj_set_pos(bar->gps_dot, YOYOPY_STATUS_GPS_X, YOYOPY_STATUS_GPS_Y);
+    lv_obj_set_style_bg_color(
+        bar->gps_dot,
+        yoyopy_color_u24(gps_has_fix ? YOYOPY_THEME_SUCCESS_RGB : YOYOPY_THEME_MUTED_RGB),
+        0
+    );
+    lv_obj_clear_flag(bar->gps_dot, LV_OBJ_FLAG_HIDDEN);
+}
+
 static void yoyopy_status_bar_build(lv_obj_t * parent, yoyopy_status_bar_t * bar, int show_time) {
     memset(bar, 0, sizeof(*bar));
+
+    for(int index = 0; index < 4; index++) {
+        bar->signal_bars[index] = lv_obj_create(parent);
+        lv_obj_remove_style_all(bar->signal_bars[index]);
+        lv_obj_set_style_bg_opa(bar->signal_bars[index], LV_OPA_COVER, 0);
+        lv_obj_set_style_radius(bar->signal_bars[index], 1, 0);
+        lv_obj_add_flag(bar->signal_bars[index], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    bar->gps_dot = lv_obj_create(parent);
+    lv_obj_remove_style_all(bar->gps_dot);
+    lv_obj_set_size(bar->gps_dot, 6, 6);
+    lv_obj_set_style_radius(bar->gps_dot, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(bar->gps_dot, LV_OPA_COVER, 0);
+    lv_obj_add_flag(bar->gps_dot, LV_OBJ_FLAG_HIDDEN);
 
     bar->voip_dot = lv_obj_create(parent);
     lv_obj_remove_style_all(bar->voip_dot);
@@ -827,10 +920,26 @@ static void yoyopy_status_bar_sync(
     int32_t charging,
     int32_t power_available
 ) {
+    int32_t network_enabled = g_status_bar_state.network_enabled;
+    int32_t network_connected = g_status_bar_state.network_connected;
+    int32_t signal_strength = g_status_bar_state.signal_strength;
+    int32_t gps_has_fix = g_status_bar_state.gps_has_fix;
+    int32_t dot_x = network_enabled ? YOYOPY_STATUS_DOT_X_WITH_NETWORK : YOYOPY_STATUS_DOT_X;
+    int32_t time_x = network_enabled ? YOYOPY_STATUS_TIME_X_WITH_NETWORK : YOYOPY_STATUS_TIME_X;
+
+    yoyopy_apply_signal_bars(bar, network_enabled, network_connected, signal_strength);
+    yoyopy_apply_gps_dot(bar, network_enabled, gps_has_fix);
+    if(bar->voip_dot != NULL) {
+        lv_obj_set_pos(bar->voip_dot, dot_x, YOYOPY_STATUS_DOT_Y);
+    }
     yoyopy_apply_voip_dot(bar->voip_dot, voip_state);
+    if(voip_state == 0) {
+        time_x = network_enabled ? YOYOPY_STATUS_DOT_X_WITH_NETWORK : YOYOPY_STATUS_DOT_X;
+    }
 
     if(bar->time_label != NULL) {
         lv_label_set_text(bar->time_label, yoyopy_time_or_default(time_text));
+        lv_obj_set_pos(bar->time_label, time_x, YOYOPY_STATUS_TIME_Y);
         lv_obj_clear_flag(bar->time_label, LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -855,6 +964,25 @@ static void yoyopy_status_bar_sync(
         charging,
         power_available
     );
+}
+
+int yoyopy_lvgl_set_status_bar_state(
+    int32_t network_enabled,
+    int32_t network_connected,
+    int32_t signal_strength,
+    int32_t gps_has_fix
+) {
+    g_status_bar_state.network_enabled = network_enabled ? 1 : 0;
+    g_status_bar_state.network_connected = network_connected ? 1 : 0;
+    if(signal_strength < 0) {
+        signal_strength = 0;
+    }
+    if(signal_strength > 4) {
+        signal_strength = 4;
+    }
+    g_status_bar_state.signal_strength = signal_strength;
+    g_status_bar_state.gps_has_fix = gps_has_fix ? 1 : 0;
+    return 0;
 }
 
 int yoyopy_lvgl_hub_build(void) {

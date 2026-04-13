@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from yoyopy.ui.lvgl_binding import LvglDisplayBackend
+from yoyopy.ui.screens.lvgl_status import sync_network_status
 from yoyopy.ui.screens.theme import SETUP
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ class LvglPowerView:
         active_page = pages[self.screen.page_index]
         items = [f"{label}: {value}" for label, value in active_page.rows[:4]]
         context = self.screen.context
+        sync_network_status(self.backend.binding, context)
 
         self.backend.binding.power_sync(
             title_text=active_page.title,

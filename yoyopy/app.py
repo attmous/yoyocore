@@ -65,7 +65,12 @@ from yoyopy.ui.screens import (
     VoiceNoteScreen,
 )
 from yoyopy.network import NetworkManager
-from yoyopy.events import NetworkPppUpEvent, NetworkPppDownEvent, NetworkGpsFixEvent
+from yoyopy.events import (
+    NetworkGpsFixEvent,
+    NetworkPppDownEvent,
+    NetworkPppUpEvent,
+    NetworkSignalUpdateEvent,
+)
 from yoyopy.voice import VoiceSettings
 from yoyopy.voip import CallHistoryStore, VoIPConfig, VoIPManager
 
@@ -191,6 +196,8 @@ class YoyoPodApp:
             GracefulShutdownCancelled,
             self._handle_graceful_shutdown_cancelled_event,
         )
+        self.event_bus.subscribe(NetworkPppUpEvent, self._handle_network_ppp_up)
+        self.event_bus.subscribe(NetworkSignalUpdateEvent, self._handle_network_signal_update)
         self.event_bus.subscribe(NetworkGpsFixEvent, self._handle_network_gps_fix)
         self.event_bus.subscribe(NetworkPppDownEvent, self._handle_network_ppp_down)
 
@@ -1133,11 +1140,24 @@ class YoyoPodApp:
             duration_seconds=3.0,
         )
 
+    def _handle_network_ppp_up(self, event: "NetworkPppUpEvent") -> None:
+        """Refresh network connectivity state when PPP comes online."""
+        if self.context:
+            self.context.update_network_status(
+                network_enabled=True,
+                connected=True,
+                connection_type=event.connection_type,
+            )
+
+    def _handle_network_signal_update(self, event: "NetworkSignalUpdateEvent") -> None:
+        """Refresh signal bars when the modem reports new telemetry."""
+        if self.context:
+            self.context.update_network_status(signal_bars=event.bars)
+
     def _handle_network_gps_fix(self, event: "NetworkGpsFixEvent") -> None:
         """Update GPS fix state in AppContext."""
         if self.context:
-            has_fix = event.lat != 0.0 or event.lng != 0.0
-            self.context.update_network_status(gps_has_fix=has_fix)
+            self.context.update_network_status(gps_has_fix=True)
 
     def _handle_network_ppp_down(self, event: "NetworkPppDownEvent") -> None:
         """Reset network state in AppContext when PPP drops."""

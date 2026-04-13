@@ -21,6 +21,10 @@ class FakeLvglBinding:
     """Small native-binding double for LVGL view tests."""
 
     def __init__(self) -> None:
+        self.status_bar_state_payloads: list[dict] = []
+        self.hub_build_calls = 0
+        self.hub_destroy_calls = 0
+        self.hub_sync_payloads: list[dict] = []
         self.talk_build_calls = 0
         self.talk_destroy_calls = 0
         self.talk_sync_payloads: list[dict] = []
@@ -54,6 +58,15 @@ class FakeLvglBinding:
 
     def talk_destroy(self) -> None:
         self.talk_destroy_calls += 1
+
+    def hub_build(self) -> None:
+        self.hub_build_calls += 1
+
+    def hub_sync(self, **payload) -> None:
+        self.hub_sync_payloads.append(payload)
+
+    def hub_destroy(self) -> None:
+        self.hub_destroy_calls += 1
 
     def talk_actions_build(self) -> None:
         self.talk_actions_build_calls += 1
@@ -117,6 +130,9 @@ class FakeLvglBinding:
 
     def power_destroy(self) -> None:
         self.power_destroy_calls += 1
+
+    def set_status_bar_state(self, **payload) -> None:
+        self.status_bar_state_payloads.append(payload)
 
 
 class FakeLvglBackend:
@@ -278,6 +294,32 @@ def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
 
     assert binding.talk_build_calls == 2
     assert binding.talk_destroy_calls == 2
+
+
+def test_hub_view_syncs_network_status_bar_state_through_lvgl() -> None:
+    """HubScreen should push cellular and GPS state into the native status bar."""
+
+    from yoyopy.ui.screens.navigation.hub import HubScreen
+
+    binding = FakeLvglBinding()
+    context = make_one_button_context()
+    context.update_network_status(
+        network_enabled=True,
+        signal_bars=3,
+        connected=False,
+        gps_has_fix=True,
+    )
+    screen = HubScreen(FakeLvglDisplay(binding), context)
+
+    screen.enter()
+    screen.render()
+
+    assert binding.status_bar_state_payloads[-1] == {
+        "network_enabled": 1,
+        "network_connected": 0,
+        "signal_strength": 3,
+        "gps_has_fix": 1,
+    }
 
 
 def test_talk_contact_screen_syncs_actions_through_lvgl() -> None:

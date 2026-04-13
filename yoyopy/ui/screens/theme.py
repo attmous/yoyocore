@@ -905,6 +905,8 @@ def draw_icon(display: Display, icon: str, x: int, y: int, size: int, color: Col
         _draw_clock_icon(display, draw, x, y, size, color)
     elif icon == "battery":
         _draw_battery_icon(display, draw, x, y, size, color)
+    elif icon == "signal":
+        _draw_signal_icon(display, draw, x, y, size, color)
     elif icon in {"setup", "power"}:
         _draw_setup_icon(display, draw, x, y, size, color)
     elif icon == "playlist":
@@ -1271,6 +1273,23 @@ def _draw_battery_icon(display: Display, draw, x: int, y: int, size: int, color:
         tip_top + max(8, size // 5),
         fill=color,
     )
+
+
+def _draw_signal_icon(display: Display, draw, x: int, y: int, size: int, color: Color) -> None:
+    bar_width = max(3, size // 8)
+    gap = max(2, size // 12)
+    base_y = y + size - max(4, size // 10)
+    heights = (
+        max(6, size // 5),
+        max(10, size // 3),
+        max(14, (size * 2) // 5),
+        max(18, (size * 3) // 5),
+    )
+
+    for index, height in enumerate(heights):
+        left = x + (index * (bar_width + gap))
+        top = base_y - height
+        display.rectangle(left, top, left + bar_width, base_y, fill=color)
 
 
 def _voip_state(context: AppContext | None) -> str:

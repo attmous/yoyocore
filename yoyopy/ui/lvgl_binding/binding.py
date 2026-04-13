@@ -33,6 +33,12 @@ void yoyopy_lvgl_tick_inc(uint32_t ms);
 uint32_t yoyopy_lvgl_timer_handler(void);
 int yoyopy_lvgl_queue_key_event(int32_t key, int32_t pressed);
 int yoyopy_lvgl_show_probe_scene(int32_t scene_id);
+int yoyopy_lvgl_set_status_bar_state(
+    int32_t network_enabled,
+    int32_t network_connected,
+    int32_t signal_strength,
+    int32_t gps_has_fix
+);
 int yoyopy_lvgl_hub_build(void);
 int yoyopy_lvgl_hub_sync(
     const char * icon_key,
@@ -348,6 +354,23 @@ class LvglBinding:
 
     def show_probe_scene(self, scene_id: int) -> None:
         if self.lib.yoyopy_lvgl_show_probe_scene(scene_id) != 0:
+            raise LvglBindingError(self.last_error())
+
+    def set_status_bar_state(
+        self,
+        *,
+        network_enabled: int,
+        network_connected: int,
+        signal_strength: int,
+        gps_has_fix: int,
+    ) -> None:
+        result = self.lib.yoyopy_lvgl_set_status_bar_state(
+            int(network_enabled),
+            int(network_connected),
+            max(0, min(4, int(signal_strength))),
+            int(gps_has_fix),
+        )
+        if result != 0:
             raise LvglBindingError(self.last_error())
 
     def hub_build(self) -> None:
