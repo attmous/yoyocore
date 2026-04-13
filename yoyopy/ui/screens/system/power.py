@@ -24,6 +24,7 @@ from yoyopy.ui.screens.theme import (
     rounded_panel,
     text_fit,
 )
+from yoyopy.voice.devices import format_device_label
 
 if TYPE_CHECKING:
     from yoyopy.app_context import AppContext
@@ -51,6 +52,11 @@ class PowerScreen(Screen):
         power_manager: Optional["PowerManager"] = None,
         network_manager: Optional[object] = None,
         status_provider: Optional[Callable[[], dict[str, object]]] = None,
+        refresh_voice_device_options_action: Optional[Callable[[], None]] = None,
+        playback_device_options_provider: Optional[Callable[[], list[str]]] = None,
+        capture_device_options_provider: Optional[Callable[[], list[str]]] = None,
+        persist_speaker_device_action: Optional[Callable[[str | None], bool]] = None,
+        persist_capture_device_action: Optional[Callable[[str | None], bool]] = None,
         volume_up_action: Optional[Callable[[int], int | None]] = None,
         volume_down_action: Optional[Callable[[int], int | None]] = None,
         mute_action: Optional[Callable[[], bool]] = None,
@@ -60,12 +66,18 @@ class PowerScreen(Screen):
         self.power_manager = power_manager
         self.network_manager = network_manager
         self.status_provider = status_provider or (lambda: {})
+        self.refresh_voice_device_options_action = refresh_voice_device_options_action
+        self.playback_device_options_provider = playback_device_options_provider
+        self.capture_device_options_provider = capture_device_options_provider
+        self.persist_speaker_device_action = persist_speaker_device_action
+        self.persist_capture_device_action = persist_capture_device_action
         self.volume_up_action = volume_up_action
         self.volume_down_action = volume_down_action
         self.mute_action = mute_action
         self.unmute_action = unmute_action
         self.page_index = 0
         self.selected_row = 0
+        self.in_detail = False
         self._lvgl_view: "ScreenView | None" = None
         self._last_gps_query_at = 0.0
         self._gps_refresh_interval_seconds = 2.0
@@ -73,6 +85,12 @@ class PowerScreen(Screen):
     def enter(self) -> None:
         """Create the LVGL view when the screen becomes active."""
         super().enter()
+        # Returning to Setup should not trap users in the Voice page.
+        self.page_index = 0
+        self.selected_row = 0
+        self.in_detail = False
+        if self.refresh_voice_device_options_action is not None:
+            self.refresh_voice_device_options_action()
         self._ensure_lvgl_view()
 
     def exit(self) -> None:
@@ -112,7 +130,7 @@ class PowerScreen(Screen):
         pages = self._build_pages_for_display(snapshot=snapshot, status=status)
         self.page_index %= len(pages)
         active_page = pages[self.page_index]
-        visible_rows, visible_selected_index = self._visible_rows_for_page(active_page)
+        picker_mode = not self.is_one_button_mode() and not self.in_detail
         render_backdrop(self.display, "setup")
         render_status_bar(self.display, self.context, show_time=False)
         page_text = f"{self.page_index + 1}/{len(pages)}"
@@ -130,19 +148,14 @@ class PowerScreen(Screen):
             outline=None,
             radius=22,
         )
-        draw_icon(
-            self.display,
-            self._page_icon_key(active_page.title),
-            halo_left + 10,
-            halo_top + 10,
-            24,
-            (225, 228, 234),
-        )
+        icon_key = self._page_icon_key(active_page.title)
+        draw_icon(self.display, icon_key, halo_left + 10, halo_top + 10, 24, (225, 228, 234))
 
         title_y = halo_top + halo_size + 8
-        title_width, _ = self.display.get_text_size(active_page.title, 18)
+        header_title = "Setup" if picker_mode else active_page.title
+        title_width, _ = self.display.get_text_size(header_title, 18)
         self.display.text(
-            active_page.title,
+            header_title,
             (self.display.WIDTH - title_width) // 2,
             title_y,
             color=INK,
@@ -168,43 +181,97 @@ class PowerScreen(Screen):
             font_size=10,
         )
 
-        row_y = title_y + 18
-        row_height = 20
-        row_gap = 4
-        max_row_bottom = self.display.HEIGHT - 60
-        for row_index, (label, value) in enumerate(visible_rows):
-            row_bottom = row_y + row_height
-            if row_bottom > max_row_bottom:
-                break
-            is_selected = visible_selected_index is not None and row_index == visible_selected_index
+        if not picker_mode:
+            visible_rows, visible_selected_index = self._visible_rows_for_page(active_page)
+            row_y = title_y + 18
+            row_height = 20
+            row_gap = 4
+            max_row_bottom = self.display.HEIGHT - 60
+            for row_index, (label, value) in enumerate(visible_rows):
+                row_bottom = row_y + row_height
+                if row_bottom > max_row_bottom:
+                    break
+                is_selected = visible_selected_index is not None and row_index == visible_selected_index
+                rounded_panel(
+                    self.display,
+                    16,
+                    row_y,
+                    self.display.WIDTH - 16,
+                    row_bottom,
+                    fill=SETUP.accent_dim if is_selected else SURFACE_RAISED,
+                    outline=None,
+                    radius=11,
+                )
+                label_text = text_fit(self.display, label, 92, 10)
+                value_text = text_fit(self.display, value, self.display.WIDTH - 130, 12)
+                self.display.text(
+                    label_text,
+                    26,
+                    row_y + 5,
+                    color=SETUP.accent if is_selected else MUTED,
+                    font_size=10,
+                )
+                value_width, _ = self.display.get_text_size(value_text, 12)
+                self.display.text(
+                    value_text,
+                    self.display.WIDTH - value_width - 26,
+                    row_y + 4,
+                    color=INK,
+                    font_size=12,
+                )
+                row_y += row_height + row_gap
+        else:
+            panel_top = title_y + 20
+            panel_bottom = self.display.HEIGHT - 60
             rounded_panel(
                 self.display,
-                16,
-                row_y,
-                self.display.WIDTH - 16,
-                row_bottom,
-                fill=SETUP.accent_dim if is_selected else SURFACE_RAISED,
+                12,
+                panel_top,
+                self.display.WIDTH - 12,
+                panel_bottom,
+                fill=(30, 34, 41),
                 outline=None,
-                radius=11,
+                radius=24,
             )
-            label_text = text_fit(self.display, label, 92, 10)
-            value_text = text_fit(self.display, value, self.display.WIDTH - 130, 12)
-            self.display.text(
-                label_text,
-                26,
-                row_y + 5,
-                color=SETUP.accent if is_selected else MUTED,
-                font_size=10,
-            )
-            value_width, _ = self.display.get_text_size(value_text, 12)
-            self.display.text(
-                value_text,
-                self.display.WIDTH - value_width - 26,
-                row_y + 4,
-                color=INK,
-                font_size=12,
-            )
-            row_y += row_height + row_gap
+
+            item_height = 40
+            row_top = panel_top + 10
+            row_bottom = panel_bottom - 8
+            available = max(0, row_bottom - row_top)
+            max_visible = max(1, min(len(pages), available // item_height))
+
+            for offset, (index, page) in enumerate(
+                self._visible_picker_pages(pages, max_items=max_visible)
+            ):
+                title = page.title
+                subtitle = self._page_subtitle(page.title)
+                icon = self._page_icon_key(page.title)
+                y1 = row_top + (offset * item_height)
+                y2 = y1 + (item_height - 4)
+                selected = index == self.page_index
+                rounded_panel(
+                    self.display,
+                    16,
+                    y1,
+                    self.display.WIDTH - 16,
+                    y2,
+                    fill=(250, 250, 250) if selected else SURFACE_RAISED,
+                    outline=None,
+                    radius=14,
+                )
+
+                icon_color = SETUP.accent if selected else MUTED
+                draw_icon(self.display, icon, 26, y1 + 8, 16, icon_color)
+                title_color = (30, 34, 41) if selected else INK
+                subtitle_color = (90, 96, 108) if selected else MUTED
+                self.display.text(title, 48, y1 + 6, color=title_color, font_size=14)
+                self.display.text(
+                    text_fit(self.display, subtitle, self.display.WIDTH - 90, 11),
+                    48,
+                    y1 + 22,
+                    color=subtitle_color,
+                    font_size=11,
+                )
 
         self._render_page_dots(total_pages=len(pages))
 
@@ -226,6 +293,39 @@ class PowerScreen(Screen):
         if title == "GPS":
             return "care"
         return "care"
+
+    @staticmethod
+    def _page_subtitle(title: str) -> str:
+        """Return the short subtitle shown in the Setup page picker."""
+
+        if title == "Power":
+            return "Battery and charging"
+        if title == "Network":
+            return "Cellular status"
+        if title == "GPS":
+            return "Location fix"
+        if title == "Time":
+            return "RTC and alarms"
+        if title == "Care":
+            return "Screen and watchdog"
+        if title == "Voice":
+            return "Commands and audio"
+        return ""
+
+    def _visible_picker_pages(
+        self,
+        pages: list[PowerPage],
+        *,
+        max_items: int,
+    ) -> list[tuple[int, PowerPage]]:
+        """Return the visible page-picker window around the current page."""
+
+        if not pages:
+            return []
+
+        max_items = max(1, min(max_items, len(pages)))
+        start_index = max(0, min(self.page_index - (max_items // 2), len(pages) - max_items))
+        return [(start_index + offset, pages[start_index + offset]) for offset in range(max_items)]
 
     def _visible_rows_for_page(
         self,
@@ -331,9 +431,19 @@ class PowerScreen(Screen):
                 ("Voice Cmds", "Unknown"),
                 ("AI Requests", "Unknown"),
                 ("Screen Read", "Unknown"),
+                ("Speaker", "Auto"),
+                ("Mic Device", "Auto"),
                 ("Mic", "Unknown"),
                 ("Volume", "--"),
             ]
+            if summary_mode:
+                return [
+                    ("Voice Cmds", "Unknown"),
+                    ("AI Requests", "Unknown"),
+                    ("Screen Read", "Unknown"),
+                    ("Mic", "Unknown"),
+                    ("Volume", "--"),
+                ]
             return rows
 
         voice = self.context.voice
@@ -341,11 +451,19 @@ class PowerScreen(Screen):
             ("Voice Cmds", "On" if voice.commands_enabled else "Off"),
             ("AI Requests", "On" if voice.ai_requests_enabled else "Off"),
             ("Screen Read", "On" if voice.screen_read_enabled else "Off"),
+            ("Speaker", format_device_label(voice.speaker_device_id)),
+            ("Mic Device", format_device_label(voice.capture_device_id)),
             ("Mic", "Muted" if voice.mic_muted else "Live"),
             ("Volume", f"{voice.output_volume}%"),
         ]
         if summary_mode:
-            return rows
+            return [
+                ("Voice Cmds", rows[0][1]),
+                ("AI Requests", rows[1][1]),
+                ("Screen Read", rows[2][1]),
+                ("Mic", rows[5][1]),
+                ("Volume", rows[6][1]),
+            ]
         return rows
 
     def _build_network_rows(self) -> list[tuple[str, str]]:
@@ -628,11 +746,15 @@ class PowerScreen(Screen):
     def _instruction_text(self, page: PowerPage) -> str:
         """Return footer hints for the current page."""
 
+        if self.is_one_button_mode():
+            return "Tap page / Hold back"
+
+        if not self.in_detail:
+            return "A open | B back | X/Y move"
+
         if page.interactive:
-            if self.is_one_button_mode():
-                return "Tap next / 2x change / Hold back"
             return "A change | B back | X/Y item | L/R page"
-        return "Tap page / Hold back" if self.is_one_button_mode() else "A page | B back | X/Y page"
+        return "A page | B back | X/Y page"
 
     def prefers_simple_one_button_navigation(self) -> bool:
         """Use fast page-to-page taps on Whisplay Setup screens."""
@@ -658,7 +780,7 @@ class PowerScreen(Screen):
     def _is_voice_page(self) -> bool:
         """Return True when the interactive voice settings page is active."""
 
-        return self._active_page().interactive
+        return self.in_detail and self._active_page().interactive
 
     def _select_next_row(self) -> None:
         """Move to the next row inside an interactive page."""
@@ -697,6 +819,12 @@ class PowerScreen(Screen):
             )
             return
         if row_index == 3:
+            self._cycle_speaker_device(direction)
+            return
+        if row_index == 4:
+            self._cycle_capture_device(direction)
+            return
+        if row_index == 5:
             self._apply_mic_state(not self.context.voice.mic_muted)
             return
         current = None
@@ -710,6 +838,61 @@ class PowerScreen(Screen):
             return
         self._sync_context_output_volume(current)
 
+    def _playback_device_options(self) -> list[str | None]:
+        """Return selectable playback options, with None representing Auto."""
+
+        devices = []
+        if self.playback_device_options_provider is not None:
+            devices = list(self.playback_device_options_provider())
+        return [None, *devices]
+
+    def _capture_device_options(self) -> list[str | None]:
+        """Return selectable capture options, with None representing Auto."""
+
+        devices = []
+        if self.capture_device_options_provider is not None:
+            devices = list(self.capture_device_options_provider())
+        return [None, *devices]
+
+    @staticmethod
+    def _cycle_option(
+        options: list[str | None],
+        current: str | None,
+        direction: int,
+    ) -> str | None:
+        if not options:
+            return current
+        try:
+            index = options.index(current)
+        except ValueError:
+            index = 0
+        next_index = (index + (1 if direction >= 0 else -1)) % len(options)
+        return options[next_index]
+
+    def _cycle_speaker_device(self, direction: int) -> None:
+        if self.context is None:
+            return
+        next_device = self._cycle_option(
+            self._playback_device_options(),
+            self.context.voice.speaker_device_id,
+            direction,
+        )
+        self.context.configure_voice(speaker_device_id=next_device)
+        if self.persist_speaker_device_action is not None:
+            self.persist_speaker_device_action(next_device)
+
+    def _cycle_capture_device(self, direction: int) -> None:
+        if self.context is None:
+            return
+        next_device = self._cycle_option(
+            self._capture_device_options(),
+            self.context.voice.capture_device_id,
+            direction,
+        )
+        self.context.configure_voice(capture_device_id=next_device)
+        if self.persist_capture_device_action is not None:
+            self.persist_capture_device_action(next_device)
+
     def _next_page(self) -> None:
         """Advance to the next page with wraparound."""
         self.page_index = (self.page_index + 1) % len(self._active_pages())
@@ -722,20 +905,34 @@ class PowerScreen(Screen):
 
     def on_advance(self, data=None) -> None:
         """Single-button tap cycles pages."""
+        if self.is_one_button_mode():
+            self._next_page()
+            return
+        if not self.in_detail:
+            self._next_page()
+            return
         if self._is_voice_page():
-            if self.is_one_button_mode():
-                page = self._active_page()
-                if self.selected_row >= len(page.rows) - 1:
-                    self._next_page()
-                else:
-                    self._select_next_row()
+            # Voice is an interactive list; wrap within the page instead of
+            # "falling through" into Power/Time/Care.
+            page = self._active_page()
+            if not page.rows:
                 return
-            self._select_next_row()
+            if self.selected_row >= len(page.rows) - 1:
+                self.selected_row = 0
+            else:
+                self._select_next_row()
             return
         self._next_page()
 
     def on_select(self, data=None) -> None:
-        """Select also cycles pages."""
+        """Open the selected page, or adjust interactive settings in detail mode."""
+        if self.is_one_button_mode():
+            self._next_page()
+            return
+        if not self.in_detail:
+            self.in_detail = True
+            self.selected_row = 0
+            return
         if self._is_voice_page():
             self._apply_voice_setting(+1)
             return
@@ -743,24 +940,52 @@ class PowerScreen(Screen):
 
     def on_back(self, data=None) -> None:
         """Return to the previous screen."""
+        if self.is_one_button_mode():
+            self.request_route("back")
+            return
+        if self.in_detail:
+            self.in_detail = False
+            self.selected_row = 0
+            return
         self.request_route("back")
 
     def on_up(self, data=None) -> None:
         """Up goes to the previous page."""
+        if not self.in_detail:
+            self._previous_page()
+            return
         if self._is_voice_page():
-            self._select_previous_row()
+            page = self._active_page()
+            if not page.rows:
+                return
+            if self.selected_row == 0:
+                self.selected_row = len(page.rows) - 1
+            else:
+                self._select_previous_row()
             return
         self._previous_page()
 
     def on_down(self, data=None) -> None:
         """Down goes to the next page."""
+        if not self.in_detail:
+            self._next_page()
+            return
         if self._is_voice_page():
-            self._select_next_row()
+            page = self._active_page()
+            if not page.rows:
+                return
+            if self.selected_row >= len(page.rows) - 1:
+                self.selected_row = 0
+            else:
+                self._select_next_row()
             return
         self._next_page()
 
     def on_left(self, data=None) -> None:
         """Left goes to the previous page."""
+        if not self.in_detail:
+            self._previous_page()
+            return
         if self._is_voice_page():
             self._apply_voice_setting(-1)
             return
@@ -768,6 +993,9 @@ class PowerScreen(Screen):
 
     def on_right(self, data=None) -> None:
         """Right goes to the next page."""
+        if not self.in_detail:
+            self._next_page()
+            return
         if self._is_voice_page():
             self._apply_voice_setting(+1)
             return

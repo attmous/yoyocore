@@ -80,8 +80,10 @@ def test_power_screen_builds_battery_and_runtime_pages() -> None:
         assert ("Timeout", "30s") in pages[2].rows
         assert ("Watchdog", "Active") in pages[2].rows
         assert ("Voice Cmds", "On") in pages[3].rows
+        assert ("Speaker", "Auto") in pages[3].rows
+        assert ("Mic Device", "Auto") in pages[3].rows
         assert ("Mic", "Live") in pages[3].rows
-        assert all(len(page.rows) <= 5 for page in pages)
+        assert all(len(page.rows) <= 7 for page in pages)
     finally:
         display.cleanup()
 
@@ -144,6 +146,8 @@ def test_power_screen_voice_page_toggles_runtime_voice_settings() -> None:
         )
 
         screen.page_index = 3
+        screen.on_select()
+        assert screen.in_detail is True
         assert screen._is_voice_page() is True
 
         screen.on_select()
@@ -157,6 +161,8 @@ def test_power_screen_voice_page_toggles_runtime_voice_settings() -> None:
         screen.on_select()
         assert context.voice.screen_read_enabled is True
 
+        screen.on_advance()
+        screen.on_advance()
         screen.on_advance()
         screen.on_select()
         assert context.voice.mic_muted is True
@@ -211,5 +217,53 @@ def test_power_screen_one_button_voice_page_stays_in_fast_page_mode() -> None:
         assert screen.page_index == 0
         assert screen.selected_row == 0
         assert screen._active_page().title == "Power"
+    finally:
+        display.cleanup()
+
+
+def test_power_screen_uses_injected_voice_device_hooks() -> None:
+    """Setup should use injected device providers and persistence hooks."""
+
+    display = Display(simulate=True)
+    try:
+        context = AppContext()
+        refresh_calls: list[str] = []
+        persisted_devices: list[tuple[str, str | None]] = []
+
+        screen = PowerScreen(
+            display,
+            context,
+            power_manager=StubPowerManager(_snapshot()),
+            status_provider=lambda: {},
+            refresh_voice_device_options_action=lambda: refresh_calls.append("refresh"),
+            playback_device_options_provider=lambda: ["plughw:CARD=wm8960soundcard,DEV=0"],
+            capture_device_options_provider=lambda: ["plughw:CARD=USB,DEV=0"],
+            persist_speaker_device_action=(
+                lambda device_id: persisted_devices.append(("speaker", device_id)) or True
+            ),
+            persist_capture_device_action=(
+                lambda device_id: persisted_devices.append(("capture", device_id)) or True
+            ),
+        )
+
+        screen.enter()
+        assert refresh_calls == ["refresh"]
+
+        screen.page_index = 3
+        screen.on_select()
+        assert screen.in_detail is True
+
+        screen.selected_row = 3
+        screen.on_select()
+        assert context.voice.speaker_device_id == "plughw:CARD=wm8960soundcard,DEV=0"
+
+        screen.selected_row = 4
+        screen.on_select()
+        assert context.voice.capture_device_id == "plughw:CARD=USB,DEV=0"
+
+        assert persisted_devices == [
+            ("speaker", "plughw:CARD=wm8960soundcard,DEV=0"),
+            ("capture", "plughw:CARD=USB,DEV=0"),
+        ]
     finally:
         display.cleanup()

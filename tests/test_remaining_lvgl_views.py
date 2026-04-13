@@ -492,12 +492,12 @@ def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> No
 
 
 def test_power_screen_cycles_four_lvgl_pages() -> None:
-    """PowerScreen should expose all four Setup pages through LVGL."""
+    """PowerScreen should use the picker/detail Setup flow on standard controls."""
 
     binding = FakeLvglBinding()
     screen = PowerScreen(
         FakeLvglDisplay(binding),
-        make_one_button_context(),
+        AppContext(),
         power_manager=None,
         status_provider=lambda: {
             "app_uptime_seconds": 99,
@@ -520,46 +520,69 @@ def test_power_screen_cycles_four_lvgl_pages() -> None:
 
     assert binding.power_build_calls == 1
     payload = binding.power_sync_payloads[-1]
-    assert payload["title_text"] == "Power"
+    assert payload["title_text"] == "Setup"
     assert payload["page_text"] is None
     assert payload["icon_key"] == "battery"
     assert payload["current_page_index"] == 0
     assert payload["total_pages"] == 4
-    assert payload["footer"] == "Tap page / Hold back"
+    assert payload["footer"] == "A open | B back | X/Y move"
     assert payload["items"] == [
-        "Source: Unavailable",
-        "Battery: Unknown",
-        "Charging: Unknown",
-        "RTC: Unknown",
+        "> Power",
+        "Time",
+        "Care",
+        "Voice",
     ]
 
     screen.on_advance()
     screen.render()
-    assert binding.power_sync_payloads[-1]["title_text"] == "Time"
+    payload = binding.power_sync_payloads[-1]
+    assert payload["title_text"] == "Setup"
+    assert payload["icon_key"] == "clock"
+    assert payload["items"] == [
+        "Power",
+        "> Time",
+        "Care",
+        "Voice",
+    ]
     assert binding.power_sync_payloads[-1]["icon_key"] == "clock"
     assert binding.power_sync_payloads[-1]["page_text"] is None
 
     screen.on_advance()
     screen.render()
     payload = binding.power_sync_payloads[-1]
-    assert payload["title_text"] == "Care"
+    assert payload["title_text"] == "Setup"
     assert payload["icon_key"] == "care"
     assert payload["page_text"] is None
+    assert payload["items"] == [
+        "Power",
+        "Time",
+        "> Care",
+        "Voice",
+    ]
 
     screen.on_advance()
+    screen.render()
+    payload = binding.power_sync_payloads[-1]
+    assert payload["title_text"] == "Setup"
+    assert payload["icon_key"] == "voice_note"
+    assert payload["page_text"] is None
+    assert payload["items"] == [
+        "Power",
+        "Time",
+        "Care",
+        "> Voice",
+    ]
+
+    # Open the selected Voice page to confirm it renders interactively.
+    screen.on_select()
     screen.render()
     payload = binding.power_sync_payloads[-1]
     assert payload["title_text"] == "Voice"
     assert payload["icon_key"] == "voice_note"
     assert payload["page_text"] is None
-    assert payload["footer"] == "Tap page / Hold back"
-    assert payload["items"] == [
-        "Voice Cmds: On",
-        "AI Requests: On",
-        "Screen Read: Off",
-        "Mic: Live",
-        "Volume: 50%",
-    ]
+    assert payload["footer"] == "A change | B back | X/Y item | L/R page"
+    assert payload["items"][0].startswith("> Voice Cmds:")
+    assert any("Speaker:" in item for item in payload["items"])
 
     screen.exit()
     assert binding.power_destroy_calls == 1
@@ -575,9 +598,9 @@ def test_power_screen_one_button_voice_page_wraps_immediately() -> None:
         power_manager=None,
         status_provider=lambda: {},
     )
-    screen.page_index = 3
 
     screen.enter()
+    screen.page_index = 3
     screen.render()
 
     assert binding.power_sync_payloads[-1]["title_text"] == "Voice"
@@ -630,9 +653,9 @@ def test_power_screen_reports_full_network_page_count_through_lvgl() -> None:
         network_manager=_FakeNetworkManager(),
         status_provider=lambda: {},
     )
-    screen.page_index = 2
 
     screen.enter()
+    screen.page_index = 2
     screen.render()
 
     payload = binding.power_sync_payloads[-1]
