@@ -100,7 +100,7 @@ yoyopod.py / yoyopy.main
 - `yoyopy/audio/music/backend.py`: `MusicBackend`, `MpvBackend`, `MockMusicBackend`
 - `yoyopy/audio/music/process.py`: app-managed mpv process lifecycle
 - `yoyopy/audio/music/ipc.py`: low-level mpv JSON IPC client
-- `yoyopy/audio/music/models.py`: `Track`, `Playlist`, `MusicConfig`
+- `yoyopy/audio/music/models.py`: `Track`, `Playlist`, `PlaybackQueue`, `MusicConfig`
 - `yoyopy/audio/volume.py`: shared ALSA and mpv output-volume coordination
 - `yoyopy/voip/manager.py`: call, message, and voice-note facade
 - `yoyopy/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
@@ -217,6 +217,14 @@ and updates:
 4. callbacks refresh `NowPlayingScreen`
 5. the derived runtime state stays synchronized with actual playback state
 
+Shared music-domain model ownership lives in `yoyopy/audio/music/models.py`. `Track` is the canonical track shape, `Playlist` is the local-library playlist summary, and `PlaybackQueue` is the runtime ordered queue used when the app needs selected-track state.
+
+### 4G / GPS Bringup
+
+1. `NetworkManager` starts the modem backend and initializes the SIM7600 path
+2. successful modem registration publishes typed network events onto the `EventBus`
+3. PPP startup publishes connectivity state used by the UI/runtime status
+4. GPS queries publish fix or no-fix events consumed by the app context and Setup UI
 ### Simulation Mode
 
 1. `Display` chooses `SimulationDisplayAdapter`

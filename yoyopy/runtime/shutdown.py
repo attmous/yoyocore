@@ -97,8 +97,8 @@ class ShutdownLifecycleService:
             track = None
         if track is not None:
             current_track = {
-                "title": track.title,
-                "artist": track.artist,
+                "title": track.name,
+                "artist": track.get_artist_string(),
             }
 
         payload = {
