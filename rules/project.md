@@ -8,7 +8,8 @@ Three display/input modes are supported today: Pimoroni Display HAT Mini, PiSuga
 
 ```bash
 # Install dev dependencies
-uv sync --extra dev
+uv run yoyoctl setup host
+uv run yoyoctl setup verify-host
 
 # Run the app
 python yoyopod.py
@@ -21,6 +22,10 @@ uv run pytest -q tests/test_fsm_runtime.py
 # Code quality
 uv run black .
 uv run ruff check .
+
+# Pi setup and verification
+uv run yoyoctl setup pi
+uv run yoyoctl setup verify-pi
 ```
 
 ## Configuration

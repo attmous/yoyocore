@@ -1,8 +1,8 @@
 # Setup and System Dependency Contract
 
-This document defines what setup is supposed to be repo-owned in YoyoPod Core.
+This document defines the repo-owned setup and verification contract for YoyoPod Core.
 
-Issue [`#87`](https://github.com/moustafattia/YoyoPod_Core/issues/87) tracks turning this into a fully scripted setup flow. Until then, this file is the source of truth for what must be documented, tracked, and eventually automated.
+Issue [`#87`](https://github.com/moustafattia/YoyoPod_Core/issues/87) is the work that turned this from wishful docs into executable commands. This file documents the contract those commands implement.
 
 ## Why this exists
 
@@ -53,13 +53,13 @@ Minimum expectation:
 Current repo-owned bootstrap:
 
 ```bash
-uv sync --extra dev
+uv run yoyoctl setup host
 ```
 
 Current repo-owned validation baseline:
 
 ```bash
-uv run pytest -q
+uv run yoyoctl setup verify-host
 ```
 
 Optional but expected for Pi workflows:
@@ -84,19 +84,22 @@ Current core system packages and services expected by the active stack:
 - `i2c-tools`
 - `pisugar-server` running on PiSugar-based targets
 
-Current manual install shape:
+Current repo-owned bootstrap:
 
 ```bash
-sudo apt install -y mpv ffmpeg liblinphone-dev pkg-config cmake alsa-utils i2c-tools
+uv run yoyoctl setup pi
 ```
 
-For PiSugar-based hardware, make sure `pisugar-server` is installed and running as a system service.
+Feature extras are opt-in:
 
-Then build the native pieces the repo expects:
+- `yoyoctl setup pi --with-voice`
+- `yoyoctl setup pi --with-network`
+- `yoyoctl setup pi --with-pisugar`
+
+Current repo-owned verification:
 
 ```bash
-yoyoctl build liblinphone
-yoyoctl build lvgl
+uv run yoyoctl setup verify-pi
 ```
 
 ### 3. Feature-gated or hardware-specific extras
@@ -146,7 +149,8 @@ The tracked deploy contract must stay generic:
 ### Local developer bringup
 
 ```bash
-uv sync --extra dev
+uv run yoyoctl setup host
+uv run yoyoctl setup verify-host
 python yoyopod.py --simulate
 uv run pytest -q
 ```
@@ -154,10 +158,8 @@ uv run pytest -q
 ### Target Pi bringup
 
 ```bash
-sudo apt install -y mpv ffmpeg liblinphone-dev pkg-config cmake alsa-utils i2c-tools
-uv sync --extra dev
-yoyoctl build liblinphone
-yoyoctl build lvgl
+uv run yoyoctl setup pi
+uv run yoyoctl setup verify-pi
 yoyoctl pi smoke
 yoyoctl pi smoke --with-power --with-rtc
 uv run python yoyopod.py
@@ -167,6 +169,8 @@ uv run python yoyopod.py
 
 ```bash
 yoyoctl remote config show
+uv run yoyoctl remote setup
+uv run yoyoctl remote verify-setup
 yoyoctl remote status
 yoyoctl remote sync --branch main
 yoyoctl remote smoke --with-music --with-voip
@@ -179,9 +183,10 @@ Before treating a failure as an app bug, verify the setup layer first.
 
 Checklist:
 
-- Python deps install cleanly with `uv sync --extra dev`
+- local bootstrap completes with `uv run yoyoctl setup host`
+- local verification passes with `uv run yoyoctl setup verify-host`
 - tracked config files are present under `config/`
-- required system packages are installed on the target Pi
+- required system packages are verified with `uv run yoyoctl setup verify-pi`
 - native shims have been built when the feature requires them
 - `yoyoctl pi smoke` passes for the requested hardware path
 - remote config values come from `deploy/pi-deploy.yaml` plus local overrides, not tribal knowledge
@@ -190,12 +195,8 @@ Checklist:
 
 This repo is still missing some setup hardening that a foundation-grade repo should have:
 
-- one canonical bootstrap command for host setup
-- one canonical bootstrap command for target Pi setup
-- an executable verifier for required system packages and native artifacts
-- CI enforcement for the broader quality commands the team expects locally
-- a cleaner split between core-required and optional feature packages in executable setup flows
+- provisioning of non-apt assets such as Vosk model downloads under `models/`
+- board- and modem-specific device-permission setup for every bringup variant
+- portability beyond the current Debian-based Raspberry Pi package flow
 
-That is the remaining work in issue `#87`.
-
-This document is here so the contract is explicit before the scripts are finished.
+The contract is now executable, but those remaining edges are still real.

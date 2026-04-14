@@ -21,7 +21,8 @@ Treat plan docs and checklists as supporting context unless they explicitly stat
 ## Python Environment
 
 ```bash
-uv sync --extra dev
+uv run yoyoctl setup host
+uv run yoyoctl setup verify-host
 ```
 
 ## System Dependencies
@@ -50,9 +51,8 @@ Feature-gated extras are documented there too, including:
 Example:
 
 ```bash
-sudo apt install -y mpv ffmpeg liblinphone-dev pkg-config cmake alsa-utils i2c-tools
-yoyoctl build liblinphone
-yoyoctl build lvgl
+uv run yoyoctl setup pi
+uv run yoyoctl setup verify-pi
 ```
 
 For PiSugar-based hardware, make sure `pisugar-server` is installed and running too.
@@ -135,6 +135,8 @@ Preferred remote helper:
 
 ```bash
 yoyoctl remote config show
+uv run yoyoctl remote setup
+uv run yoyoctl remote verify-setup
 yoyoctl remote status
 yoyoctl remote preflight --branch main --with-music --with-voip --with-lvgl-soak
 yoyoctl remote sync --branch main

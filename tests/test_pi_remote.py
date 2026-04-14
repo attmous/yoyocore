@@ -31,6 +31,7 @@ from yoyopy.cli.remote.infra import (
     build_service_command,
 )
 from yoyopy.cli.remote.lvgl import build_lvgl_soak_command
+from yoyopy.cli.remote.setup import build_setup_command, build_verify_setup_command
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -74,7 +75,7 @@ def test_load_pi_deploy_config_merges_local_override(tmp_path) -> None:
         "\n".join(
             [
                 'host: ""',
-                "user: \"\"",
+                'user: ""',
                 f"project_dir: {DEFAULT_PROJECT_DIR}",
                 "branch: main",
                 "venv: .venv",
@@ -290,8 +291,8 @@ def test_build_archive_sync_extract_command_targets_remote_project_dir() -> None
 
     assert "python - <<'PY'" in command
     assert "Path(os.path.expanduser('~/YoyoPod_Core')).resolve()" in command
-    assert 'payload = json.load(handle)' in command
-    assert 'archive.extractall(project_dir)' in command
+    assert "payload = json.load(handle)" in command
+    assert "archive.extractall(project_dir)" in command
 
 
 def test_build_smoke_command_adds_optional_checks() -> None:
@@ -384,6 +385,42 @@ def test_build_power_command_supports_verbose_status() -> None:
     assert command == "uv run yoyoctl pi power battery --verbose"
 
 
+def test_build_setup_command_supports_feature_flags_and_dry_run() -> None:
+    """Remote setup wrapper should invoke the repo-owned Pi bootstrap command."""
+
+    command = build_setup_command(
+        with_voice=True,
+        with_network=True,
+        with_pisugar=True,
+        skip_uv_sync=True,
+        skip_builds=True,
+        dry_run=True,
+    )
+
+    assert command.startswith("uv run yoyoctl setup pi")
+    assert "--with-voice" in command
+    assert "--with-network" in command
+    assert "--with-pisugar" in command
+    assert "--skip-uv-sync" in command
+    assert "--skip-builds" in command
+    assert "--dry-run" in command
+
+
+def test_build_verify_setup_command_supports_feature_flags() -> None:
+    """Remote setup verifier should reuse the repo-owned Pi verification command."""
+
+    command = build_verify_setup_command(
+        with_voice=True,
+        with_network=False,
+        with_pisugar=True,
+    )
+
+    assert command.startswith("uv run yoyoctl setup verify-pi")
+    assert "--with-voice" in command
+    assert "--with-pisugar" in command
+    assert "--with-network" not in command
+
+
 def test_build_lvgl_soak_command_supports_cycles_and_sleep_toggle() -> None:
     """LVGL soak helper should forward the relevant duration flags."""
 
@@ -419,7 +456,10 @@ def test_build_restart_command_reuses_pid_and_startup_contract() -> None:
 
     assert "'yoyoctl', 'build', 'lvgl'" in command
     assert "'yoyoctl', 'build', 'liblinphone'" in command
-    assert 'if systemctl cat yoyopod@"$(id -un)".service >/dev/null 2>&1; then sudo systemctl stop yoyopod@"$(id -un)".service >/dev/null 2>&1 || true;' in command
+    assert (
+        'if systemctl cat yoyopod@"$(id -un)".service >/dev/null 2>&1; then sudo systemctl stop yoyopod@"$(id -un)".service >/dev/null 2>&1 || true;'
+        in command
+    )
     assert 'sudo systemctl start yoyopod@"$(id -un)".service;' in command
     assert "rm -f /tmp/yoyopod.pid" in command
     assert "killall -9 python" in command
@@ -547,6 +587,6 @@ def test_build_startup_verification_command_checks_pid_and_marker() -> None:
     command = build_startup_verification_command(DEPLOY_CONFIG, attempts=3)
 
     assert "test -f /tmp/yoyopod.pid" in command
-    assert "kill -0 \"$pid\"" in command
+    assert 'kill -0 "$pid"' in command
     assert "grep -F 'YoyoPod starting' logs/yoyopod.log" in command
-    assert "grep -F \"pid=$pid\"" in command
+    assert 'grep -F "pid=$pid"' in command

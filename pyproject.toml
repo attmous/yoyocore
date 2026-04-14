@@ -33,6 +33,7 @@ dependencies = [
     "pynput>=1.7.0",
     "tinytag>=2.2.1",
     "pyserial>=3.5",
+    "typer>=0.12.0",
 ]
 
 [project.optional-dependencies]
@@ -42,7 +43,6 @@ dev = [
     "black>=24.0.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
-    "typer>=0.12.0",
 ]
 
 [project.scripts]

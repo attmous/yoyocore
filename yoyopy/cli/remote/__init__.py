@@ -6,7 +6,19 @@ import typer
 
 from yoyopy.cli.remote.infra import config, power, service
 from yoyopy.cli.remote.lvgl import lvgl_soak
-from yoyopy.cli.remote.ops import logs, preflight, restart, rsync, rtc, screenshot, smoke, status, sync, whisplay
+from yoyopy.cli.remote.ops import (
+    logs,
+    preflight,
+    restart,
+    rsync,
+    rtc,
+    screenshot,
+    smoke,
+    status,
+    sync,
+    whisplay,
+)
+from yoyopy.cli.remote.setup import setup, verify_setup
 
 remote_app = typer.Typer(
     name="remote",
@@ -28,3 +40,5 @@ remote_app.command()(whisplay)
 remote_app.command()(rtc)
 remote_app.command()(config)
 remote_app.command()(service)
+remote_app.command()(setup)
+remote_app.command(name="verify-setup")(verify_setup)
