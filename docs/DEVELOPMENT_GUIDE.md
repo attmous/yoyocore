@@ -117,8 +117,17 @@ Local validation:
 
 ```bash
 python -m compileall yoyopy tests demos scripts
+uv run python scripts/quality.py gate
 uv run pytest -q
 ```
+
+Full quality audit of the current repo debt:
+
+```bash
+uv run python scripts/quality.py audit
+```
+
+The staged gate contract and exact target set live in [`QUALITY_GATES.md`](QUALITY_GATES.md).
 
 Pi smoke:
 
