@@ -19,14 +19,20 @@ python yoyopod.py --simulate
 uv run pytest -q
 uv run pytest -q tests/test_fsm_runtime.py
 
-# Code quality
-uv run black .
-uv run ruff check .
+# Repo-owned code quality gate
+uv run python scripts/quality.py gate
 
-# Pi setup and verification
+# Full quality debt audit
+uv run python scripts/quality.py audit
+
+# Baseline Pi setup contract
 uv run yoyoctl setup pi
 uv run yoyoctl setup verify-pi
 ```
+
+`yoyoctl setup *` is the baseline executable contract, not the finished setup story.
+It does not yet provision non-apt assets like Vosk models, validate every native
+artifact deeply, or cover every board/modem-specific edge.
 
 ## Configuration
 

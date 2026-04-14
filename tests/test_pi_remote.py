@@ -1,6 +1,9 @@
 """Tests for Raspberry Pi remote workflow helpers."""
 
+import yaml
+
 from yoyopy.cli.remote.ops import (
+    DEPLOY_CONFIG_PATH,
     PiDeployConfig,
     RemoteConfig,
     build_archive_sync_extract_command,
@@ -36,7 +39,15 @@ from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
 
-DEFAULT_PROJECT_DIR = "~/YoyoPod_Core"
+
+def _tracked_project_dir() -> str:
+    """Read the repo-owned default project dir from the tracked deploy contract."""
+
+    payload = yaml.safe_load(DEPLOY_CONFIG_PATH.read_text(encoding="utf-8"))
+    return str(payload["project_dir"])
+
+
+DEFAULT_PROJECT_DIR = _tracked_project_dir()
 
 DEPLOY_CONFIG = PiDeployConfig(
     host="rpi-zero",
@@ -58,7 +69,7 @@ DEPLOY_CONFIG = PiDeployConfig(
 def test_quote_remote_project_dir_preserves_home_expansion() -> None:
     """Tilde-based project paths should still expand on the remote shell."""
     assert quote_remote_project_dir("~") == '"$HOME"'
-    assert quote_remote_project_dir(DEFAULT_PROJECT_DIR) == '"$HOME/YoyoPod_Core"'
+    assert quote_remote_project_dir(DEFAULT_PROJECT_DIR) == f'"$HOME/{DEFAULT_PROJECT_DIR[2:]}"'
 
 
 def test_quote_remote_project_dir_quotes_plain_paths() -> None:
@@ -159,7 +170,7 @@ def test_build_rsync_command_uses_excludes_and_remote_target() -> None:
     command = build_rsync_command(config, DEPLOY_CONFIG)
 
     assert command[:3] == ["rsync", "-avz", "--delete"]
-    assert command[-2:] == ["./", "pi@rpi-zero:~/YoyoPod_Core/"]
+    assert command[-2:] == ["./", f"pi@rpi-zero:{DEFAULT_PROJECT_DIR}/"]
     assert "--exclude" in command
     assert ".git/" in command
     assert "logs/" in command
@@ -290,7 +301,7 @@ def test_build_archive_sync_extract_command_targets_remote_project_dir() -> None
     )
 
     assert "python - <<'PY'" in command
-    assert "Path(os.path.expanduser('~/YoyoPod_Core')).resolve()" in command
+    assert f"Path(os.path.expanduser('{DEFAULT_PROJECT_DIR}')).resolve()" in command
     assert "payload = json.load(handle)" in command
     assert "archive.extractall(project_dir)" in command
 
@@ -397,7 +408,7 @@ def test_build_setup_command_supports_feature_flags_and_dry_run() -> None:
         dry_run=True,
     )
 
-    assert command.startswith("uv run yoyoctl setup pi")
+    assert command.startswith('export PATH="$HOME/.local/bin:$PATH"; uv run yoyoctl setup pi')
     assert "--with-voice" in command
     assert "--with-network" in command
     assert "--with-pisugar" in command
@@ -415,7 +426,9 @@ def test_build_verify_setup_command_supports_feature_flags() -> None:
         with_pisugar=True,
     )
 
-    assert command.startswith("uv run yoyoctl setup verify-pi")
+    assert command.startswith(
+        'export PATH="$HOME/.local/bin:$PATH"; uv run yoyoctl setup verify-pi'
+    )
     assert "--with-voice" in command
     assert "--with-pisugar" in command
     assert "--with-network" not in command

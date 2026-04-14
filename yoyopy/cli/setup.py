@@ -17,7 +17,7 @@ from yoyopy.cli.common import REPO_ROOT
 
 setup_app = typer.Typer(
     name="setup",
-    help="Repo-owned host and Raspberry Pi setup commands.",
+    help="Baseline repo-owned host and Raspberry Pi setup commands.",
     no_args_is_help=True,
 )
 
@@ -271,7 +271,7 @@ def host(
         bool, typer.Option("--dry-run", help="Print the planned commands without executing them.")
     ] = False,
 ) -> None:
-    """Bootstrap the local developer environment from the repo contract."""
+    """Bootstrap the baseline local developer environment from the repo contract."""
 
     exit_code = _run_setup_commands(build_host_setup_commands(skip_sync=skip_sync), dry_run=dry_run)
     if exit_code != 0:
@@ -299,7 +299,7 @@ def pi(
         bool, typer.Option("--dry-run", help="Print the planned commands without executing them.")
     ] = False,
 ) -> None:
-    """Bootstrap a target Raspberry Pi from the repo contract."""
+    """Bootstrap a target Raspberry Pi using the baseline repo-owned contract."""
 
     exit_code = _run_setup_commands(
         build_pi_setup_commands(
@@ -328,7 +328,7 @@ def verify_host(
         bool, typer.Option("--with-github", help="Require the `gh` CLI.")
     ] = False,
 ) -> None:
-    """Verify the local developer-machine setup contract."""
+    """Verify the baseline local developer-machine setup contract."""
 
     exit_code = _report_checks(
         collect_host_setup_checks(
@@ -352,7 +352,7 @@ def verify_pi(
         bool, typer.Option("--with-pisugar", help="Require PiSugar-specific packages and service.")
     ] = False,
 ) -> None:
-    """Verify Raspberry Pi setup and dependency state."""
+    """Verify baseline Raspberry Pi setup and dependency state."""
 
     exit_code = _report_checks(
         collect_pi_setup_checks(

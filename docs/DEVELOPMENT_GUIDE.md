@@ -25,6 +25,9 @@ uv run yoyoctl setup host
 uv run yoyoctl setup verify-host
 ```
 
+These commands define the baseline executable setup contract. They do not yet
+cover non-apt assets like Vosk models or every board/modem-specific setup edge.
+
 ## System Dependencies
 
 The current repo-owned setup contract lives in [`SETUP_CONTRACT.md`](SETUP_CONTRACT.md).
@@ -54,6 +57,9 @@ Example:
 uv run yoyoctl setup pi
 uv run yoyoctl setup verify-pi
 ```
+
+Treat those commands as the baseline package/build verifier, not proof that all
+feature assets and hardware-specific setup are complete.
 
 For PiSugar-based hardware, make sure `pisugar-server` is installed and running too.
 
@@ -117,8 +123,17 @@ Local validation:
 
 ```bash
 python -m compileall yoyopy tests demos scripts
+uv run python scripts/quality.py gate
 uv run pytest -q
 ```
+
+Full quality audit of the current repo debt:
+
+```bash
+uv run python scripts/quality.py audit
+```
+
+The staged gate contract and exact target set live in [`QUALITY_GATES.md`](QUALITY_GATES.md).
 
 Pi smoke:
 
@@ -144,6 +159,9 @@ yoyoctl remote smoke --with-music --with-voip
 yoyoctl remote service status
 yoyoctl remote logs --lines 200
 ```
+
+That remote flow mirrors the same baseline contract. You still need feature-specific
+follow-through for assets like Vosk models and for unusual board/modem bringup.
 
 The detailed deploy and validation flows live in:
 

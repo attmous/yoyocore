@@ -5,12 +5,13 @@ from types import SimpleNamespace
 import yoyopy.main as main_module
 
 
-def test_configure_logger_uses_shared_utility(monkeypatch) -> None:
+def test_configure_logger_uses_shared_utility(monkeypatch, tmp_path) -> None:
     """Keep the app entrypoint aligned with the shared logging helper."""
 
     fake_settings = SimpleNamespace(logging=object())
     fake_runtime = object()
     calls = []
+    fake_base_dir = tmp_path / "checkout-with-any-name"
 
     def fake_load_app_settings(config_dir: str) -> object:
         assert config_dir == "config"
@@ -18,14 +19,17 @@ def test_configure_logger_uses_shared_utility(monkeypatch) -> None:
 
     def fake_build_logging_runtime_config(settings, *, base_dir):
         assert settings is fake_settings.logging
-        assert base_dir == Path.cwd()
-        assert (base_dir / "pyproject.toml").exists()
-        assert (base_dir / "yoyopod.py").exists()
+        assert base_dir == fake_base_dir
         return fake_runtime
 
     def fake_init_logger(**kwargs) -> None:
         calls.append(kwargs)
         return fake_runtime
+
+    class FakePath:
+        @staticmethod
+        def cwd() -> Path:
+            return fake_base_dir
 
     monkeypatch.setattr(main_module, "load_app_settings", fake_load_app_settings)
     monkeypatch.setattr(
@@ -34,6 +38,7 @@ def test_configure_logger_uses_shared_utility(monkeypatch) -> None:
         fake_build_logging_runtime_config,
     )
     monkeypatch.setattr(main_module, "init_logger", fake_init_logger)
+    monkeypatch.setattr(main_module, "Path", FakePath)
 
     runtime = main_module.configure_logger()
 

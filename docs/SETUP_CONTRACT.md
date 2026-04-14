@@ -1,6 +1,6 @@
 # Setup and System Dependency Contract
 
-This document defines the repo-owned setup and verification contract for YoyoPod Core.
+This document defines the baseline repo-owned setup and verification contract for YoyoPod Core.
 
 Issue [`#87`](https://github.com/moustafattia/YoyoPod_Core/issues/87) is the work that turned this from wishful docs into executable commands. This file documents the contract those commands implement.
 
@@ -50,11 +50,14 @@ Minimum expectation:
 - `uv`
 - Git
 
-Current repo-owned bootstrap:
+Current repo-owned bootstrap baseline:
 
 ```bash
 uv run yoyoctl setup host
 ```
+
+This is the executable baseline, not full setup ownership. It does not provision
+non-apt assets like Vosk models or cover every board-specific edge.
 
 Current repo-owned validation baseline:
 
@@ -84,11 +87,14 @@ Current core system packages and services expected by the active stack:
 - `i2c-tools`
 - `pisugar-server` running on PiSugar-based targets
 
-Current repo-owned bootstrap:
+Current repo-owned bootstrap baseline:
 
 ```bash
 uv run yoyoctl setup pi
 ```
+
+This bootstraps the baseline package/build contract only. It does not yet solve
+Vosk model provisioning, board/modem permissions, or non-Debian portability.
 
 Feature extras are opt-in:
 
@@ -96,11 +102,14 @@ Feature extras are opt-in:
 - `yoyoctl setup pi --with-network`
 - `yoyoctl setup pi --with-pisugar`
 
-Current repo-owned verification:
+Current repo-owned verification baseline:
 
 ```bash
 uv run yoyoctl setup verify-pi
 ```
+
+This verifies presence and basic build state. It does not perform deeper
+artifact health checks for every native/runtime dependency.
 
 ### 3. Feature-gated or hardware-specific extras
 
@@ -146,7 +155,7 @@ The tracked deploy contract must stay generic:
 
 ## Current bringup contract
 
-### Local developer bringup
+### Local developer bringup baseline
 
 ```bash
 uv run yoyoctl setup host
@@ -155,7 +164,10 @@ python yoyopod.py --simulate
 uv run pytest -q
 ```
 
-### Target Pi bringup
+This is the minimum executable contract for contributors. Feature assets and
+hardware-specific extras still need follow-through when the feature requires them.
+
+### Target Pi bringup baseline
 
 ```bash
 uv run yoyoctl setup pi
@@ -165,7 +177,10 @@ yoyoctl pi smoke --with-power --with-rtc
 uv run python yoyopod.py
 ```
 
-### Remote Pi workflow
+This does not yet provision non-apt assets such as Vosk models or encode every
+board/modem-specific permission step.
+
+### Remote Pi workflow baseline
 
 ```bash
 yoyoctl remote config show
@@ -176,6 +191,9 @@ yoyoctl remote sync --branch main
 yoyoctl remote smoke --with-music --with-voip
 yoyoctl remote service status
 ```
+
+These remote helpers mirror the same baseline contract. They still rely on
+feature-specific follow-up for assets and unusual hardware bringup.
 
 ## Verification before blaming product code
 

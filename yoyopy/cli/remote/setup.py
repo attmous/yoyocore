@@ -8,6 +8,8 @@ import typer
 
 from yoyopy.cli.remote.ops import _resolve_remote_config, run_remote, validate_config
 
+REMOTE_UV_PREFIX = 'export PATH="$HOME/.local/bin:$PATH";'
+
 
 def build_setup_command(
     *,
@@ -20,7 +22,7 @@ def build_setup_command(
 ) -> str:
     """Build the remote Raspberry Pi setup command."""
 
-    parts = ["uv run yoyoctl setup pi"]
+    parts = [REMOTE_UV_PREFIX, "uv", "run", "yoyoctl", "setup", "pi"]
     if with_voice:
         parts.append("--with-voice")
     if with_network:
@@ -44,7 +46,7 @@ def build_verify_setup_command(
 ) -> str:
     """Build the remote Raspberry Pi dependency verification command."""
 
-    parts = ["uv run yoyoctl setup verify-pi"]
+    parts = [REMOTE_UV_PREFIX, "uv", "run", "yoyoctl", "setup", "verify-pi"]
     if with_voice:
         parts.append("--with-voice")
     if with_network:
@@ -86,7 +88,7 @@ def setup(
         bool, typer.Option("--dry-run", help="Print the planned commands without executing them.")
     ] = False,
 ) -> None:
-    """Run the repo-owned Pi setup contract remotely over SSH."""
+    """Run the baseline repo-owned Pi setup contract remotely over SSH."""
 
     config = _resolve_remote_config(host, user, project_dir, branch)
     validate_config(config)
@@ -129,7 +131,7 @@ def verify_setup(
         bool, typer.Option("--with-pisugar", help="Require PiSugar-specific packages and service.")
     ] = False,
 ) -> None:
-    """Run the repo-owned Pi setup verifier remotely over SSH."""
+    """Run the baseline repo-owned Pi setup verifier remotely over SSH."""
 
     config = _resolve_remote_config(host, user, project_dir, branch)
     validate_config(config)
