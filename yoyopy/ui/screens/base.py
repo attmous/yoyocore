@@ -141,27 +141,19 @@ class Screen(ABC):
 
     def on_select(self, data: Optional[Any] = None) -> None:
         """Handle SELECT action (confirm/accept current item)."""
-        # Backward compatibility: delegate to on_button_a if not overridden
-        if hasattr(self, 'on_button_a') and self.on_select.__func__ is Screen.on_select:
-            self.on_button_a()
+        pass
 
     def on_back(self, data: Optional[Any] = None) -> None:
         """Handle BACK action (cancel/return to previous screen)."""
-        # Backward compatibility: delegate to on_button_b if not overridden
-        if hasattr(self, 'on_button_b') and self.on_back.__func__ is Screen.on_back:
-            self.on_button_b()
+        pass
 
     def on_up(self, data: Optional[Any] = None) -> None:
         """Handle UP action (navigate up in lists/menus)."""
-        # Backward compatibility: delegate to on_button_x if not overridden
-        if hasattr(self, 'on_button_x') and self.on_up.__func__ is Screen.on_up:
-            self.on_button_x()
+        pass
 
     def on_down(self, data: Optional[Any] = None) -> None:
         """Handle DOWN action (navigate down in lists/menus)."""
-        # Backward compatibility: delegate to on_button_y if not overridden
-        if hasattr(self, 'on_button_y') and self.on_down.__func__ is Screen.on_down:
-            self.on_button_y()
+        pass
 
     def on_left(self, data: Optional[Any] = None) -> None:
         """Handle LEFT action (navigate left/previous)."""
@@ -222,41 +214,5 @@ class Screen(ABC):
         Args:
             data: Dict containing voice command information:
                   {'command': str, 'confidence': float, ...}
-        """
-        pass
-
-    # ===== LEGACY BUTTON HANDLERS (for backward compatibility) =====
-    # These will be removed in a future version.
-    # Use semantic action handlers (on_select, on_back, etc.) instead.
-
-    def on_button_a(self) -> None:
-        """
-        DEPRECATED: Handle Button A press.
-
-        Use on_select() instead for hardware-independent input.
-        """
-        pass
-
-    def on_button_b(self) -> None:
-        """
-        DEPRECATED: Handle Button B press.
-
-        Use on_back() instead for hardware-independent input.
-        """
-        pass
-
-    def on_button_x(self) -> None:
-        """
-        DEPRECATED: Handle Button X press.
-
-        Use on_up() instead for hardware-independent input.
-        """
-        pass
-
-    def on_button_y(self) -> None:
-        """
-        DEPRECATED: Handle Button Y press.
-
-        Use on_down() instead for hardware-independent input.
         """
         pass

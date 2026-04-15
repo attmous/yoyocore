@@ -1,7 +1,7 @@
 # YoyoPod Input HAL Architecture
 
-**Last updated:** 2026-04-02
-**Status:** Implemented with compatibility layer
+**Last updated:** 2026-04-15
+**Status:** Implemented
 
 This document describes the input abstraction layer that now exists in the UI package.
 
@@ -65,24 +65,21 @@ This is the current call path:
 input adapter -> InputManager -> ScreenManager -> current screen handler
 ```
 
-## Compatibility Bridge
-
-The abstraction layer is present, but cleanup is not fully complete.
+## Screen Contract
 
 Current behavior:
 
 - `ScreenManager` registers semantic callbacks
-- `Screen` defines semantic methods like `on_select()`
-- those methods currently forward to legacy `on_button_*()` handlers when a screen has not been fully migrated yet
+- `Screen` defines semantic methods like `on_select()`, `on_back()`, `on_up()`, and `on_down()`
+- concrete screens implement those semantic handlers directly
 
-That means the input HAL is implemented, but many concrete screens still rely on old button-named methods internally.
+Legacy `on_button_*()` compatibility methods have been removed from `Screen`.
 
 ## Known Gaps
 
-- full migration of concrete screens to semantic handlers is still pending
 - some older demos and tests still import deleted pre-HAL input modules
 - `keyboard.py` still has small naming drift between `get_supported_actions()` and the manager's `get_capabilities()` convention
 
 ## Summary
 
-The input HAL is real and in use today. The remaining work is cleanup and removal of legacy screen handler names, not invention of the architecture itself.
+The input HAL is real and in use today. Screen input is now fully semantic end to end.

@@ -166,13 +166,11 @@ Screen groups:
 - `yoyopy/ui/screens/music/`
 - `yoyopy/ui/screens/voip/`
 
-There is still a compatibility bridge in `Screen`:
+`Screen` now exposes semantic handlers only:
 
-- semantic handlers like `on_select()` exist
-- most concrete screens still implement legacy `on_button_*()` methods
-- `Screen` currently forwards semantic actions to those legacy methods
-
-That bridge is intentional but temporary.
+- semantic handlers like `on_select()`, `on_back()`, `on_up()`, and `on_down()` are the screen input contract
+- `ScreenManager` dispatches semantic actions directly to those handlers
+- legacy `on_button_*()` compatibility methods have been removed
 
 ## State Coordination
 

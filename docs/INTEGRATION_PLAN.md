@@ -117,5 +117,5 @@ The integration itself is done. Remaining repository work is separate:
 
 - continue reducing stale historical docs
 - migrate older demos and tests to current names and entry points
-- finish semantic input migration inside screen implementations
+- keep semantic input handling on the semantic `Screen` contract; do not reintroduce button-named handlers
 - reduce hardcoded hardware assumptions

@@ -55,6 +55,13 @@ class _SimpleSetupScreen(Screen):
         return True
 
 
+class _PassiveScreen(Screen):
+    """Minimal screen double that relies on the base semantic no-op handlers."""
+
+    def render(self) -> None:
+        return None
+
+
 def test_semantic_input_navigation() -> None:
     """Semantic actions should drive the registered screens correctly."""
     display = Display(simulate=True)
@@ -120,5 +127,24 @@ def test_screen_manager_configures_simple_one_button_navigation() -> None:
         screen_manager.replace_screen("simple")
         assert adapter.raw_ptt_passthrough is False
         assert adapter.double_tap_select_enabled is False
+    finally:
+        display.cleanup()
+
+
+def test_screen_base_requires_semantic_handlers_only() -> None:
+    """The base Screen contract should not expose legacy button-named handlers."""
+    display = Display(simulate=True)
+    screen = _PassiveScreen(display, AppContext())
+
+    try:
+        assert not hasattr(screen, "on_button_a")
+        assert not hasattr(screen, "on_button_b")
+        assert not hasattr(screen, "on_button_x")
+        assert not hasattr(screen, "on_button_y")
+
+        screen.handle_action(InputAction.SELECT)
+        screen.handle_action(InputAction.BACK)
+        screen.handle_action(InputAction.UP)
+        screen.handle_action(InputAction.DOWN)
     finally:
         display.cleanup()
