@@ -14,11 +14,11 @@ import time
 
 from loguru import logger
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio.mopidy_client import MopidyClient
-from yoyopy.ui.display import Display
-from yoyopy.ui.input import InputAction, get_input_manager
-from yoyopy.ui.screens import MenuScreen, NowPlayingScreen, PlaylistScreen, ScreenManager
+from yoyopod.app_context import AppContext
+from yoyopod.audio.mopidy_client import MopidyClient
+from yoyopod.ui.display import Display
+from yoyopod.ui.input import InputAction, get_input_manager
+from yoyopod.ui.screens import MenuScreen, NowPlayingScreen, PlaylistScreen, ScreenManager
 
 ACTION_MAP = {
     "a": InputAction.SELECT,

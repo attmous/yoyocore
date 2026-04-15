@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio import LocalMusicService
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens import ListenScreen
+from yoyopod.app_context import AppContext
+from yoyopod.audio import LocalMusicService
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens import ListenScreen
 
 
 class FakeLvglBinding:

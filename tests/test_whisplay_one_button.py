@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio import LocalMusicService, MockMusicBackend, Playlist, RecentTrackHistoryStore, Track
-from yoyopy.ui.display import Display
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens import (
+from yoyopod.app_context import AppContext
+from yoyopod.audio import LocalMusicService, MockMusicBackend, Playlist, RecentTrackHistoryStore, Track
+from yoyopod.ui.display import Display
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens import (
     CallScreen,
     ContactListScreen,
     HubScreen,
@@ -23,7 +23,7 @@ from yoyopy.ui.screens import (
     TalkContactScreen,
     VoiceNoteScreen,
 )
-from yoyopy.voip.manager import VoiceNoteDraft
+from yoyopod.voip.manager import VoiceNoteDraft
 
 
 class FakeMusicBackend(MockMusicBackend):

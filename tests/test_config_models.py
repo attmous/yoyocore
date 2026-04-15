@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from yoyopy.config import ConfigManager, YoyoPodConfig, load_config_model_from_yaml
+from yoyopod.config import ConfigManager, YoyoPodConfig, load_config_model_from_yaml
 
 
 def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None:
@@ -231,7 +231,7 @@ def test_config_manager_exposes_conference_factory_uri(tmp_path, monkeypatch) ->
 
 def test_gpio_pin_config_from_yaml_dict():
     """GpioPin and PimoroniGpioConfig should load from nested YAML dicts."""
-    from yoyopy.config.models import (
+    from yoyopod.config.models import (
         AppDisplayConfig,
         GpioPin,
         PimoroniGpioConfig,
@@ -262,7 +262,7 @@ def test_gpio_pin_config_from_yaml_dict():
 
 def test_gpio_input_config_from_yaml_dict():
     """PimoroniGpioInputConfig should load from nested YAML dicts."""
-    from yoyopy.config.models import (
+    from yoyopod.config.models import (
         AppInputConfig,
         GpioPin,
         PimoroniGpioInputConfig,
@@ -285,7 +285,7 @@ def test_gpio_input_config_from_yaml_dict():
 
 def test_display_config_defaults_pimoroni_gpio_to_none():
     """When no pimoroni_gpio section exists, it should default to None."""
-    from yoyopy.config.models import AppDisplayConfig, build_config_model
+    from yoyopod.config.models import AppDisplayConfig, build_config_model
 
     config = build_config_model(AppDisplayConfig, {})
     assert config.pimoroni_gpio is None

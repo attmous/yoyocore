@@ -1,6 +1,6 @@
 """Focused tests for extracted theme text helpers."""
 
-from yoyopy.ui.screens.theme_text import text_fit, wrap_text
+from yoyopod.ui.screens.theme_text import text_fit, wrap_text
 
 
 class _FakeDisplay:

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from yoyopy.app_context import AppContext
-from yoyopy.config import Contact
-from yoyopy.ui.display import Display
-from yoyopy.ui.screens import CallScreen, NavigationRequest, TalkContactScreen, VoiceNoteScreen
-from yoyopy.voip.manager import VoiceNoteDraft
-from yoyopy.voip.models import (
+from yoyopod.app_context import AppContext
+from yoyopod.config import Contact
+from yoyopod.ui.display import Display
+from yoyopod.ui.screens import CallScreen, NavigationRequest, TalkContactScreen, VoiceNoteScreen
+from yoyopod.voip.manager import VoiceNoteDraft
+from yoyopod.voip.models import (
     MessageDeliveryState,
     MessageDirection,
     MessageKind,

@@ -11,10 +11,10 @@ from typing import Callable
 
 import pytest
 
-from yoyopy.app_context import AppContext
-from yoyopy.ui.display import Display
-from yoyopy.ui.input import InputAction, InputManager
-from yoyopy.ui.screens import (
+from yoyopod.app_context import AppContext
+from yoyopod.ui.display import Display
+from yoyopod.ui.input import InputAction, InputManager
+from yoyopod.ui.screens import (
     AskScreen,
     HubScreen,
     HomeScreen,
@@ -24,7 +24,7 @@ from yoyopy.ui.screens import (
     ScreenManager,
     ScreenRouter,
 )
-from yoyopy.voice import VoiceCaptureResult, VoiceSettings, VoiceTranscript
+from yoyopod.voice import VoiceCaptureResult, VoiceSettings, VoiceTranscript
 
 
 class RoutableStubScreen(Screen):
@@ -387,7 +387,7 @@ class _FakeVoiceService:
         return VoiceTranscript(text=self.transcript, confidence=0.92)
 
     def match_command(self, transcript: str):
-        from yoyopy.voice.commands import match_voice_command
+        from yoyopod.voice.commands import match_voice_command
 
         return match_voice_command(transcript)
 

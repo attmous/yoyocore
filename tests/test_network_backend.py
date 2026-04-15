@@ -5,13 +5,13 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from yoyopy.network.ppp import PppProcess
+from yoyopod.network.ppp import PppProcess
 
 
 def test_ppp_spawn_constructs_correct_command():
     """PppProcess.spawn should invoke pppd with the correct arguments."""
     with (
-        patch("yoyopy.network.ppp.shutil.which", return_value="pppd"),
+        patch("yoyopod.network.ppp.shutil.which", return_value="pppd"),
         patch("subprocess.Popen") as mock_popen,
     ):
         mock_proc = MagicMock()
@@ -33,7 +33,7 @@ def test_ppp_spawn_uses_sbin_fallback_when_path_omits_pppd():
 
     with (
         patch(
-            "yoyopy.network.ppp.shutil.which",
+            "yoyopod.network.ppp.shutil.which",
             side_effect=lambda candidate: "/usr/sbin/pppd" if candidate == "/usr/sbin/pppd" else None,
         ),
         patch("subprocess.Popen") as mock_popen,
@@ -82,8 +82,8 @@ def test_ppp_is_alive_when_dead():
 # Backend tests
 # ---------------------------------------------------------------------------
 
-from yoyopy.network.backend import NetworkBackend, Sim7600Backend
-from yoyopy.network.models import ModemPhase, ModemState, SignalInfo
+from yoyopod.network.backend import NetworkBackend, Sim7600Backend
+from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
 
 class FakeAtCommands:

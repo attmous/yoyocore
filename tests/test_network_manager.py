@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from yoyopy.config.models import AppNetworkConfig, build_config_model
-from yoyopy.event_bus import EventBus
-from yoyopy.events import NetworkGpsFixEvent, NetworkGpsNoFixEvent, NetworkPppUpEvent
-from yoyopy.network.manager import NetworkManager
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
+from yoyopod.config.models import AppNetworkConfig, build_config_model
+from yoyopod.event_bus import EventBus
+from yoyopod.events import NetworkGpsFixEvent, NetworkGpsNoFixEvent, NetworkPppUpEvent
+from yoyopod.network.manager import NetworkManager
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
 
 
 class FakeBackend:

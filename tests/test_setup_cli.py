@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import yoyopy.cli.setup as setup_cli_module
-from yoyopy.cli.setup import (
+import yoyopod.cli.setup as setup_cli_module
+from yoyopod.cli.setup import (
     SetupCheck,
     build_host_setup_commands,
     build_pi_setup_commands,
@@ -124,8 +124,8 @@ def test_collect_pi_setup_checks_require_packages_native_artifacts_and_service(
         tmp_path / "deploy" / "pi-deploy.yaml",
     )
     native_artifacts = (
-        tmp_path / "build" / "libyoyopy_lvgl_shim.so",
-        tmp_path / "build" / "libyoyopy_liblinphone_shim.so",
+        tmp_path / "build" / "libyoyopod_lvgl_shim.so",
+        tmp_path / "build" / "libyoyopod_liblinphone_shim.so",
     )
     for path in (*tracked_config, *native_artifacts):
         path.parent.mkdir(parents=True, exist_ok=True)

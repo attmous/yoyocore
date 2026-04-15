@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from yoyopy.power import (
+from yoyopod.power import (
     BatteryState,
     GracefulShutdownCancelled,
     GracefulShutdownRequested,

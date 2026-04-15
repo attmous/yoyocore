@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yoyopy.ui.input import InputAction, InputManager
+from yoyopod.ui.input import InputAction, InputManager
 
 
 class FakeActivityAdapter:

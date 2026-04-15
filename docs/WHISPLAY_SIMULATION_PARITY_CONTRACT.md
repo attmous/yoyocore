@@ -32,9 +32,9 @@ But they do not share the same effective rendering path. As the Whisplay LVGL im
 
 ## Current State
 
-- `yoyopy/ui/display/adapters/whisplay.py` owns the Whisplay display profile and the production hardware path
+- `src/yoyopod/ui/display/adapters/whisplay.py` owns the Whisplay display profile and the production hardware path
 - Whisplay now prefers the LVGL renderer in production
-- `yoyopy/ui/display/adapters/simulation.py` is still its own PIL-based renderer with browser preview transport
+- `src/yoyopod/ui/display/adapters/simulation.py` is still its own PIL-based renderer with browser preview transport
 - `--simulate` correctly selects simulation output plus keyboard/web-button input, but the output is still an approximation of Whisplay rather than the same render contract
 
 That split is the root cause of the visual mismatch now visible in the browser preview.
@@ -59,7 +59,7 @@ Output parity and input ergonomics are separate concerns and should stay separat
 
 ### 3. Browser preview is transport, not a second renderer owner
 
-`yoyopy/ui/web_server.py` should remain a preview transport and browser-facing surface.
+`src/yoyopod/ui/web_server.py` should remain a preview transport and browser-facing surface.
 
 It must not become the place where Whisplay-specific layout behavior lives. Layout ownership belongs in the display/rendering contract, not in the preview server.
 
@@ -129,13 +129,13 @@ Small anti-aliasing or color differences can be tolerated. Geometry drift should
 
 ## Suggested File Ownership
 
-- `yoyopy/ui/display/factory.py`
+- `src/yoyopod/ui/display/factory.py`
   - owns adapter selection and preview startup
-- `yoyopy/ui/display/adapters/whisplay.py`
+- `src/yoyopod/ui/display/adapters/whisplay.py`
   - owns Whisplay output behavior
-- `yoyopy/ui/display/adapters/simulation.py`
+- `src/yoyopod/ui/display/adapters/simulation.py`
   - should become a Whisplay preview surface, not an independently evolving layout engine
-- `yoyopy/ui/lvgl_binding/`
+- `src/yoyopod/ui/lvgl_binding/`
   - candidate home for off-screen or mirrored LVGL preview support
 - `tests/test_display.py`
 - `tests/test_remaining_lvgl_views.py`

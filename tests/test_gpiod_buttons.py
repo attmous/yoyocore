@@ -2,11 +2,11 @@
 
 import pytest
 
-from yoyopy.ui.input.hal import InputAction
+from yoyopod.ui.input.hal import InputAction
 
 
 def test_adapter_capabilities():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     caps = adapter.get_capabilities()
@@ -18,7 +18,7 @@ def test_adapter_capabilities():
 
 
 def test_adapter_fires_callback_on_simulate():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     received = []
@@ -29,7 +29,7 @@ def test_adapter_fires_callback_on_simulate():
 
 
 def test_clear_callbacks():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     adapter.on_action(InputAction.SELECT, lambda data: None)
@@ -39,7 +39,7 @@ def test_clear_callbacks():
 
 
 def test_adapter_start_stop_lifecycle():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     adapter.start()

@@ -10,7 +10,7 @@
 
 Use the repo guidance in this order:
 
-1. Current code in `yoyopy/`
+1. Current code in `src/yoyopod/`
 2. [`README.md`](README.md) and [`docs/README.md`](docs/README.md)
 3. `rules/` for project constraints and architecture/style rules
 4. `AGENTS.md` for current runtime status and agent workflow
@@ -54,15 +54,15 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
 
 ## Current Status
 
-- Production runtime is `yoyopod.py` -> `yoyopy.main` -> `YoyoPodApp`.
+- Production runtime is `yoyopod.py` -> `yoyopod.main` -> `YoyoPodApp`.
 - The large architecture refactor is complete:
   - typed `EventBus`
   - split `MusicFSM` and `CallFSM`
-  - coordinator modules under `yoyopy/coordinators/`
+  - coordinator modules under `src/yoyopod/coordinators/`
   - derived runtime state in `CoordinatorRuntime`
   - declarative screen routing
   - typed config models with YAML plus env overlay
-  - dedicated `yoyopy/voip/` package
+  - dedicated `src/yoyopod/voip/` package
 - PiSugar-backed power management is now implemented:
   - telemetry polling
   - low-battery warning and graceful shutdown
@@ -70,9 +70,9 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
   - RTC helpers
   - PiSugar software watchdog support
 - Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
-- Whisplay now runs on the LVGL rendering path in production under `yoyopy/ui/lvgl_binding/`.
-- Production local music now runs through the app-managed mpv backend under `yoyopy/audio/music/`.
-- Production VoIP now runs through Liblinphone under `yoyopy/voip/liblinphone_binding/` and `yoyopy/voip/backend.py`.
+- Whisplay now runs on the LVGL rendering path in production under `src/yoyopod/ui/lvgl_binding/`.
+- Production local music now runs through the app-managed mpv backend under `src/yoyopod/audio/music/`.
+- Production VoIP now runs through Liblinphone under `src/yoyopod/voip/liblinphone_binding/` and `src/yoyopod/voip/backend.py`.
 - CI validates the staged quality gate plus Python test suite; the local mirror is `uv run python scripts/quality.py ci`.
 - Raspberry Pi validation has a defined path through `yoyoctl pi smoke` and `yoyoctl remote`.
 
@@ -85,7 +85,7 @@ This file should reflect the repo as it exists on `main`. Older milestone notes 
 - Whisplay has completed its production cutover to LVGL-backed rendering.
 - The migration plan and backend notes live in `docs/LVGL_MIGRATION_PLAN.md`.
 - Pimoroni and simulation still use the PIL rendering path.
-- Raw LVGL usage should remain confined to `yoyopy/ui/lvgl_binding/` and related display-layer code.
+- Raw LVGL usage should remain confined to `src/yoyopod/ui/lvgl_binding/` and related display-layer code.
 
 ---
 
@@ -93,18 +93,18 @@ This file should reflect the repo as it exists on `main`. Older milestone notes 
 
 When in doubt, trust these files first:
 
-- `yoyopy/app.py`
-- `yoyopy/fsm.py`
-- `yoyopy/event_bus.py`
-- `yoyopy/events.py`
-- `yoyopy/coordinators/runtime.py`
-- `yoyopy/audio/`
-- `yoyopy/voip/`
-- `yoyopy/power/`
-- `yoyopy/ui/display/`
-- `yoyopy/ui/lvgl_binding/`
-- `yoyopy/ui/input/`
-- `yoyopy/ui/screens/`
+- `src/yoyopod/app.py`
+- `src/yoyopod/fsm.py`
+- `src/yoyopod/event_bus.py`
+- `src/yoyopod/events.py`
+- `src/yoyopod/coordinators/runtime.py`
+- `src/yoyopod/audio/`
+- `src/yoyopod/voip/`
+- `src/yoyopod/power/`
+- `src/yoyopod/ui/display/`
+- `src/yoyopod/ui/lvgl_binding/`
+- `src/yoyopod/ui/input/`
+- `src/yoyopod/ui/screens/`
 - `README.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/POWER_MODULE.md`
@@ -118,7 +118,7 @@ When in doubt, trust these files first:
 Current production topology:
 
 ```text
-yoyopod.py / yoyopy.main
+yoyopod.py / yoyopod.main
   -> YoyoPodApp
      -> EventBus
      -> MusicFSM
@@ -147,7 +147,7 @@ yoyopod.py / yoyopy.main
 
 Key design points:
 
-- Music and call state are modeled separately in `yoyopy/fsm.py`.
+- Music and call state are modeled separately in `src/yoyopod/fsm.py`.
 - The app no longer uses a monolithic combined `StateMachine`.
 - Background music-backend and VoIP events are published onto the typed `EventBus` and drained on the coordinator thread.
 - `CoordinatorRuntime` derives the user-facing app state from the split FSMs plus UI state.
@@ -159,68 +159,68 @@ Key design points:
 
 ### Application Core
 
-- `yoyopy/app.py` - app bootstrap, lifecycle, recovery loop, and coordinator wiring
-- `yoyopy/main.py` - package entry point
-- `yoyopy/app_context.py` - shared screen/application context
-- `yoyopy/fsm.py` - `MusicFSM`, `CallFSM`, `CallInterruptionPolicy`
-- `yoyopy/event_bus.py` - thread-safe typed event bus
-- `yoyopy/events.py` - typed orchestration events
+- `src/yoyopod/app.py` - app bootstrap, lifecycle, recovery loop, and coordinator wiring
+- `src/yoyopod/main.py` - package entry point
+- `src/yoyopod/app_context.py` - shared screen/application context
+- `src/yoyopod/fsm.py` - `MusicFSM`, `CallFSM`, `CallInterruptionPolicy`
+- `src/yoyopod/event_bus.py` - thread-safe typed event bus
+- `src/yoyopod/events.py` - typed orchestration events
 
 ### Coordinators
 
-- `yoyopy/coordinators/call.py` - call-flow orchestration
-- `yoyopy/coordinators/playback.py` - music-flow orchestration
-- `yoyopy/coordinators/screen.py` - screen refresh and call-screen updates
-- `yoyopy/coordinators/runtime.py` - derived `AppRuntimeState` and shared runtime references
+- `src/yoyopod/coordinators/call.py` - call-flow orchestration
+- `src/yoyopod/coordinators/playback.py` - music-flow orchestration
+- `src/yoyopod/coordinators/screen.py` - screen refresh and call-screen updates
+- `src/yoyopod/coordinators/runtime.py` - derived `AppRuntimeState` and shared runtime references
 
 ### Audio And VoIP
 
-- `yoyopy/audio/local_service.py` - filesystem-backed playlists, shuffle source collection, and recent-track integration
-- `yoyopy/audio/music/backend.py` - `MusicBackend`, `MpvBackend`, and `MockMusicBackend`
-- `yoyopy/audio/music/process.py` - app-managed mpv process lifecycle
-- `yoyopy/audio/music/ipc.py` - low-level mpv JSON IPC client
-- `yoyopy/audio/music/models.py` - `Track`, `Playlist`, and `MusicConfig`
-- `yoyopy/audio/volume.py` - shared output-volume coordination across ALSA and mpv
-- `yoyopy/voip/manager.py` - app-facing VoIP facade
-- `yoyopy/voip/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, `MockVoIPBackend`
-- `yoyopy/voip/models.py` - SIP config plus typed call/message backend events
-- `yoyopy/voip/liblinphone_binding/` - native Liblinphone shim and CPython cffi binding
-- `yoyopy/voip/messages.py` - persistent voice-note/message metadata store
-- `yoyopy/voip/history.py` - persistent recent/missed-call store for the Talk flow
+- `src/yoyopod/audio/local_service.py` - filesystem-backed playlists, shuffle source collection, and recent-track integration
+- `src/yoyopod/audio/music/backend.py` - `MusicBackend`, `MpvBackend`, and `MockMusicBackend`
+- `src/yoyopod/audio/music/process.py` - app-managed mpv process lifecycle
+- `src/yoyopod/audio/music/ipc.py` - low-level mpv JSON IPC client
+- `src/yoyopod/audio/music/models.py` - `Track`, `Playlist`, and `MusicConfig`
+- `src/yoyopod/audio/volume.py` - shared output-volume coordination across ALSA and mpv
+- `src/yoyopod/voip/manager.py` - app-facing VoIP facade
+- `src/yoyopod/voip/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, `MockVoIPBackend`
+- `src/yoyopod/voip/models.py` - SIP config plus typed call/message backend events
+- `src/yoyopod/voip/liblinphone_binding/` - native Liblinphone shim and CPython cffi binding
+- `src/yoyopod/voip/messages.py` - persistent voice-note/message metadata store
+- `src/yoyopod/voip/history.py` - persistent recent/missed-call store for the Talk flow
 
 ### Power
 
-- `yoyopy/power/backend.py` - PiSugar socket/TCP backend for telemetry and RTC control
-- `yoyopy/power/watchdog.py` - PiSugar software watchdog controller over `i2cget`/`i2cset`
-- `yoyopy/power/manager.py` - app-facing power facade
-- `yoyopy/power/policies.py` - low-battery safety policy
-- `yoyopy/cli/pi/power.py` - battery, charging, shutdown, watchdog, and RTC helpers (`yoyoctl pi power battery`, `yoyoctl pi power rtc`)
+- `src/yoyopod/power/backend.py` - PiSugar socket/TCP backend for telemetry and RTC control
+- `src/yoyopod/power/watchdog.py` - PiSugar software watchdog controller over `i2cget`/`i2cset`
+- `src/yoyopod/power/manager.py` - app-facing power facade
+- `src/yoyopod/power/policies.py` - low-battery safety policy
+- `src/yoyopod/cli/pi/power.py` - battery, charging, shutdown, watchdog, and RTC helpers (`yoyoctl pi power battery`, `yoyoctl pi power rtc`)
 - `deploy/systemd/yoyopod@.service` - production boot-time service unit
 
 ### UI
 
-- `yoyopy/ui/display/` - display HAL, factory, facade, and adapters
-- `yoyopy/ui/lvgl_binding/` - native LVGL shim, CPython binding, backend bridge, and input bridge
-- `yoyopy/ui/input/` - input HAL, factory, manager, and adapters
-- `yoyopy/ui/screens/manager.py` - stack navigation and input binding
-- `yoyopy/ui/screens/router.py` - declarative route resolution
-- `yoyopy/ui/screens/theme.py` - Graffiti Buddy shared chrome, colors, icons, and status-bar renderer
-- `yoyopy/ui/screens/navigation/listen.py` - local-first library menu for `Playlists`, `Recent`, and `Shuffle`
-- `yoyopy/ui/screens/music/recent.py` - recent local tracks browser
-- `yoyopy/ui/screens/navigation/ask.py` - staged `Ask` shell with idle/listening/thinking/response states
-- `yoyopy/ui/screens/system/power.py` - `Setup` screen with power and care pages
-- `yoyopy/ui/screens/voip/quick_call.py` - `Talk` people-first contact deck for calls and voice notes
-- `yoyopy/ui/screens/voip/talk_contact.py` - selected-contact action screen with `Call` and `Voice Note`
-- `yoyopy/ui/screens/voip/call_history.py` - Talk recents and missed-call screen
-- `yoyopy/ui/screens/voip/voice_note.py` - voice-note record/review/send flow for the Talk experience
+- `src/yoyopod/ui/display/` - display HAL, factory, facade, and adapters
+- `src/yoyopod/ui/lvgl_binding/` - native LVGL shim, CPython binding, backend bridge, and input bridge
+- `src/yoyopod/ui/input/` - input HAL, factory, manager, and adapters
+- `src/yoyopod/ui/screens/manager.py` - stack navigation and input binding
+- `src/yoyopod/ui/screens/router.py` - declarative route resolution
+- `src/yoyopod/ui/screens/theme.py` - Graffiti Buddy shared chrome, colors, icons, and status-bar renderer
+- `src/yoyopod/ui/screens/navigation/listen.py` - local-first library menu for `Playlists`, `Recent`, and `Shuffle`
+- `src/yoyopod/ui/screens/music/recent.py` - recent local tracks browser
+- `src/yoyopod/ui/screens/navigation/ask.py` - staged `Ask` shell with idle/listening/thinking/response states
+- `src/yoyopod/ui/screens/system/power.py` - `Setup` screen with power and care pages
+- `src/yoyopod/ui/screens/voip/quick_call.py` - `Talk` people-first contact deck for calls and voice notes
+- `src/yoyopod/ui/screens/voip/talk_contact.py` - selected-contact action screen with `Call` and `Voice Note`
+- `src/yoyopod/ui/screens/voip/call_history.py` - Talk recents and missed-call screen
+- `src/yoyopod/ui/screens/voip/voice_note.py` - voice-note record/review/send flow for the Talk experience
 
 ### CLI (dev-only)
 
-- `yoyopy/cli/__init__.py` - root yoyoctl app and group wiring
-- `yoyopy/cli/common.py` - shared logging and config helpers
-- `yoyopy/cli/build.py` - native extension build commands
-- `yoyopy/cli/pi/` - on-Pi hardware and diagnostic commands
-- `yoyopy/cli/remote/` - SSH-based remote Pi operations
+- `src/yoyopod/cli/__init__.py` - root yoyoctl app and group wiring
+- `src/yoyopod/cli/common.py` - shared logging and config helpers
+- `src/yoyopod/cli/build.py` - native extension build commands
+- `src/yoyopod/cli/pi/` - on-Pi hardware and diagnostic commands
+- `src/yoyopod/cli/remote/` - SSH-based remote Pi operations
 
 ### Configuration
 
@@ -228,8 +228,8 @@ Key design points:
 - `config/liblinphone_factory.conf`
 - `config/contacts.yaml`
 - `config/yoyopod_config.yaml`
-- `yoyopy/config/models.py` - typed config models
-- `yoyopy/config/manager.py` - current config facade used by the app
+- `src/yoyopod/config/models.py` - typed config models
+- `src/yoyopod/config/manager.py` - current config facade used by the app
 
 ---
 
@@ -338,9 +338,9 @@ ssh rpi-zero "killall -9 python"
 
 If SIP behavior looks wrong, inspect the Liblinphone shim and backend boundary:
 
-- `yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c`
-- `yoyopy/voip/liblinphone_binding/binding.py`
-- `yoyopy/voip/backend.py`
+- `src/yoyopod/voip/liblinphone_binding/native/liblinphone_shim.c`
+- `src/yoyopod/voip/liblinphone_binding/binding.py`
+- `src/yoyopod/voip/backend.py`
 
 ---
 
@@ -367,11 +367,11 @@ CI-safe tests are in `tests/`. Hardware diagnostics were intentionally moved out
 
 These old names are no longer correct:
 
-- `yoyopy/connectivity/` -> use `yoyopy/voip/`
-- `yoyopy/connectivity/voip_manager.py` -> use `yoyopy/voip/manager.py`
-- `yoyopy/connectivity/voip_backend.py` -> use `yoyopy/voip/backend.py`
-- `yoyopy/connectivity/voip_types.py` -> use `yoyopy/voip/models.py`
-- `state_machine.py` -> removed; use `yoyopy/fsm.py` and `yoyopy/coordinators/runtime.py`
+- `src/yoyopod/connectivity/` -> use `src/yoyopod/voip/`
+- `src/yoyopod/connectivity/voip_manager.py` -> use `src/yoyopod/voip/manager.py`
+- `src/yoyopod/connectivity/voip_backend.py` -> use `src/yoyopod/voip/backend.py`
+- `src/yoyopod/connectivity/voip_types.py` -> use `src/yoyopod/voip/models.py`
+- `state_machine.py` -> removed; use `src/yoyopod/fsm.py` and `src/yoyopod/coordinators/runtime.py`
 - `demo_yoyopod_phase1.py` -> removed
 - `tests/test_phase1_state_machine.py` -> replaced by `tests/test_fsm_runtime.py`
 - `tests/test_voip_registration.py` -> use `yoyoctl pi voip check`

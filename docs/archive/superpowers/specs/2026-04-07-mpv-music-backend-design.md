@@ -26,7 +26,7 @@ Mopidy is the heaviest single process on the Pi Zero 2W (~50-80 MB RSS). It runs
 ## Module Layout
 
 ```
-yoyopy/audio/
+src/yoyopod/audio/
   __init__.py              # re-exports (updated)
   manager.py               # AudioManager (unchanged)
   history.py               # RecentTrackHistoryStore (Track rename only)
@@ -249,7 +249,7 @@ def _collect_local_track_uris(self) -> list[str]:
 
 ### Deleted
 
-- `yoyopy/audio/mopidy_client.py`
+- `src/yoyopod/audio/mopidy_client.py`
 - Mopidy config entries in `config/yoyopod_config.yaml`
 - Mopidy references in deploy scripts / systemd
 

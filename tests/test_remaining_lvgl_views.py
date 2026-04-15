@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from yoyopy.app_context import AppContext
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens import (
+from yoyopod.app_context import AppContext
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens import (
     CallScreen,
     ContactListScreen,
     InCallScreen,
@@ -298,7 +298,7 @@ def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
 def test_hub_view_syncs_network_status_bar_state_through_lvgl() -> None:
     """HubScreen should push cellular and GPS state into the native status bar."""
 
-    from yoyopy.ui.screens.navigation.hub import HubScreen
+    from yoyopod.ui.screens.navigation.hub import HubScreen
 
     binding = FakeLvglBinding()
     context = make_one_button_context()
@@ -445,7 +445,7 @@ def test_in_call_screen_syncs_duration_and_mute_state_through_lvgl() -> None:
 def test_ask_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     """AskScreen should delegate its voice-command shell through LVGL."""
 
-    from yoyopy.ui.screens.navigation.ask import AskScreen as _AskScreen
+    from yoyopod.ui.screens.navigation.ask import AskScreen as _AskScreen
 
     binding = FakeLvglBinding()
     screen = _AskScreen(
@@ -469,7 +469,7 @@ def test_ask_screen_builds_syncs_and_destroys_lvgl_view() -> None:
 def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> None:
     """VoiceNoteScreen should delegate to the Talk actions scene on LVGL."""
 
-    from yoyopy.ui.screens.voip.voice_note import VoiceNoteScreen
+    from yoyopod.ui.screens.voip.voice_note import VoiceNoteScreen
 
     binding = FakeLvglBinding()
     context = make_one_button_context()
@@ -624,7 +624,7 @@ def test_power_screen_one_button_voice_page_wraps_immediately() -> None:
 def test_power_screen_reports_full_network_page_count_through_lvgl() -> None:
     """Network-enabled Setup pages should preserve the full page count in LVGL payloads."""
 
-    from yoyopy.network.models import ModemPhase, ModemState, SignalInfo
+    from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
     class _FakeNetworkManager:
         def __init__(self) -> None:

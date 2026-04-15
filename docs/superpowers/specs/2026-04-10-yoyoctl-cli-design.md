@@ -54,7 +54,7 @@ yoyoctl
 ## Package Layout
 
 ```
-yoyopy/cli/
+src/yoyopod/cli/
   __init__.py              # root typer app, group wiring
   pi/__init__.py           # pi group app
   pi/smoke.py              # pi smoke test runner
@@ -95,16 +95,16 @@ dev = [
 ]
 
 [project.scripts]
-yoyopy = "yoyopy.main:main"
-yoyopod = "yoyopy.main:main"
-yoyoctl = "yoyopy.cli:app"
+yoyopod = "yoyopod.main:main"
+yoyopod = "yoyopod.main:main"
+yoyoctl = "yoyopod.cli:app"
 ```
 
 ### Key constraint
 
 `typer` is a dev-only dependency. The `yoyoctl` entry point only works when installed with `uv sync --extra dev`. The Pi production environment installs only prod dependencies and never sees typer or the CLI package.
 
-The `yoyopy/cli/` package must not be imported by any prod code path (`yoyopy/app.py`, `yoyopy/main.py`, etc.).
+The `src/yoyopod/cli/` package must not be imported by any prod code path (`src/yoyopod/app.py`, `src/yoyopod/main.py`, etc.).
 
 ---
 
@@ -122,14 +122,14 @@ The `yoyopy/cli/` package must not be imported by any prod code path (`yoyopy/ap
 
 - All flags, arguments, and defaults preserved exactly.
 - Runtime behavior unchanged — this is a structural refactor.
-- `yoyopy` and `yoyopod` console entry points untouched.
+- `yoyopod` and `yoyopod` console entry points untouched.
 - No changes to any production code paths.
 
 ### Verification
 
 - Every original script invocation documented in CLAUDE.md must work identically via `yoyoctl`.
 - `uv run pytest -q` continues to pass.
-- `python -m compileall yoyopy` continues to pass.
+- `python -m compileall yoyopod` continues to pass.
 - `yoyoctl --help` shows the full command tree with descriptions.
 - Each leaf command's `--help` matches the original script's argument documentation.
 
@@ -163,7 +163,7 @@ yoyoctl build lvgl --skip-fetch
 
 ### In scope
 
-- Structural refactor of all 13 scripts (minus `generate_test_sounds.py`) into `yoyopy/cli/`.
+- Structural refactor of all 13 scripts (minus `generate_test_sounds.py`) into `src/yoyopod/cli/`.
 - typer wiring and entry point registration.
 - pyproject.toml dependency changes.
 - CLAUDE.md and docs updates.
@@ -174,4 +174,4 @@ yoyoctl build lvgl --skip-fetch
 - Changing any runtime behavior or flags.
 - Touching production code paths.
 - Adding new commands or features.
-- Changing the main app entry points (`yoyopy`, `yoyopod`).
+- Changing the main app entry points (`yoyopod`, `yoyopod`).

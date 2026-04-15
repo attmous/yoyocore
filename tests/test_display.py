@@ -3,10 +3,10 @@
 
 import pytest
 
-from yoyopy.app_context import AppContext
-from yoyopy.ui.display import Display, get_hardware_info
-from yoyopy.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
-from yoyopy.ui.screens import HomeScreen, MenuScreen, NowPlayingScreen
+from yoyopod.app_context import AppContext
+from yoyopod.ui.display import Display, get_hardware_info
+from yoyopod.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
+from yoyopod.ui.screens import HomeScreen, MenuScreen, NowPlayingScreen
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def test_simulate_mode_uses_whisplay_sized_simulation_adapter() -> None:
         def start(self) -> None:
             pass
 
-    import yoyopy.ui.web_server as web_server
+    import yoyopod.ui.web_server as web_server
 
     original_get_server = web_server.get_server
     web_server.get_server = lambda *args, **kwargs: FakeServer()
@@ -93,7 +93,7 @@ def test_simulate_flag_overrides_explicit_hardware_to_simulation_adapter() -> No
         def start(self) -> None:
             pass
 
-    import yoyopy.ui.web_server as web_server
+    import yoyopod.ui.web_server as web_server
 
     original_get_server = web_server.get_server
     web_server.get_server = lambda *args, **kwargs: FakeServer()
@@ -129,7 +129,7 @@ def test_simulation_display_update_pushes_browser_preview() -> None:
 
     fake_server = FakeServer()
 
-    import yoyopy.ui.web_server as web_server
+    import yoyopod.ui.web_server as web_server
 
     original_get_server = web_server.get_server
     web_server.get_server = lambda *args, **kwargs: fake_server

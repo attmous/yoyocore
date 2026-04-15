@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from yoyopy.ui.screens.system.power import PowerScreen
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
+from yoyopod.ui.screens.system.power import PowerScreen
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
 
 
 class FakeDisplay:

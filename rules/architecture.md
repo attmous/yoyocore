@@ -1,7 +1,7 @@
 # Architecture
 
 ```text
-yoyopod.py / yoyopy/main.py  (entry points)
+yoyopod.py / src/yoyopod/main.py  (entry points)
         |
     YoyoPodApp (app.py) -- thin composition shell
     |- RuntimeBootService (runtime/boot.py)
@@ -52,20 +52,20 @@ yoyopod.py / yoyopy/main.py  (entry points)
 
 ### Entry points and composition
 
-- `yoyopod.py`, `yoyopy/main.py`, and `yoyopy/app.py` are composition and lifecycle layers.
+- `yoyopod.py`, `src/yoyopod/main.py`, and `src/yoyopod/app.py` are composition and lifecycle layers.
 - Do not turn entrypoint files into feature homes for UI, business rules, or backend-specific logic.
 - If `YoyoPodApp` grows, extract focused runtime services instead of adding more feature logic there.
 - Treat runtime extraction as incremental work: if a service like `runtime/boot.py` becomes the new blob, split it again instead of calling the cleanup finished.
 
 ### Screens and UI
 
-- `yoyopy/ui/screens/` owns presentation, user interaction, and screen-local state.
+- `src/yoyopod/ui/screens/` owns presentation, user interaction, and screen-local state.
 - Screens should not own hardware lifecycle, process supervision, watchdog behavior, or cross-feature orchestration.
 - Heavy voice, playback, call, or power policy should live outside screens and be consumed by screens.
 
 ### Coordinators
 
-- `yoyopy/coordinators/` owns cross-subsystem orchestration.
+- `src/yoyopod/coordinators/` owns cross-subsystem orchestration.
 - Coordinators may translate events into runtime state changes and navigation changes.
 - Coordinators should not contain rendering code, hardware-driver code, or long-lived persistence logic.
 
@@ -79,15 +79,15 @@ yoyopod.py / yoyopy/main.py  (entry points)
 
 - Raw hardware behavior stays behind `ui/display/`, `ui/input/`, or the relevant subsystem backend.
 - Keep Pimoroni, Whisplay, GPIO, LVGL, PiSugar, and modem-specific details out of generic UI and orchestration layers.
-- Raw LVGL usage should remain confined to `yoyopy/ui/lvgl_binding/` and LVGL-specific view code.
+- Raw LVGL usage should remain confined to `src/yoyopod/ui/lvgl_binding/` and LVGL-specific view code.
 
 ### State and models
 
 - Prefer canonical typed models over parallel shape duplication across UI and runtime layers.
 - `AppContext` is shared runtime state, not a dumping ground for every new feature field.
-- Prefer adding new mutable runtime fields to the focused state objects in `yoyopy/runtime_state.py`
+- Prefer adding new mutable runtime fields to the focused state objects in `src/yoyopod/runtime_state.py`
   before extending `AppContext` directly.
-- Music runtime state should compose with the canonical models in `yoyopy/audio/music/models.py`.
+- Music runtime state should compose with the canonical models in `src/yoyopod/audio/music/models.py`.
 - Use `PlaybackQueue` for ordered playback state instead of defining alternate runtime `Track` or
   `Playlist` shapes under `AppContext` or `runtime_state.py`.
 - New domain objects should be introduced in clear model modules before being copied into screen-only state.

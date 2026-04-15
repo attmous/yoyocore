@@ -119,12 +119,12 @@ def update_network_status(
 
 | File | Change |
 |---|---|
-| `yoyopy/ui/screens/theme.py` | Add signal bars and GPS dot rendering in `render_status_bar()` |
-| `yoyopy/ui/screens/system/power.py` | Add Network and GPS pages to `build_pages()` |
-| `yoyopy/app_context.py` | Add `gps_has_fix` field, extend `update_network_status()` |
-| `yoyopy/app.py` | Subscribe to network events, update context on state changes |
+| `src/yoyopod/ui/screens/theme.py` | Add signal bars and GPS dot rendering in `render_status_bar()` |
+| `src/yoyopod/ui/screens/system/power.py` | Add Network and GPS pages to `build_pages()` |
+| `src/yoyopod/app_context.py` | Add `gps_has_fix` field, extend `update_network_status()` |
+| `src/yoyopod/app.py` | Subscribe to network events, update context on state changes |
 
 ## Files Not Changed
 
-- `yoyopy/network/` — no changes to the network package itself
+- `src/yoyopod/network/` — no changes to the network package itself
 - No new screen classes — reuses existing `PowerPage` pattern

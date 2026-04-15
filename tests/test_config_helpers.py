@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from yoyopy.config.contacts import Contact, contacts_from_mapping, contacts_to_mapping
-from yoyopy.config.layers import resolve_config_board, resolve_config_layers
-from yoyopy.config.storage import deep_merge_mappings
+from yoyopod.config.contacts import Contact, contacts_from_mapping, contacts_to_mapping
+from yoyopod.config.layers import resolve_config_board, resolve_config_layers
+from yoyopod.config.storage import deep_merge_mappings
 
 
 def test_deep_merge_mappings_recurses_without_losing_base_values() -> None:

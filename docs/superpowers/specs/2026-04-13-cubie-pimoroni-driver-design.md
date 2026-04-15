@@ -60,7 +60,7 @@ Pimoroni Display HAT Mini pins cross-referenced with the Cubie A7Z 40-pin header
 
 ### 1. ST7789 SPI Driver
 
-**File:** `yoyopy/ui/display/adapters/st7789_spi.py`
+**File:** `src/yoyopod/ui/display/adapters/st7789_spi.py`
 
 Low-level driver that communicates with the ST7789 display controller over SPI, using gpiod for control signals.
 
@@ -92,7 +92,7 @@ class ST7789SpiDriver:
 
 ### 2. Cubie Pimoroni Display Adapter
 
-**File:** `yoyopy/ui/display/adapters/cubie_pimoroni.py`
+**File:** `src/yoyopod/ui/display/adapters/cubie_pimoroni.py`
 
 Implements `DisplayHAL` for the Pimoroni Display HAT Mini on non-Pi boards.
 
@@ -133,7 +133,7 @@ def _pil_to_rgb565(self, image: Image.Image) -> bytes:
 
 ### 3. gpiod Button Adapter
 
-**File:** `yoyopy/ui/input/adapters/gpiod_buttons.py`
+**File:** `src/yoyopod/ui/input/adapters/gpiod_buttons.py`
 
 Implements `InputHAL` for 4-button input via gpiod, replacing the `displayhatmini`-dependent `FourButtonInputAdapter` on non-Pi boards.
 
@@ -196,14 +196,14 @@ input:
 
 ### 5. Factory Integration
 
-**Display factory** (`yoyopy/ui/display/factory.py`):
+**Display factory** (`src/yoyopod/ui/display/factory.py`):
 
 When `hardware == "pimoroni"`:
 1. Try importing `displayhatmini` -> use existing `PimoroniDisplayAdapter` (Pi path)
 2. If import fails, check for `pimoroni_gpio` in board config -> use `CubiePimoroniAdapter`
 3. If neither, fall back to simulation
 
-**Input factory** (`yoyopy/ui/input/factory.py`):
+**Input factory** (`src/yoyopod/ui/input/factory.py`):
 
 When display type is `"pimoroni"`:
 1. If `displayhatmini` available -> use existing `FourButtonInputAdapter` (Pi path)
@@ -212,7 +212,7 @@ When display type is `"pimoroni"`:
 
 ### 6. Config Models
 
-**File:** `yoyopy/config/models.py` (additions)
+**File:** `src/yoyopod/config/models.py` (additions)
 
 Add typed config models for the GPIO pin mapping:
 

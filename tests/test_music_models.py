@@ -5,8 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio.music.models import MusicConfig, PlaybackQueue, Playlist, Track
+from yoyopod.app_context import AppContext
+from yoyopod.audio.music.models import MusicConfig, PlaybackQueue, Playlist, Track
 
 
 def test_track_get_artist_string_with_artists() -> None:

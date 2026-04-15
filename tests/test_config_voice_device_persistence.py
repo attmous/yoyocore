@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-from yoyopy.config.manager import ConfigManager
+from yoyopod.config.manager import ConfigManager
 
 
 def test_config_manager_persists_voice_device_ids(tmp_path: Path) -> None:

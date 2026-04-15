@@ -12,7 +12,7 @@ If you are new here, read these first:
 
 When docs disagree, trust sources in this order:
 
-1. Current code in `yoyopy/`
+1. Current code in `src/yoyopod/`
 2. Current runtime and setup docs in this section
 3. Rules and agent guidance in `rules/`, `AGENTS.md`, and `skills/`
 4. Plans, checklists, and design specs
@@ -117,7 +117,7 @@ Archive files are for historical context only. They are not the source of truth 
 1. `docs/SYSTEM_ARCHITECTURE.md`
 2. subsystem doc for the area you are changing
 3. `AGENTS.md`
-4. relevant files under `yoyopy/`
+4. relevant files under `src/yoyopod/`
 
 ### Working on Raspberry Pi deployment
 

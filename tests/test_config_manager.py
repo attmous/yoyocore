@@ -3,8 +3,8 @@
 
 import yaml
 
-from yoyopy.config.manager import ConfigManager
-from yoyopy.ui.display.adapters.whisplay_paths import find_whisplay_driver
+from yoyopod.config.manager import ConfigManager
+from yoyopod.ui.display.adapters.whisplay_paths import find_whisplay_driver
 
 
 def test_audio_device_defaults(tmp_path, monkeypatch) -> None:

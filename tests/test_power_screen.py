@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from yoyopy.app_context import AppContext
-from yoyopy.power import BatteryState, PowerDeviceInfo, PowerSnapshot, RTCState, ShutdownState
-from yoyopy.ui.display import Display
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens.system.power import PowerScreen
+from yoyopod.app_context import AppContext
+from yoyopod.power import BatteryState, PowerDeviceInfo, PowerSnapshot, RTCState, ShutdownState
+from yoyopod.ui.display import Display
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens.system.power import PowerScreen
 
 
 class StubPowerManager:

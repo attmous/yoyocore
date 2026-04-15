@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PIL import Image, ImageChops
 
-from yoyopy.ui.display import Display
-from yoyopy.ui.screens.theme import BACKGROUND, FOOTER_BAR, ICON_ASSET_DIR, draw_icon, render_footer
+from yoyopod.ui.display import Display
+from yoyopod.ui.screens.theme import BACKGROUND, FOOTER_BAR, ICON_ASSET_DIR, draw_icon, render_footer
 
 
 def test_hub_icon_assets_exist_and_are_56px() -> None:

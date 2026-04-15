@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from yoyopy.app_context import AppContext
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens import IncomingCallScreen
+from yoyopod.app_context import AppContext
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens import IncomingCallScreen
 
 
 class FakeLvglBinding:

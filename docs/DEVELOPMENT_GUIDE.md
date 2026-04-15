@@ -12,7 +12,7 @@ If you are new here, read these first:
 ## Source of truth
 
 For current behavior, trust:
-- current code in `yoyopy/`
+- current code in `src/yoyopod/`
 - this guide for setup and workflow
 - [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md) for runtime topology
 - [`../AGENTS.md`](../AGENTS.md) and `rules/` for repo guidance
@@ -129,7 +129,7 @@ uv run python scripts/quality.py ci
 Optional extra syntax/import smoke for broad tree changes:
 
 ```bash
-python -m compileall yoyopy tests demos scripts
+python -m compileall yoyopod tests demos scripts
 ```
 
 Full quality audit of the current repo debt:
@@ -199,7 +199,7 @@ yoyoctl remote logs --follow --filter ERROR
 ## Package Layout
 
 ```text
-yoyopy/
+src/yoyopod/
   app.py
   main.py
   fsm.py

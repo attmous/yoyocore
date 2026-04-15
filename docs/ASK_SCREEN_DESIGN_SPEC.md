@@ -4,7 +4,7 @@
 **Source:** Figma YoyoPod-Design, node `43:4677` (Ask section)
 **Extracted:** 2026-04-10
 **Target:** 240x280 Whisplay portrait display
-**Rendering path:** PIL fallback in `yoyopy/ui/screens/navigation/ask.py`
+**Rendering path:** PIL fallback in `src/yoyopod/ui/screens/navigation/ask.py`
 
 > Current note: use this file for intended interaction and visual design. For what actually exists on `main`, trust `docs/SYSTEM_ARCHITECTURE.md`, the current `AskScreen` implementation, and the current router/screen registration code.
 
@@ -392,7 +392,7 @@ The business logic doesn't change — only the visual presentation and screen ar
 
 ## Existing Theme Helpers To Reuse
 
-From `yoyopy/ui/screens/theme.py`:
+From `src/yoyopod/ui/screens/theme.py`:
 - `render_header()` — status bar with time, battery, mode chip
 - `render_footer()` — hint bar with help text
 - `draw_icon()` — icon rendering
@@ -426,6 +426,6 @@ After implementation:
 - [ ] TTS responses still play
 - [ ] Old `VoiceCommandsScreen` and `AIRequestsScreen` classes removed
 - [ ] Old routes cleaned up in `router.py`
-- [ ] `python -m compileall yoyopy tests` passes
+- [ ] `python -m compileall yoyopod tests` passes
 - [ ] `uv run pytest -q` passes
 - [ ] Existing tests in `test_screen_routing.py` updated for new route structure

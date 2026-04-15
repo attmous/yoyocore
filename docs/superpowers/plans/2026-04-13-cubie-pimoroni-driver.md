@@ -16,12 +16,12 @@
 
 | File | Action | Responsibility |
 |---|---|---|
-| `yoyopy/ui/display/adapters/st7789_spi.py` | Create | Low-level ST7789 SPI + GPIO driver |
-| `yoyopy/ui/display/adapters/cubie_pimoroni.py` | Create | DisplayHAL adapter for Pimoroni on non-Pi boards |
-| `yoyopy/ui/input/adapters/gpiod_buttons.py` | Create | InputHAL adapter for 4-button input via gpiod |
-| `yoyopy/config/models.py` | Modify | Add GpioPin, PimoroniGpioConfig, PimoroniGpioInputConfig dataclasses |
-| `yoyopy/ui/display/factory.py` | Modify | Add Cubie Pimoroni fallback path |
-| `yoyopy/ui/input/factory.py` | Modify | Add gpiod button fallback path |
+| `src/yoyopod/ui/display/adapters/st7789_spi.py` | Create | Low-level ST7789 SPI + GPIO driver |
+| `src/yoyopod/ui/display/adapters/cubie_pimoroni.py` | Create | DisplayHAL adapter for Pimoroni on non-Pi boards |
+| `src/yoyopod/ui/input/adapters/gpiod_buttons.py` | Create | InputHAL adapter for 4-button input via gpiod |
+| `src/yoyopod/config/models.py` | Modify | Add GpioPin, PimoroniGpioConfig, PimoroniGpioInputConfig dataclasses |
+| `src/yoyopod/ui/display/factory.py` | Modify | Add Cubie Pimoroni fallback path |
+| `src/yoyopod/ui/input/factory.py` | Modify | Add gpiod button fallback path |
 | `config/boards/radxa-cubie-a7z/yoyopod_config.yaml` | Modify | Add pimoroni_gpio display and input pin config |
 | `tests/test_st7789_spi.py` | Create | Unit tests for ST7789 driver |
 | `tests/test_cubie_pimoroni.py` | Create | Unit tests for Cubie Pimoroni adapter |
@@ -33,7 +33,7 @@
 ### Task 1: Config Models for GPIO Pin Mapping
 
 **Files:**
-- Modify: `yoyopy/config/models.py`
+- Modify: `src/yoyopod/config/models.py`
 - Test: `tests/test_config_models.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -43,7 +43,7 @@ Add to `tests/test_config_models.py`:
 ```python
 def test_gpio_pin_config_from_yaml_dict():
     """GpioPin and PimoroniGpioConfig should load from nested YAML dicts."""
-    from yoyopy.config.models import (
+    from yoyopod.config.models import (
         AppDisplayConfig,
         GpioPin,
         PimoroniGpioConfig,
@@ -74,7 +74,7 @@ def test_gpio_pin_config_from_yaml_dict():
 
 def test_gpio_input_config_from_yaml_dict():
     """PimoroniGpioInputConfig should load from nested YAML dicts."""
-    from yoyopy.config.models import (
+    from yoyopod.config.models import (
         AppInputConfig,
         GpioPin,
         PimoroniGpioInputConfig,
@@ -97,7 +97,7 @@ def test_gpio_input_config_from_yaml_dict():
 
 def test_display_config_defaults_pimoroni_gpio_to_none():
     """When no pimoroni_gpio section exists, it should default to None."""
-    from yoyopy.config.models import AppDisplayConfig, build_config_model
+    from yoyopod.config.models import AppDisplayConfig, build_config_model
 
     config = build_config_model(AppDisplayConfig, {})
     assert config.pimoroni_gpio is None
@@ -110,7 +110,7 @@ Expected: FAIL — `GpioPin` and `PimoroniGpioConfig` do not exist yet.
 
 - [ ] **Step 3: Add the config dataclasses**
 
-In `yoyopy/config/models.py`, add above `AppDisplayConfig`:
+In `src/yoyopod/config/models.py`, add above `AppDisplayConfig`:
 
 ```python
 @dataclass(slots=True)
@@ -179,7 +179,7 @@ Expected: ALL PASS (new tests plus all existing).
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/config/models.py tests/test_config_models.py
+git add src/yoyopod/config/models.py tests/test_config_models.py
 git commit -m "feat: add GPIO pin config models for Cubie Pimoroni driver"
 ```
 
@@ -188,7 +188,7 @@ git commit -m "feat: add GPIO pin config models for Cubie Pimoroni driver"
 ### Task 2: ST7789 SPI Driver
 
 **Files:**
-- Create: `yoyopy/ui/display/adapters/st7789_spi.py`
+- Create: `src/yoyopod/ui/display/adapters/st7789_spi.py`
 - Create: `tests/test_st7789_spi.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -205,7 +205,7 @@ import pytest
 @pytest.fixture
 def mock_spidev():
     """Provide a mock spidev.SpiDev instance."""
-    with patch("yoyopy.ui.display.adapters.st7789_spi.spidev") as mock_mod:
+    with patch("yoyopod.ui.display.adapters.st7789_spi.spidev") as mock_mod:
         device = MagicMock()
         mock_mod.SpiDev.return_value = device
         yield device
@@ -214,7 +214,7 @@ def mock_spidev():
 @pytest.fixture
 def mock_gpiod():
     """Provide a mock gpiod module with Chip/Line stubs."""
-    with patch("yoyopy.ui.display.adapters.st7789_spi.gpiod") as mock_mod:
+    with patch("yoyopod.ui.display.adapters.st7789_spi.gpiod") as mock_mod:
         chip_instances = {}
 
         def make_chip(name):
@@ -232,7 +232,7 @@ def mock_gpiod():
 
 
 def test_driver_opens_spi_device(mock_spidev, mock_gpiod):
-    from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+    from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
     driver = ST7789SpiDriver(
         spi_bus=1, spi_device=0, spi_speed_hz=60_000_000,
@@ -249,7 +249,7 @@ def test_driver_opens_spi_device(mock_spidev, mock_gpiod):
 
 def test_driver_requests_gpio_lines(mock_spidev, mock_gpiod):
     mock_mod, chips = mock_gpiod
-    from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+    from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
     driver = ST7789SpiDriver(
         spi_bus=1, spi_device=0, spi_speed_hz=60_000_000,
@@ -265,7 +265,7 @@ def test_driver_requests_gpio_lines(mock_spidev, mock_gpiod):
 
 
 def test_command_toggles_dc_low(mock_spidev, mock_gpiod):
-    from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+    from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
     driver = ST7789SpiDriver(
         spi_bus=1, spi_device=0, spi_speed_hz=60_000_000,
@@ -284,7 +284,7 @@ def test_command_toggles_dc_low(mock_spidev, mock_gpiod):
 
 
 def test_draw_image_sends_caset_raset_ramwr(mock_spidev, mock_gpiod):
-    from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+    from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
     driver = ST7789SpiDriver(
         spi_bus=1, spi_device=0, spi_speed_hz=60_000_000,
@@ -301,7 +301,7 @@ def test_draw_image_sends_caset_raset_ramwr(mock_spidev, mock_gpiod):
 
 
 def test_set_backlight(mock_spidev, mock_gpiod):
-    from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+    from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
     driver = ST7789SpiDriver(
         spi_bus=1, spi_device=0, spi_speed_hz=60_000_000,
@@ -320,11 +320,11 @@ def test_set_backlight(mock_spidev, mock_gpiod):
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_st7789_spi.py -v`
-Expected: FAIL — module `yoyopy.ui.display.adapters.st7789_spi` does not exist.
+Expected: FAIL — module `yoyopod.ui.display.adapters.st7789_spi` does not exist.
 
 - [ ] **Step 3: Implement the ST7789 SPI driver**
 
-Create `yoyopy/ui/display/adapters/st7789_spi.py`:
+Create `src/yoyopod/ui/display/adapters/st7789_spi.py`:
 
 ```python
 """
@@ -563,7 +563,7 @@ Expected: ALL PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/display/adapters/st7789_spi.py tests/test_st7789_spi.py
+git add src/yoyopod/ui/display/adapters/st7789_spi.py tests/test_st7789_spi.py
 git commit -m "feat: add ST7789 SPI driver using spidev + gpiod"
 ```
 
@@ -572,7 +572,7 @@ git commit -m "feat: add ST7789 SPI driver using spidev + gpiod"
 ### Task 3: Cubie Pimoroni Display Adapter
 
 **Files:**
-- Create: `yoyopy/ui/display/adapters/cubie_pimoroni.py`
+- Create: `src/yoyopod/ui/display/adapters/cubie_pimoroni.py`
 - Create: `tests/test_cubie_pimoroni.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -590,7 +590,7 @@ import pytest
 def mock_driver():
     """Provide a mock ST7789SpiDriver."""
     with patch(
-        "yoyopy.ui.display.adapters.cubie_pimoroni.ST7789SpiDriver"
+        "yoyopod.ui.display.adapters.cubie_pimoroni.ST7789SpiDriver"
     ) as mock_cls:
         driver = MagicMock()
         mock_cls.return_value = driver
@@ -598,7 +598,7 @@ def mock_driver():
 
 
 def test_adapter_constants():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     assert CubiePimoroniAdapter.DISPLAY_TYPE == "pimoroni"
     assert CubiePimoroniAdapter.WIDTH == 320
@@ -608,7 +608,7 @@ def test_adapter_constants():
 
 
 def test_adapter_simulate_mode():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     assert adapter.simulate is True
@@ -618,7 +618,7 @@ def test_adapter_simulate_mode():
 
 
 def test_clear_fills_buffer(mock_driver):
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     adapter.clear((255, 0, 0))
@@ -628,8 +628,8 @@ def test_clear_fills_buffer(mock_driver):
 
 
 def test_update_converts_to_rgb565_and_sends(mock_driver):
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
-    from yoyopy.config.models import GpioPin, PimoroniGpioConfig
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.config.models import GpioPin, PimoroniGpioConfig
 
     gpio_config = PimoroniGpioConfig(
         dc=GpioPin("gpiochip0", 109),
@@ -651,7 +651,7 @@ def test_update_converts_to_rgb565_and_sends(mock_driver):
 
 
 def test_rgb565_conversion():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
 
@@ -670,7 +670,7 @@ def test_rgb565_conversion():
 
 
 def test_get_backend_kind():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     assert adapter.get_backend_kind() == "pil"
@@ -684,7 +684,7 @@ Expected: FAIL — module does not exist.
 
 - [ ] **Step 3: Implement the Cubie Pimoroni adapter**
 
-Create `yoyopy/ui/display/adapters/cubie_pimoroni.py`:
+Create `src/yoyopod/ui/display/adapters/cubie_pimoroni.py`:
 
 ```python
 """
@@ -703,8 +703,8 @@ from typing import Optional, Tuple
 from loguru import logger
 from PIL import Image, ImageDraw, ImageFont
 
-from yoyopy.config.models import GpioPin, PimoroniGpioConfig
-from yoyopy.ui.display.hal import DisplayHAL
+from yoyopod.config.models import GpioPin, PimoroniGpioConfig
+from yoyopod.ui.display.hal import DisplayHAL
 
 try:
     import gpiod
@@ -741,7 +741,7 @@ class CubiePimoroniAdapter(DisplayHAL):
         if not self.simulate:
             cfg = gpio_config or PimoroniGpioConfig()
             try:
-                from yoyopy.ui.display.adapters.st7789_spi import ST7789SpiDriver
+                from yoyopod.ui.display.adapters.st7789_spi import ST7789SpiDriver
 
                 self._driver = ST7789SpiDriver(
                     spi_bus=cfg.spi_bus,
@@ -974,7 +974,7 @@ Expected: ALL PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/display/adapters/cubie_pimoroni.py tests/test_cubie_pimoroni.py
+git add src/yoyopod/ui/display/adapters/cubie_pimoroni.py tests/test_cubie_pimoroni.py
 git commit -m "feat: add Cubie Pimoroni display adapter (DisplayHAL over ST7789)"
 ```
 
@@ -983,7 +983,7 @@ git commit -m "feat: add Cubie Pimoroni display adapter (DisplayHAL over ST7789)
 ### Task 4: gpiod Button Adapter
 
 **Files:**
-- Create: `yoyopy/ui/input/adapters/gpiod_buttons.py`
+- Create: `src/yoyopod/ui/input/adapters/gpiod_buttons.py`
 - Create: `tests/test_gpiod_buttons.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -997,11 +997,11 @@ from unittest.mock import MagicMock, patch
 import time
 import pytest
 
-from yoyopy.ui.input.hal import InputAction
+from yoyopod.ui.input.hal import InputAction
 
 
 def test_adapter_capabilities():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     caps = adapter.get_capabilities()
@@ -1013,7 +1013,7 @@ def test_adapter_capabilities():
 
 
 def test_adapter_fires_callback_on_simulate():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     received = []
@@ -1024,7 +1024,7 @@ def test_adapter_fires_callback_on_simulate():
 
 
 def test_clear_callbacks():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     adapter.on_action(InputAction.SELECT, lambda data: None)
@@ -1034,7 +1034,7 @@ def test_clear_callbacks():
 
 
 def test_adapter_start_stop_lifecycle():
-    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
     adapter = GpiodButtonAdapter(pin_config={}, simulate=True)
     adapter.start()
@@ -1050,7 +1050,7 @@ Expected: FAIL — module does not exist.
 
 - [ ] **Step 3: Implement the gpiod button adapter**
 
-Create `yoyopy/ui/input/adapters/gpiod_buttons.py`:
+Create `src/yoyopod/ui/input/adapters/gpiod_buttons.py`:
 
 ```python
 """
@@ -1074,7 +1074,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
-from yoyopy.ui.input.hal import InputAction, InputHAL
+from yoyopod.ui.input.hal import InputAction, InputHAL
 
 try:
     import gpiod
@@ -1282,7 +1282,7 @@ Expected: ALL PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/input/adapters/gpiod_buttons.py tests/test_gpiod_buttons.py
+git add src/yoyopod/ui/input/adapters/gpiod_buttons.py tests/test_gpiod_buttons.py
 git commit -m "feat: add gpiod-based 4-button input adapter"
 ```
 
@@ -1291,8 +1291,8 @@ git commit -m "feat: add gpiod-based 4-button input adapter"
 ### Task 5: Factory Fallback Integration
 
 **Files:**
-- Modify: `yoyopy/ui/display/factory.py`
-- Modify: `yoyopy/ui/input/factory.py`
+- Modify: `src/yoyopod/ui/display/factory.py`
+- Modify: `src/yoyopod/ui/input/factory.py`
 - Create: `tests/test_factory_fallback.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -1308,7 +1308,7 @@ import pytest
 
 def test_display_factory_falls_back_to_cubie_pimoroni():
     """When displayhatmini is unavailable but gpio config exists, use CubiePimoroniAdapter."""
-    from yoyopy.config.models import GpioPin, PimoroniGpioConfig
+    from yoyopod.config.models import GpioPin, PimoroniGpioConfig
 
     gpio_config = PimoroniGpioConfig(
         dc=GpioPin("gpiochip0", 109),
@@ -1316,12 +1316,12 @@ def test_display_factory_falls_back_to_cubie_pimoroni():
         backlight=GpioPin("gpiochip1", 35),
     )
 
-    with patch("yoyopy.ui.display.factory.detect_hardware", return_value="pimoroni"):
+    with patch("yoyopod.ui.display.factory.detect_hardware", return_value="pimoroni"):
         with patch(
-            "yoyopy.ui.display.factory._get_pimoroni_gpio_config",
+            "yoyopod.ui.display.factory._get_pimoroni_gpio_config",
             return_value=gpio_config,
         ):
-            from yoyopy.ui.display.factory import get_display
+            from yoyopod.ui.display.factory import get_display
 
             display = get_display(hardware="pimoroni", simulate=False)
             try:
@@ -1336,7 +1336,7 @@ def test_display_factory_falls_back_to_cubie_pimoroni():
 
 def test_input_factory_falls_back_to_gpiod_buttons():
     """When displayhatmini is unavailable, use GpiodButtonAdapter for pimoroni display."""
-    from yoyopy.ui.input.factory import get_input_manager
+    from yoyopod.ui.input.factory import get_input_manager
 
     mock_display = MagicMock()
     mock_display.DISPLAY_TYPE = "pimoroni"
@@ -1366,12 +1366,12 @@ Expected: FAIL — `_get_pimoroni_gpio_config` does not exist, input factory doe
 
 - [ ] **Step 3: Update display factory**
 
-In `yoyopy/ui/display/factory.py`, add a helper and modify the pimoroni branch:
+In `src/yoyopod/ui/display/factory.py`, add a helper and modify the pimoroni branch:
 
 Add this import near the top:
 
 ```python
-from yoyopy.config.models import PimoroniGpioConfig
+from yoyopod.config.models import PimoroniGpioConfig
 ```
 
 Add this helper function after `_normalize_display_hardware`:
@@ -1380,7 +1380,7 @@ Add this helper function after `_normalize_display_hardware`:
 def _get_pimoroni_gpio_config() -> PimoroniGpioConfig | None:
     """Return PimoroniGpioConfig from the active board config, or None."""
     try:
-        from yoyopy.config.manager import ConfigManager
+        from yoyopod.config.manager import ConfigManager
 
         mgr = ConfigManager()
         return mgr.config.display.pimoroni_gpio
@@ -1397,7 +1397,7 @@ Replace the `if hardware == "pimoroni":` block in `get_display()`:
             import displayhatmini  # noqa: F401
 
             logger.info("Creating Pimoroni display adapter (320x240 landscape, displayhatmini)")
-            from yoyopy.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
+            from yoyopod.ui.display.adapters.pimoroni import PimoroniDisplayAdapter
 
             return PimoroniDisplayAdapter(simulate=False)
         except Exception:
@@ -1407,20 +1407,20 @@ Replace the `if hardware == "pimoroni":` block in `get_display()`:
         gpio_config = _get_pimoroni_gpio_config()
         if gpio_config is not None and (gpio_config.dc is not None or gpio_config.cs is not None):
             logger.info("Creating Cubie Pimoroni display adapter (320x240 landscape, spidev + gpiod)")
-            from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+            from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
             return CubiePimoroniAdapter(simulate=False, gpio_config=gpio_config)
 
         logger.warning("Pimoroni requested but no displayhatmini or GPIO config available")
         logger.info("Falling back to Pimoroni simulation mode")
-        from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+        from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
         return CubiePimoroniAdapter(simulate=True)
 ```
 
 - [ ] **Step 4: Update input factory**
 
-In `yoyopy/ui/input/factory.py`, update the `display_type == "pimoroni"` branch. Replace the existing pimoroni block (lines 72-86):
+In `src/yoyopod/ui/input/factory.py`, update the `display_type == "pimoroni"` branch. Replace the existing pimoroni block (lines 72-86):
 
 ```python
     if display_type == "pimoroni":
@@ -1430,7 +1430,7 @@ In `yoyopy/ui/input/factory.py`, update the `display_type == "pimoroni"` branch.
         # Try Pi-native displayhatmini button reading first
         if display_device or simulate:
             try:
-                from yoyopy.ui.input.adapters.four_button import FourButtonInputAdapter
+                from yoyopod.ui.input.adapters.four_button import FourButtonInputAdapter
 
                 if not simulate:
                     from displayhatmini import DisplayHATMini  # noqa: F401
@@ -1445,7 +1445,7 @@ In `yoyopy/ui/input/factory.py`, update the `display_type == "pimoroni"` branch.
                 # Fallback: gpiod-based buttons
                 gpio_input_config = input_config.get("pimoroni_gpio", {})
                 if gpio_input_config:
-                    from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+                    from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
                     button_adapter = GpiodButtonAdapter(
                         pin_config=gpio_input_config,
@@ -1459,7 +1459,7 @@ In `yoyopy/ui/input/factory.py`, update the `display_type == "pimoroni"` branch.
             # No display device — check for gpiod config
             gpio_input_config = input_config.get("pimoroni_gpio", {})
             if gpio_input_config:
-                from yoyopy.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
+                from yoyopod.ui.input.adapters.gpiod_buttons import GpiodButtonAdapter
 
                 button_adapter = GpiodButtonAdapter(
                     pin_config=gpio_input_config,
@@ -1484,7 +1484,7 @@ Expected: ALL PASS (no regressions).
 - [ ] **Step 7: Commit**
 
 ```bash
-git add yoyopy/ui/display/factory.py yoyopy/ui/input/factory.py tests/test_factory_fallback.py
+git add src/yoyopod/ui/display/factory.py src/yoyopod/ui/input/factory.py tests/test_factory_fallback.py
 git commit -m "feat: add factory fallback to Cubie Pimoroni adapters"
 ```
 
@@ -1558,7 +1558,7 @@ Expected: ALL PASS.
 
 - [ ] **Step 3: Run compile check**
 
-Run: `python -m compileall yoyopy tests`
+Run: `python -m compileall yoyopod tests`
 Expected: No compilation errors.
 
 - [ ] **Step 4: Commit**

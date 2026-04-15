@@ -14,12 +14,12 @@ This document describes the input abstraction layer that now exists in the UI pa
 
 ## Current Files
 
-- `yoyopy/ui/input/hal.py`: `InputAction` and `InputHAL`
-- `yoyopy/ui/input/manager.py`: action dispatcher
-- `yoyopy/ui/input/factory.py`: adapter selection
-- `yoyopy/ui/input/adapters/four_button.py`
-- `yoyopy/ui/input/adapters/ptt_button.py`
-- `yoyopy/ui/input/adapters/keyboard.py`
+- `src/yoyopod/ui/input/hal.py`: `InputAction` and `InputHAL`
+- `src/yoyopod/ui/input/manager.py`: action dispatcher
+- `src/yoyopod/ui/input/factory.py`: adapter selection
+- `src/yoyopod/ui/input/adapters/four_button.py`
+- `src/yoyopod/ui/input/adapters/ptt_button.py`
+- `src/yoyopod/ui/input/adapters/keyboard.py`
 
 ## Core Semantic Actions
 

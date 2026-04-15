@@ -1,0 +1,76 @@
+"""LVGL-backed view for the contact list screen."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from yoyopod.ui.lvgl_binding import LvglDisplayBackend
+from yoyopod.ui.screens.lvgl_status import sync_network_status
+from yoyopod.ui.screens.theme import TALK
+
+if TYPE_CHECKING:
+    from yoyopod.app_context import AppContext
+    from yoyopod.ui.screens.voip.contact_list import ContactListScreen
+
+
+@dataclass(slots=True)
+class LvglContactListView:
+    """Own the LVGL object lifecycle for ContactListScreen."""
+
+    screen: "ContactListScreen"
+    backend: LvglDisplayBackend
+    _built: bool = False
+
+    def build(self) -> None:
+        if self._built or self.backend.binding is None:
+            return
+        self.backend.binding.playlist_build()
+        self._built = True
+
+    def sync(self) -> None:
+        if not self._built or self.backend.binding is None:
+            return
+
+        visible_items, visible_badges, selected_visible_index = self.screen.get_visible_window()
+        visible_subtitles = self.screen.get_visible_subtitles()
+        visible_icon_keys = self.screen.get_visible_icon_keys()
+        context = self.screen.context
+        sync_network_status(self.backend.binding, context)
+
+        self.backend.binding.playlist_sync(
+            title_text=self.screen.title_text,
+            page_text=None,
+            footer=self.screen._instruction_text(),
+            items=visible_items,
+            subtitles=visible_subtitles,
+            badges=visible_badges,
+            icon_keys=visible_icon_keys,
+            selected_visible_index=selected_visible_index,
+            voip_state=self._voip_state(context),
+            battery_percent=self._battery_percent(context),
+            charging=bool(getattr(context, "battery_charging", False)) if context is not None else False,
+            power_available=bool(getattr(context, "power_available", True)) if context is not None else True,
+            accent=TALK.accent,
+            empty_title=self.screen.empty_title,
+            empty_subtitle=self.screen.empty_subtitle,
+            empty_icon_key="talk",
+        )
+
+    def destroy(self) -> None:
+        if not self._built or self.backend.binding is None:
+            return
+        self.backend.binding.playlist_destroy()
+        self._built = False
+
+    @staticmethod
+    def _battery_percent(context: "AppContext | None") -> int:
+        if context is None:
+            return 100
+        return max(0, min(100, int(getattr(context, "battery_percent", 100))))
+
+    @staticmethod
+    def _voip_state(context: "AppContext | None") -> int:
+        if context is None or not getattr(context, "voip_configured", False):
+            return 0
+        return 1 if getattr(context, "voip_ready", False) else 2

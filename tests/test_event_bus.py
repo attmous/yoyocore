@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from yoyopy.event_bus import EventBus
+from yoyopod.event_bus import EventBus
 
 
 @dataclass(frozen=True, slots=True)

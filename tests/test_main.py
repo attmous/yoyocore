@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import yoyopy.main as main_module
+import yoyopod.main as main_module
 
 
 def test_configure_logger_uses_shared_utility(monkeypatch, tmp_path) -> None:

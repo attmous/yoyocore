@@ -63,12 +63,12 @@ Read:
 1. [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md)
 2. subsystem docs for the area you are touching
 3. `rules/architecture.md`
-4. the relevant files under `yoyopy/`
+4. the relevant files under `src/yoyopod/`
 
 Current reality:
 
 - `YoyoPodApp` is thinner than before, but runtime cleanup is still in progress
-- `yoyopy/runtime/boot.py` is still a hotspot, not a final architecture destination
+- `src/yoyopod/runtime/boot.py` is still a hotspot, not a final architecture destination
 - runtime/state/model cleanup should prefer clearer ownership over broad rewrites
 
 ### Raspberry Pi and setup work
@@ -120,7 +120,7 @@ uv run python scripts/quality.py ci
 Then add any focused commands relevant to your area, for example:
 
 ```bash
-python -m compileall yoyopy tests demos scripts
+python -m compileall yoyopod tests demos scripts
 uv run pytest -q tests/test_app_orchestration.py
 uv run pytest -q tests/test_setup_cli.py tests/test_pi_remote.py tests/test_cli.py
 ```
@@ -151,8 +151,8 @@ Watch for these recurring mistakes:
 
 These are good places to be extra careful:
 
-- `yoyopy/runtime/boot.py`
-- `yoyopy/app_context.py`
+- `src/yoyopod/runtime/boot.py`
+- `src/yoyopod/app_context.py`
 - duplicated domain/state models that drift across layers
 - setup/docs wording that can overstate what the new commands guarantee
 

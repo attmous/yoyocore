@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from yoyopy.app import YoyoPodApp
-from yoyopy.app_context import AppContext
-from yoyopy.events import (
+from yoyopod.app import YoyoPodApp
+from yoyopod.app_context import AppContext
+from yoyopod.events import (
     NetworkGpsFixEvent,
     NetworkGpsNoFixEvent,
     NetworkPppDownEvent,
     NetworkPppUpEvent,
     NetworkSignalUpdateEvent,
 )
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
-from yoyopy.ui.screens.lvgl_status import network_status_kwargs
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
+from yoyopod.ui.screens.lvgl_status import network_status_kwargs
 
 
 def test_network_status_kwargs_normalize_context_state() -> None:

@@ -4,7 +4,7 @@
 
 **Goal:** Migrate 12 scripts from `scripts/` into a unified `yoyoctl` CLI built on typer, organized into `pi`, `remote`, and `build` command groups.
 
-**Architecture:** A `yoyopy/cli/` subpackage with one module per command group. Root app in `__init__.py` wires subgroups via `app.add_typer()`. Shared logging/config helpers extracted into a common module. typer is a dev-only dependency.
+**Architecture:** A `src/yoyopod/cli/` subpackage with one module per command group. Root app in `__init__.py` wires subgroups via `app.add_typer()`. Shared logging/config helpers extracted into a common module. typer is a dev-only dependency.
 
 **Tech Stack:** typer>=0.12.0, loguru (existing), pathlib (existing)
 
@@ -15,8 +15,8 @@
 ### Task 1: Scaffold CLI package and entry point
 
 **Files:**
-- Create: `yoyopy/cli/__init__.py`
-- Create: `yoyopy/cli/common.py`
+- Create: `src/yoyopod/cli/__init__.py`
+- Create: `src/yoyopod/cli/common.py`
 - Modify: `pyproject.toml:36-47`
 - Test: `tests/test_cli.py`
 
@@ -27,7 +27,7 @@
 
 from typer.testing import CliRunner
 
-from yoyopy.cli import app
+from yoyopod.cli import app
 
 runner = CliRunner()
 
@@ -58,7 +58,7 @@ def test_build_help():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_cli.py -v`
-Expected: FAIL — `ModuleNotFoundError: No module named 'yoyopy.cli'`
+Expected: FAIL — `ModuleNotFoundError: No module named 'yoyopod.cli'`
 
 - [ ] **Step 3: Add typer to dev dependencies**
 
@@ -80,19 +80,19 @@ Add the `yoyoctl` entry point:
 
 ```toml
 [project.scripts]
-yoyopy = "yoyopy.main:main"
-yoyopod = "yoyopy.main:main"
-yoyoctl = "yoyopy.cli:run"
+yoyopod = "yoyopod.main:main"
+yoyopod = "yoyopod.main:main"
+yoyoctl = "yoyopod.cli:run"
 ```
 
 Run: `uv sync --extra dev`
 
 - [ ] **Step 4: Create the shared helpers module**
 
-All scripts share a `configure_logging(verbose)` pattern and a config-dir resolution pattern. Extract these into `yoyopy/cli/common.py`:
+All scripts share a `configure_logging(verbose)` pattern and a config-dir resolution pattern. Extract these into `src/yoyopod/cli/common.py`:
 
 ```python
-"""yoyopy/cli/common.py — shared CLI helpers."""
+"""src/yoyopod/cli/common.py — shared CLI helpers."""
 
 from __future__ import annotations
 
@@ -123,7 +123,7 @@ def resolve_config_dir(config_dir: str) -> Path:
 - [ ] **Step 5: Create the root CLI app with empty subgroups**
 
 ```python
-"""yoyopy/cli/__init__.py — yoyoctl root application."""
+"""src/yoyopod/cli/__init__.py — yoyoctl root application."""
 
 from __future__ import annotations
 
@@ -160,13 +160,13 @@ Expected: All 4 tests PASS
 
 - [ ] **Step 7: Verify compileall**
 
-Run: `python -m compileall yoyopy/cli`
+Run: `python -m compileall src/yoyopod/cli`
 Expected: No errors
 
 - [ ] **Step 8: Commit**
 
 ```bash
-git add yoyopy/cli/__init__.py yoyopy/cli/common.py tests/test_cli.py pyproject.toml
+git add src/yoyopod/cli/__init__.py src/yoyopod/cli/common.py tests/test_cli.py pyproject.toml
 git commit -m "feat(cli): scaffold yoyoctl with pi/remote/build groups"
 ```
 
@@ -175,8 +175,8 @@ git commit -m "feat(cli): scaffold yoyoctl with pi/remote/build groups"
 ### Task 2: Port build commands (lvgl_build + liblinphone_build)
 
 **Files:**
-- Create: `yoyopy/cli/build.py`
-- Modify: `yoyopy/cli/__init__.py`
+- Create: `src/yoyopod/cli/build.py`
+- Modify: `src/yoyopod/cli/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/lvgl_build.py`, `scripts/liblinphone_build.py`
 
@@ -206,10 +206,10 @@ Expected: FAIL
 
 - [ ] **Step 3: Create build module**
 
-Create `yoyopy/cli/build.py`. Move the logic from `scripts/lvgl_build.py` and `scripts/liblinphone_build.py` into typer commands. Preserve all arguments with their exact types and defaults:
+Create `src/yoyopod/cli/build.py`. Move the logic from `scripts/lvgl_build.py` and `scripts/liblinphone_build.py` into typer commands. Preserve all arguments with their exact types and defaults:
 
 ```python
-"""yoyopy/cli/build.py — native extension build commands."""
+"""src/yoyopod/cli/build.py — native extension build commands."""
 
 from __future__ import annotations
 
@@ -217,7 +217,7 @@ from pathlib import Path
 
 import typer
 
-from yoyopy.cli.common import REPO_ROOT, configure_logging
+from yoyopod.cli.common import REPO_ROOT, configure_logging
 
 build_app = typer.Typer(name="build", help="Build native C extensions.", no_args_is_help=True)
 
@@ -265,10 +265,10 @@ def liblinphone(
 
 - [ ] **Step 4: Wire build_app into root**
 
-In `yoyopy/cli/__init__.py`, replace the placeholder `build_app` with the real one:
+In `src/yoyopod/cli/__init__.py`, replace the placeholder `build_app` with the real one:
 
 ```python
-from yoyopy.cli.build import build_app  # noqa: E402 — after app creation
+from yoyopod.cli.build import build_app  # noqa: E402 — after app creation
 
 # Remove the old placeholder:
 #   build_app = typer.Typer(name="build", ...)
@@ -286,7 +286,7 @@ Expected: All tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/cli/build.py yoyopy/cli/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/build.py src/yoyopod/cli/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port build lvgl and liblinphone commands"
 ```
 
@@ -295,9 +295,9 @@ git commit -m "feat(cli): port build lvgl and liblinphone commands"
 ### Task 3: Port pi voip commands (check + debug)
 
 **Files:**
-- Create: `yoyopy/cli/pi/__init__.py`
-- Create: `yoyopy/cli/pi/voip.py`
-- Modify: `yoyopy/cli/__init__.py`
+- Create: `src/yoyopod/cli/pi/__init__.py`
+- Create: `src/yoyopod/cli/pi/voip.py`
+- Modify: `src/yoyopod/cli/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/check_voip_registration.py`, `scripts/debug_incoming_call.py`
 
@@ -323,31 +323,31 @@ Expected: FAIL
 
 - [ ] **Step 3: Create pi package and voip module**
 
-Create `yoyopy/cli/pi/__init__.py`:
+Create `src/yoyopod/cli/pi/__init__.py`:
 
 ```python
-"""yoyopy/cli/pi/__init__.py — pi command group (on-device commands)."""
+"""src/yoyopod/cli/pi/__init__.py — pi command group (on-device commands)."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.pi.voip import voip_app
+from yoyopod.cli.pi.voip import voip_app
 
 pi_app = typer.Typer(name="pi", help="Commands that run ON the Raspberry Pi.", no_args_is_help=True)
 pi_app.add_typer(voip_app)
 ```
 
-Create `yoyopy/cli/pi/voip.py`:
+Create `src/yoyopod/cli/pi/voip.py`:
 
 ```python
-"""yoyopy/cli/pi/voip.py — VoIP diagnostic commands."""
+"""src/yoyopod/cli/pi/voip.py — VoIP diagnostic commands."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging
+from yoyopod.cli.common import configure_logging
 
 voip_app = typer.Typer(name="voip", help="VoIP diagnostic commands.", no_args_is_help=True)
 
@@ -372,10 +372,10 @@ def debug() -> None:
 
 - [ ] **Step 4: Wire pi_app into root**
 
-In `yoyopy/cli/__init__.py`, replace the placeholder `pi_app` with the import:
+In `src/yoyopod/cli/__init__.py`, replace the placeholder `pi_app` with the import:
 
 ```python
-from yoyopy.cli.pi import pi_app
+from yoyopod.cli.pi import pi_app
 
 # Remove the old placeholder pi_app and its add_typer call.
 # Add:
@@ -390,7 +390,7 @@ Expected: All tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/cli/pi/__init__.py yoyopy/cli/pi/voip.py yoyopy/cli/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/pi/__init__.py src/yoyopod/cli/pi/voip.py src/yoyopod/cli/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port pi voip check and debug commands"
 ```
 
@@ -399,8 +399,8 @@ git commit -m "feat(cli): port pi voip check and debug commands"
 ### Task 4: Port pi power commands (battery + rtc)
 
 **Files:**
-- Create: `yoyopy/cli/pi/power.py`
-- Modify: `yoyopy/cli/pi/__init__.py`
+- Create: `src/yoyopod/cli/pi/power.py`
+- Modify: `src/yoyopod/cli/pi/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/pisugar_power.py`, `scripts/pisugar_rtc.py`
 
@@ -433,16 +433,16 @@ Expected: FAIL
 
 - [ ] **Step 3: Create power module**
 
-Create `yoyopy/cli/pi/power.py`:
+Create `src/yoyopod/cli/pi/power.py`:
 
 ```python
-"""yoyopy/cli/pi/power.py — PiSugar battery and RTC commands."""
+"""src/yoyopod/cli/pi/power.py — PiSugar battery and RTC commands."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging, resolve_config_dir
+from yoyopod.cli.common import configure_logging, resolve_config_dir
 
 power_app = typer.Typer(name="power", help="PiSugar battery and RTC commands.", no_args_is_help=True)
 
@@ -528,10 +528,10 @@ def disable_alarm(
 
 - [ ] **Step 4: Register power_app in pi group**
 
-In `yoyopy/cli/pi/__init__.py`, add:
+In `src/yoyopod/cli/pi/__init__.py`, add:
 
 ```python
-from yoyopy.cli.pi.power import power_app
+from yoyopod.cli.pi.power import power_app
 
 pi_app.add_typer(power_app)
 ```
@@ -544,7 +544,7 @@ Expected: All tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/cli/pi/power.py yoyopy/cli/pi/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/pi/power.py src/yoyopod/cli/pi/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port pi power battery and rtc commands"
 ```
 
@@ -553,8 +553,8 @@ git commit -m "feat(cli): port pi power battery and rtc commands"
 ### Task 5: Port pi lvgl commands (soak + probe)
 
 **Files:**
-- Create: `yoyopy/cli/pi/lvgl.py`
-- Modify: `yoyopy/cli/pi/__init__.py`
+- Create: `src/yoyopod/cli/pi/lvgl.py`
+- Modify: `src/yoyopod/cli/pi/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/lvgl_soak.py`, `scripts/lvgl_probe.py`
 
@@ -586,10 +586,10 @@ Expected: FAIL
 
 - [ ] **Step 3: Create lvgl module**
 
-Create `yoyopy/cli/pi/lvgl.py`:
+Create `src/yoyopod/cli/pi/lvgl.py`:
 
 ```python
-"""yoyopy/cli/pi/lvgl.py — LVGL soak and probe commands."""
+"""src/yoyopod/cli/pi/lvgl.py — LVGL soak and probe commands."""
 
 from __future__ import annotations
 
@@ -597,7 +597,7 @@ from typing import Optional
 
 import typer
 
-from yoyopy.cli.common import configure_logging, resolve_config_dir
+from yoyopod.cli.common import configure_logging, resolve_config_dir
 
 lvgl_app = typer.Typer(name="lvgl", help="LVGL display testing commands.", no_args_is_help=True)
 
@@ -633,10 +633,10 @@ def probe(
 
 - [ ] **Step 4: Register lvgl_app in pi group**
 
-In `yoyopy/cli/pi/__init__.py`, add:
+In `src/yoyopod/cli/pi/__init__.py`, add:
 
 ```python
-from yoyopy.cli.pi.lvgl import lvgl_app
+from yoyopod.cli.pi.lvgl import lvgl_app
 
 pi_app.add_typer(lvgl_app)
 ```
@@ -649,7 +649,7 @@ Expected: All tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/cli/pi/lvgl.py yoyopy/cli/pi/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/pi/lvgl.py src/yoyopod/cli/pi/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port pi lvgl soak and probe commands"
 ```
 
@@ -658,10 +658,10 @@ git commit -m "feat(cli): port pi lvgl soak and probe commands"
 ### Task 6: Port pi smoke, tune, and gallery commands
 
 **Files:**
-- Create: `yoyopy/cli/pi/smoke.py`
-- Create: `yoyopy/cli/pi/tune.py`
-- Create: `yoyopy/cli/pi/gallery.py`
-- Modify: `yoyopy/cli/pi/__init__.py`
+- Create: `src/yoyopod/cli/pi/smoke.py`
+- Create: `src/yoyopod/cli/pi/tune.py`
+- Create: `src/yoyopod/cli/pi/gallery.py`
+- Modify: `src/yoyopod/cli/pi/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/pi_smoke.py`, `scripts/whisplay_tune.py`, `scripts/whisplay_gallery.py`
 
@@ -700,16 +700,16 @@ Expected: FAIL
 
 - [ ] **Step 3: Create smoke module**
 
-Create `yoyopy/cli/pi/smoke.py`:
+Create `src/yoyopod/cli/pi/smoke.py`:
 
 ```python
-"""yoyopy/cli/pi/smoke.py — on-Pi smoke test runner."""
+"""src/yoyopod/cli/pi/smoke.py — on-Pi smoke test runner."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging, resolve_config_dir
+from yoyopod.cli.common import configure_logging, resolve_config_dir
 
 smoke_app = typer.Typer(name="smoke", invoke_without_command=True, no_args_is_help=False)
 
@@ -736,10 +736,10 @@ def smoke(
 
 - [ ] **Step 4: Create tune module**
 
-Create `yoyopy/cli/pi/tune.py`:
+Create `src/yoyopod/cli/pi/tune.py`:
 
 ```python
-"""yoyopy/cli/pi/tune.py — Whisplay gesture tuning."""
+"""src/yoyopod/cli/pi/tune.py — Whisplay gesture tuning."""
 
 from __future__ import annotations
 
@@ -747,7 +747,7 @@ from typing import Optional
 
 import typer
 
-from yoyopy.cli.common import configure_logging, resolve_config_dir
+from yoyopod.cli.common import configure_logging, resolve_config_dir
 
 tune_app = typer.Typer(name="tune", invoke_without_command=True, no_args_is_help=False)
 
@@ -772,16 +772,16 @@ def tune(
 
 - [ ] **Step 5: Create gallery module**
 
-Create `yoyopy/cli/pi/gallery.py`:
+Create `src/yoyopod/cli/pi/gallery.py`:
 
 ```python
-"""yoyopy/cli/pi/gallery.py — Whisplay screenshot gallery."""
+"""src/yoyopod/cli/pi/gallery.py — Whisplay screenshot gallery."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging
+from yoyopod.cli.common import configure_logging
 
 gallery_app = typer.Typer(name="gallery", invoke_without_command=True, no_args_is_help=False)
 
@@ -801,12 +801,12 @@ def gallery(
 
 - [ ] **Step 6: Register all three in pi group**
 
-Update `yoyopy/cli/pi/__init__.py` to import and register:
+Update `src/yoyopod/cli/pi/__init__.py` to import and register:
 
 ```python
-from yoyopy.cli.pi.smoke import smoke_app
-from yoyopy.cli.pi.tune import tune_app
-from yoyopy.cli.pi.gallery import gallery_app
+from yoyopod.cli.pi.smoke import smoke_app
+from yoyopod.cli.pi.tune import tune_app
+from yoyopod.cli.pi.gallery import gallery_app
 
 pi_app.add_typer(smoke_app)
 pi_app.add_typer(tune_app)
@@ -821,7 +821,7 @@ Expected: All tests PASS
 - [ ] **Step 8: Commit**
 
 ```bash
-git add yoyopy/cli/pi/smoke.py yoyopy/cli/pi/tune.py yoyopy/cli/pi/gallery.py yoyopy/cli/pi/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/pi/smoke.py src/yoyopod/cli/pi/tune.py src/yoyopod/cli/pi/gallery.py src/yoyopod/cli/pi/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port pi smoke, tune, and gallery commands"
 ```
 
@@ -830,11 +830,11 @@ git commit -m "feat(cli): port pi smoke, tune, and gallery commands"
 ### Task 7: Port remote commands (pi_remote.py)
 
 **Files:**
-- Create: `yoyopy/cli/remote/__init__.py`
-- Create: `yoyopy/cli/remote/ops.py`
-- Create: `yoyopy/cli/remote/infra.py`
-- Create: `yoyopy/cli/remote/lvgl.py`
-- Modify: `yoyopy/cli/__init__.py`
+- Create: `src/yoyopod/cli/remote/__init__.py`
+- Create: `src/yoyopod/cli/remote/ops.py`
+- Create: `src/yoyopod/cli/remote/infra.py`
+- Create: `src/yoyopod/cli/remote/lvgl.py`
+- Modify: `src/yoyopod/cli/__init__.py`
 - Test: `tests/test_cli.py`
 - Source: `scripts/pi_remote.py`
 
@@ -895,10 +895,10 @@ Expected: FAIL (except the existing `test_remote_help` which should still pass)
 
 - [ ] **Step 3: Create remote ops module**
 
-Read `scripts/pi_remote.py` thoroughly to understand the argument structure for `status`, `sync`, `smoke`, and `preflight` subcommands. Create `yoyopy/cli/remote/ops.py`:
+Read `scripts/pi_remote.py` thoroughly to understand the argument structure for `status`, `sync`, `smoke`, and `preflight` subcommands. Create `src/yoyopod/cli/remote/ops.py`:
 
 ```python
-"""yoyopy/cli/remote/ops.py — remote operational commands (status, sync, smoke, preflight)."""
+"""src/yoyopod/cli/remote/ops.py — remote operational commands (status, sync, smoke, preflight)."""
 
 from __future__ import annotations
 
@@ -906,7 +906,7 @@ from typing import Optional
 
 import typer
 
-from yoyopy.cli.common import configure_logging
+from yoyopod.cli.common import configure_logging
 
 # Commands are registered on the remote_app in remote/__init__.py.
 # Each function is a standalone command.
@@ -961,16 +961,16 @@ def preflight(
 
 - [ ] **Step 4: Create remote infra module**
 
-Create `yoyopy/cli/remote/infra.py`:
+Create `src/yoyopod/cli/remote/infra.py`:
 
 ```python
-"""yoyopy/cli/remote/infra.py — remote infrastructure commands (config, service, power)."""
+"""src/yoyopod/cli/remote/infra.py — remote infrastructure commands (config, service, power)."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging
+from yoyopod.cli.common import configure_logging
 
 
 def power(
@@ -1006,16 +1006,16 @@ def service(
 
 - [ ] **Step 5: Create remote lvgl module**
 
-Create `yoyopy/cli/remote/lvgl.py`:
+Create `src/yoyopod/cli/remote/lvgl.py`:
 
 ```python
-"""yoyopy/cli/remote/lvgl.py — remote LVGL soak over SSH."""
+"""src/yoyopod/cli/remote/lvgl.py — remote LVGL soak over SSH."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.common import configure_logging
+from yoyopod.cli.common import configure_logging
 
 
 def lvgl_soak(
@@ -1031,18 +1031,18 @@ def lvgl_soak(
 
 - [ ] **Step 6: Wire remote group**
 
-Create `yoyopy/cli/remote/__init__.py`:
+Create `src/yoyopod/cli/remote/__init__.py`:
 
 ```python
-"""yoyopy/cli/remote/__init__.py — remote command group (SSH to Pi)."""
+"""src/yoyopod/cli/remote/__init__.py — remote command group (SSH to Pi)."""
 
 from __future__ import annotations
 
 import typer
 
-from yoyopy.cli.remote.ops import status, sync, smoke, preflight
-from yoyopy.cli.remote.infra import power, config, service
-from yoyopy.cli.remote.lvgl import lvgl_soak
+from yoyopod.cli.remote.ops import status, sync, smoke, preflight
+from yoyopod.cli.remote.infra import power, config, service
+from yoyopod.cli.remote.lvgl import lvgl_soak
 
 remote_app = typer.Typer(name="remote", help="Commands that SSH to the Raspberry Pi from the dev machine.", no_args_is_help=True)
 
@@ -1056,10 +1056,10 @@ remote_app.command()(config)
 remote_app.command()(service)
 ```
 
-Update `yoyopy/cli/__init__.py` to import from remote:
+Update `src/yoyopod/cli/__init__.py` to import from remote:
 
 ```python
-from yoyopy.cli.remote import remote_app
+from yoyopod.cli.remote import remote_app
 
 # Remove the old placeholder remote_app and its add_typer call.
 app.add_typer(remote_app)
@@ -1073,7 +1073,7 @@ Expected: All tests PASS
 - [ ] **Step 8: Commit**
 
 ```bash
-git add yoyopy/cli/remote/ yoyopy/cli/__init__.py tests/test_cli.py
+git add src/yoyopod/cli/remote/ src/yoyopod/cli/__init__.py tests/test_cli.py
 git commit -m "feat(cli): port remote commands from pi_remote.py"
 ```
 
@@ -1082,7 +1082,7 @@ git commit -m "feat(cli): port remote commands from pi_remote.py"
 ### Task 8: Inline script logic into all command skeletons
 
 **Files:**
-- Modify: all `yoyopy/cli/**/*.py` modules
+- Modify: all `src/yoyopod/cli/**/*.py` modules
 - Remove: `scripts/check_voip_registration.py`, `scripts/debug_incoming_call.py`, `scripts/liblinphone_build.py`, `scripts/lvgl_build.py`, `scripts/lvgl_probe.py`, `scripts/lvgl_soak.py`, `scripts/pi_remote.py`, `scripts/pi_smoke.py`, `scripts/pisugar_power.py`, `scripts/pisugar_rtc.py`, `scripts/whisplay_gallery.py`, `scripts/whisplay_tune.py`
 - Keep: `scripts/generate_test_sounds.py`
 
@@ -1090,42 +1090,42 @@ This is the largest task — it replaces every `raise typer.Exit(0)` placeholder
 
 - [ ] **Step 1: Port build commands**
 
-Open `scripts/lvgl_build.py` and `scripts/liblinphone_build.py`. Copy each `main()` body into the corresponding typer command in `yoyopy/cli/build.py`. Replace `args.source_dir` with `source_dir`, `args.build_dir` with `build_dir`, etc. Remove the `raise typer.Exit(0)` placeholders. Remove the `sys.path` manipulation — imports are now inside the package.
+Open `scripts/lvgl_build.py` and `scripts/liblinphone_build.py`. Copy each `main()` body into the corresponding typer command in `src/yoyopod/cli/build.py`. Replace `args.source_dir` with `source_dir`, `args.build_dir` with `build_dir`, etc. Remove the `raise typer.Exit(0)` placeholders. Remove the `sys.path` manipulation — imports are now inside the package.
 
 - [ ] **Step 2: Port pi voip commands**
 
-Open `scripts/check_voip_registration.py` and `scripts/debug_incoming_call.py`. Copy each `main()` body into `yoyopy/cli/pi/voip.py`. Replace argparse references with typer parameters.
+Open `scripts/check_voip_registration.py` and `scripts/debug_incoming_call.py`. Copy each `main()` body into `src/yoyopod/cli/pi/voip.py`. Replace argparse references with typer parameters.
 
 - [ ] **Step 3: Port pi power commands**
 
-Open `scripts/pisugar_power.py` and `scripts/pisugar_rtc.py`. Copy the logic into `yoyopy/cli/pi/power.py`. For rtc, each subcommand handler (`cmd_status`, `cmd_sync_to_rtc`, etc.) maps to its corresponding typer command.
+Open `scripts/pisugar_power.py` and `scripts/pisugar_rtc.py`. Copy the logic into `src/yoyopod/cli/pi/power.py`. For rtc, each subcommand handler (`cmd_status`, `cmd_sync_to_rtc`, etc.) maps to its corresponding typer command.
 
 - [ ] **Step 4: Port pi lvgl commands**
 
-Open `scripts/lvgl_soak.py` and `scripts/lvgl_probe.py`. Copy into `yoyopy/cli/pi/lvgl.py`.
+Open `scripts/lvgl_soak.py` and `scripts/lvgl_probe.py`. Copy into `src/yoyopod/cli/pi/lvgl.py`.
 
 - [ ] **Step 5: Port pi smoke command**
 
-Open `scripts/pi_smoke.py`. Copy `main()` body into `yoyopy/cli/pi/smoke.py`. This is ~450 lines — keep the internal helper functions as module-level private functions in `smoke.py`.
+Open `scripts/pi_smoke.py`. Copy `main()` body into `src/yoyopod/cli/pi/smoke.py`. This is ~450 lines — keep the internal helper functions as module-level private functions in `smoke.py`.
 
 - [ ] **Step 6: Port pi tune command**
 
-Open `scripts/whisplay_tune.py`. Copy into `yoyopy/cli/pi/tune.py`.
+Open `scripts/whisplay_tune.py`. Copy into `src/yoyopod/cli/pi/tune.py`.
 
 - [ ] **Step 7: Port pi gallery command**
 
-Open `scripts/whisplay_gallery.py`. This is ~800 lines. Copy into `yoyopy/cli/pi/gallery.py`. Keep internal helpers as module-level private functions.
+Open `scripts/whisplay_gallery.py`. This is ~800 lines. Copy into `src/yoyopod/cli/pi/gallery.py`. Keep internal helpers as module-level private functions.
 
 - [ ] **Step 8: Port remote commands**
 
-Open `scripts/pi_remote.py`. This is the most complex — ~500 lines split across `remote/ops.py`, `remote/infra.py`, and `remote/lvgl.py`. Identify the handler function for each subcommand and copy it to the right module. Shared SSH/subprocess helpers should go into a `yoyopy/cli/remote/ssh.py` module if they're reused across files, otherwise keep them local.
+Open `scripts/pi_remote.py`. This is the most complex — ~500 lines split across `remote/ops.py`, `remote/infra.py`, and `remote/lvgl.py`. Identify the handler function for each subcommand and copy it to the right module. Shared SSH/subprocess helpers should go into a `src/yoyopod/cli/remote/ssh.py` module if they're reused across files, otherwise keep them local.
 
 - [ ] **Step 9: Run full test suite**
 
 Run: `uv run pytest -q`
 Expected: All tests PASS (including existing tests and new CLI tests)
 
-Run: `python -m compileall yoyopy`
+Run: `python -m compileall yoyopod`
 Expected: No errors
 
 - [ ] **Step 10: Verify CLI end-to-end**
@@ -1170,11 +1170,11 @@ git commit -m "feat(cli): inline all script logic and remove migrated scripts"
 
 - [ ] **Step 1: Check test_pi_remote.py imports**
 
-Read `tests/test_pi_remote.py`. It imports from `scripts.pi_remote` or uses `subprocess` to run the script. Update imports to point to `yoyopy.cli.remote` modules instead.
+Read `tests/test_pi_remote.py`. It imports from `scripts.pi_remote` or uses `subprocess` to run the script. Update imports to point to `yoyopod.cli.remote` modules instead.
 
 - [ ] **Step 2: Update import paths**
 
-Replace any `from scripts.pi_remote import ...` with imports from the new location in `yoyopy.cli.remote.*`. If the test runs `python scripts/pi_remote.py` via subprocess, change to `yoyoctl remote ...` or import and invoke directly.
+Replace any `from scripts.pi_remote import ...` with imports from the new location in `yoyopod.cli.remote.*`. If the test runs `python scripts/pi_remote.py` via subprocess, change to `yoyoctl remote ...` or import and invoke directly.
 
 - [ ] **Step 3: Run tests**
 
@@ -1241,18 +1241,18 @@ yoyoctl pi voip debug
 
 - [ ] **Step 3: Update CLAUDE.md Important Packages section**
 
-Replace references to `scripts/pisugar_power.py` and `scripts/pisugar_rtc.py` with their new locations under `yoyopy/cli/pi/power.py`.
+Replace references to `scripts/pisugar_power.py` and `scripts/pisugar_rtc.py` with their new locations under `src/yoyopod/cli/pi/power.py`.
 
 Add a new section for the CLI package:
 
 ```markdown
 ### CLI (dev-only)
 
-- `yoyopy/cli/__init__.py` - root yoyoctl app and group wiring
-- `yoyopy/cli/common.py` - shared logging and config helpers
-- `yoyopy/cli/build.py` - native extension build commands
-- `yoyopy/cli/pi/` - on-Pi hardware and diagnostic commands
-- `yoyopy/cli/remote/` - SSH-based remote Pi operations
+- `src/yoyopod/cli/__init__.py` - root yoyoctl app and group wiring
+- `src/yoyopod/cli/common.py` - shared logging and config helpers
+- `src/yoyopod/cli/build.py` - native extension build commands
+- `src/yoyopod/cli/pi/` - on-Pi hardware and diagnostic commands
+- `src/yoyopod/cli/remote/` - SSH-based remote Pi operations
 ```
 
 - [ ] **Step 4: Update skill files**
@@ -1261,7 +1261,7 @@ Read each file in `skills/` that references `scripts/`. Update invocation exampl
 
 - [ ] **Step 5: Run compileall and tests one final time**
 
-Run: `python -m compileall yoyopy`
+Run: `python -m compileall yoyopod`
 Run: `uv run pytest -q`
 Expected: Both pass
 

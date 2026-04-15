@@ -4,7 +4,7 @@ import re
 
 from typer.testing import CliRunner
 
-from yoyopy.cli import app
+from yoyopod.cli import app
 
 runner = CliRunner()
 

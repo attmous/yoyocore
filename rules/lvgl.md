@@ -1,6 +1,6 @@
 # LVGL Display Pipeline
 
-Applies to: `yoyopy/ui/lvgl_binding/**`, `yoyopy/ui/display/adapters/whisplay.py`
+Applies to: `src/yoyopod/ui/lvgl_binding/**`, `src/yoyopod/ui/display/adapters/whisplay.py`
 
 ## Overview
 
@@ -22,11 +22,11 @@ LVGL object tree
 ## C Shim (`native/lvgl_shim.c`)
 
 The C shim bridges Python (via cffi) and the LVGL C library:
-- `yoyopy_lvgl_init/shutdown` -- lifecycle
-- `yoyopy_lvgl_register_display` -- sets up flush callback, RGB565_SWAPPED format
+- `yoyopod_lvgl_init/shutdown` -- lifecycle
+- `yoyopod_lvgl_register_display` -- sets up flush callback, RGB565_SWAPPED format
 - Scene functions (`hub_build/sync/destroy`, `listen_*`, `playlist_*`, etc.) -- each screen type
-- `yoyopy_lvgl_snapshot` -- captures active screen via `lv_snapshot_take()`
-- `yoyopy_lvgl_force_refresh` -- invalidates and redraws immediately
+- `yoyopod_lvgl_snapshot` -- captures active screen via `lv_snapshot_take()`
+- `yoyopod_lvgl_force_refresh` -- invalidates and redraws immediately
 
 ## Python Binding (`binding.py`)
 

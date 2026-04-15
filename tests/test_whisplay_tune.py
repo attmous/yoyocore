@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yoyopy.cli.pi.tune import apply_timing_overrides, summarize_timings
+from yoyopod.cli.pi.tune import apply_timing_overrides, summarize_timings
 
 
 def test_apply_timing_overrides_updates_input_section() -> None:

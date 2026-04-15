@@ -11,12 +11,12 @@ from typing import Protocol
 
 import pytest
 
-from yoyopy.app import YoyoPodApp
-from yoyopy.app_context import AppContext
-from yoyopy.audio import MockMusicBackend
-from yoyopy.voip import CallState, RegistrationState
-from yoyopy.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
-from yoyopy.events import (
+from yoyopod.app import YoyoPodApp
+from yoyopod.app_context import AppContext
+from yoyopod.audio import MockMusicBackend
+from yoyopod.voip import CallState, RegistrationState
+from yoyopod.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
+from yoyopod.events import (
     CallEndedEvent,
     CallStateChangedEvent,
     IncomingCallEvent,
@@ -28,15 +28,15 @@ from yoyopy.events import (
     UserActivityEvent,
     VoIPAvailabilityChangedEvent,
 )
-from yoyopy.fsm import (
+from yoyopod.fsm import (
     CallFSM,
     CallInterruptionPolicy,
     CallSessionState,
     MusicFSM,
     MusicState,
 )
-from yoyopy.power import BatteryState, PowerSnapshot
-from yoyopy.ui.input import InputManager, InteractionProfile
+from yoyopod.power import BatteryState, PowerSnapshot
+from yoyopod.ui.input import InputManager, InteractionProfile
 
 
 class RenderableScreen(Protocol):

@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-from yoyopy.cli.remote.config import load_pi_deploy_config, resolve_remote_config
-from yoyopy.cli.remote.transport import build_ssh_command
+from yoyopod.cli.remote.config import load_pi_deploy_config, resolve_remote_config
+from yoyopod.cli.remote.transport import build_ssh_command
 
 
 def test_resolve_remote_config_prefers_cli_values_over_defaults(monkeypatch) -> None:
@@ -25,7 +25,7 @@ def test_resolve_remote_config_prefers_cli_values_over_defaults(monkeypatch) -> 
 def test_build_ssh_command_cd_wraps_remote_project_dir() -> None:
     """SSH commands should always enter the configured project directory first."""
 
-    from yoyopy.cli.remote.config import RemoteConfig
+    from yoyopod.cli.remote.config import RemoteConfig
 
     config = RemoteConfig(host="rpi-zero", user="pi", project_dir="~/Yoyo Pod", branch="main")
 

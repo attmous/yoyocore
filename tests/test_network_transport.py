@@ -5,9 +5,9 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-from yoyopy.network.transport import SerialTransport, TransportError
-from yoyopy.network.at_commands import AtCommandSet
-from yoyopy.network.models import SignalInfo
+from yoyopod.network.transport import SerialTransport, TransportError
+from yoyopod.network.at_commands import AtCommandSet
+from yoyopod.network.models import SignalInfo
 
 
 class FakeTransport:
@@ -134,7 +134,7 @@ def test_get_registration_not_registered():
     assert at.get_registration() is False
 
 
-from yoyopy.network.gps import GpsReader
+from yoyopod.network.gps import GpsReader
 
 
 def test_gps_reader_query_with_fix():

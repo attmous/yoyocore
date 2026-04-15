@@ -17,7 +17,7 @@
 ### Task 1: PTT Adapter — Fire BACK at Threshold, PTT_RELEASE on Release
 
 **Files:**
-- Modify: `yoyopy/ui/input/adapters/ptt_button.py`
+- Modify: `src/yoyopod/ui/input/adapters/ptt_button.py`
 - Test: `tests/test_ptt_adapter.py` (create)
 
 The PTT adapter currently fires BACK on button **release** after a hold. Change it to fire BACK at the 800ms threshold crossing (while still held) and fire PTT_RELEASE on the subsequent release.
@@ -33,8 +33,8 @@ from __future__ import annotations
 
 import pytest
 
-from yoyopy.ui.input.hal import InputAction
-from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
+from yoyopod.ui.input.hal import InputAction
+from yoyopod.ui.input.adapters.ptt_button import PTTInputAdapter
 
 
 class FakePTTAdapter(PTTInputAdapter):
@@ -155,7 +155,7 @@ Expected: FAIL — `_hold_back_fired` and `_check_hold_threshold` don't exist ye
 
 - [ ] **Step 3: Implement threshold-based BACK and PTT_RELEASE on release**
 
-In `yoyopy/ui/input/adapters/ptt_button.py`:
+In `src/yoyopod/ui/input/adapters/ptt_button.py`:
 
 Add `self._hold_back_fired = False` to `__init__` after the existing `self.raw_hold_started = False` line.
 
@@ -239,7 +239,7 @@ Expected: All existing tests pass. The BACK timing change (threshold vs release)
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/ui/input/adapters/ptt_button.py tests/test_ptt_adapter.py
+git add src/yoyopod/ui/input/adapters/ptt_button.py tests/test_ptt_adapter.py
 git commit -m "feat(input): fire BACK at hold threshold, PTT_RELEASE on release
 
 The PTT adapter now fires BACK when the hold threshold (800ms) is crossed
@@ -253,7 +253,7 @@ enables the hold-to-ask push-to-talk flow."
 ### Task 2: Update Routes for Unified Ask Screen
 
 **Files:**
-- Modify: `yoyopy/ui/screens/router.py`
+- Modify: `src/yoyopod/ui/screens/router.py`
 - Modify: `tests/test_screen_routing.py`
 
 Replace the ask/voice_commands/ai_requests routes with unified ask routes and the hub hold_ask route.
@@ -286,7 +286,7 @@ Expected: FAIL — routes don't exist yet.
 
 - [ ] **Step 3: Update the router**
 
-In `yoyopy/ui/screens/router.py`, in `_default_routes`:
+In `src/yoyopod/ui/screens/router.py`, in `_default_routes`:
 
 Replace the `"ask"` entry (lines 110-114):
 ```python
@@ -322,7 +322,7 @@ Expected: All routing tests pass. The old `test_screen_router_covers_ask_subrout
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/screens/router.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/router.py tests/test_screen_routing.py
 git commit -m "feat(routing): unify ask routes, add hub hold_ask route
 
 Replace ask/voice_commands/ai_requests routes with a single ask route
@@ -335,7 +335,7 @@ hub for the hold-to-ask shortcut."
 ### Task 3: Unified AskScreen — Rendering
 
 **Files:**
-- Modify: `yoyopy/ui/screens/navigation/ask.py`
+- Modify: `src/yoyopod/ui/screens/navigation/ask.py`
 - Test: `tests/test_screen_routing.py` (update existing ask test)
 
 Rewrite `AskScreen` as a single stateful screen with 4 visual states. This task focuses on rendering only — voice logic comes in Task 4.
@@ -387,7 +387,7 @@ Expected: FAIL — new AskScreen doesn't have `_set_state` or the correct initia
 
 - [ ] **Step 3: Rewrite AskScreen rendering**
 
-Replace the entire `AskScreen` class in `yoyopy/ui/screens/navigation/ask.py`. Keep the imports and the `AskMenuItem` dataclass can be removed. The new class structure:
+Replace the entire `AskScreen` class in `src/yoyopod/ui/screens/navigation/ask.py`. Keep the imports and the `AskMenuItem` dataclass can be removed. The new class structure:
 
 ```python
 class AskScreen(Screen):
@@ -577,7 +577,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/screens/navigation/ask.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/navigation/ask.py tests/test_screen_routing.py
 git commit -m "feat(ask): unified AskScreen with 4-state rendering
 
 Replace the AskScreen submenu with a stateful screen that renders
@@ -590,7 +590,7 @@ Rendering only — voice logic is wired in the next task."
 ### Task 4: Unified AskScreen — Voice Command Logic
 
 **Files:**
-- Modify: `yoyopy/ui/screens/navigation/ask.py`
+- Modify: `src/yoyopod/ui/screens/navigation/ask.py`
 - Modify: `tests/test_screen_routing.py`
 
 Migrate all voice-command logic from the old `VoiceCommandsScreen` into the unified `AskScreen`. This includes: capture, transcription, command matching, contact lookup, volume/mute/play handlers, TTS, and the listening cycle.
@@ -726,7 +726,7 @@ Expected: All ask screen tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/screens/navigation/ask.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/navigation/ask.py tests/test_screen_routing.py
 git commit -m "feat(ask): migrate voice command logic into unified AskScreen
 
 Move capture, transcription, command matching, contact lookup, volume,
@@ -739,7 +739,7 @@ AskScreen class."
 ### Task 5: Quick-Command Mode + PTT Capture
 
 **Files:**
-- Modify: `yoyopy/ui/screens/navigation/ask.py`
+- Modify: `src/yoyopod/ui/screens/navigation/ask.py`
 - Modify: `tests/test_screen_routing.py`
 
 Add the hold-to-ask PTT capture flow: `set_quick_command`, `_start_ptt_capture`, `on_ptt_release`, and the 2-second auto-return timer.
@@ -937,7 +937,7 @@ Expected: All ask screen tests PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/ui/screens/navigation/ask.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/navigation/ask.py tests/test_screen_routing.py
 git commit -m "feat(ask): add quick-command PTT capture and auto-return
 
 Quick-command mode (set via set_quick_command) skips idle and starts
@@ -951,7 +951,7 @@ commands."
 ### Task 6: Hub Hold-to-Ask Wiring
 
 **Files:**
-- Modify: `yoyopy/ui/screens/navigation/hub.py`
+- Modify: `src/yoyopod/ui/screens/navigation/hub.py`
 - Modify: `tests/test_screen_routing.py`
 
 Wire the Hub's `on_back` to push Ask in quick-command mode and update the footer hint.
@@ -988,7 +988,7 @@ Expected: FAIL — Hub on_back is still a no-op.
 
 - [ ] **Step 3: Update Hub on_back and footer**
 
-In `yoyopy/ui/screens/navigation/hub.py`, replace `on_back` (lines 264-266):
+In `src/yoyopod/ui/screens/navigation/hub.py`, replace `on_back` (lines 264-266):
 
 ```python
 def on_back(self, data=None) -> None:
@@ -1018,7 +1018,7 @@ Expected: All tests pass.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/ui/screens/navigation/hub.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/navigation/hub.py tests/test_screen_routing.py
 git commit -m "feat(hub): wire hold-to-ask shortcut from Hub
 
 Hub on_back now sets quick_command on the Ask screen and pushes it via
@@ -1030,22 +1030,22 @@ the hold_ask route. Footer text updated to show the Hold = Ask hint."
 ### Task 7: Remove Old Classes and Update Exports
 
 **Files:**
-- Modify: `yoyopy/ui/screens/navigation/ask.py`
-- Modify: `yoyopy/ui/screens/navigation/__init__.py`
-- Modify: `yoyopy/ui/screens/__init__.py`
-- Modify: `yoyopy/app.py`
+- Modify: `src/yoyopod/ui/screens/navigation/ask.py`
+- Modify: `src/yoyopod/ui/screens/navigation/__init__.py`
+- Modify: `src/yoyopod/ui/screens/__init__.py`
+- Modify: `src/yoyopod/app.py`
 
 Remove `VoiceCommandsScreen`, `AIRequestsScreen`, and the old `AskMenuItem` dataclass. Update all module exports and screen registration in `app.py`.
 
 - [ ] **Step 1: Remove old classes from ask.py**
 
-Delete the `AskMenuItem` dataclass, the old `VoiceCommandsScreen` class, and the old `AIRequestsScreen` class from `yoyopy/ui/screens/navigation/ask.py`. Only the new unified `AskScreen` should remain.
+Delete the `AskMenuItem` dataclass, the old `VoiceCommandsScreen` class, and the old `AIRequestsScreen` class from `src/yoyopod/ui/screens/navigation/ask.py`. Only the new unified `AskScreen` should remain.
 
 - [ ] **Step 2: Update navigation __init__.py**
 
-In `yoyopy/ui/screens/navigation/__init__.py`, change line 7:
+In `src/yoyopod/ui/screens/navigation/__init__.py`, change line 7:
 ```python
-from yoyopy.ui.screens.navigation.ask import AskScreen
+from yoyopod.ui.screens.navigation.ask import AskScreen
 ```
 
 Update `__all__`:
@@ -1055,16 +1055,16 @@ __all__ = ['HubScreen', 'HomeScreen', 'ListenScreen', 'MenuScreen', 'AskScreen']
 
 - [ ] **Step 3: Update screens __init__.py**
 
-In `yoyopy/ui/screens/__init__.py`, change line 22:
+In `src/yoyopod/ui/screens/__init__.py`, change line 22:
 ```python
-from yoyopy.ui.screens.navigation import AskScreen, HubScreen, HomeScreen, ListenScreen, MenuScreen
+from yoyopod.ui.screens.navigation import AskScreen, HubScreen, HomeScreen, ListenScreen, MenuScreen
 ```
 
 Remove `VoiceCommandsScreen` and `AIRequestsScreen` from `__all__` (lines 52-54).
 
 - [ ] **Step 4: Update app.py screen registration**
 
-In `yoyopy/app.py`, remove the `VoiceCommandsScreen` and `AIRequestsScreen` instantiation and registration. The unified `AskScreen` should receive all the constructor arguments that `VoiceCommandsScreen` currently receives. Remove lines that register `voice_commands` and `ai_requests` screens.
+In `src/yoyopod/app.py`, remove the `VoiceCommandsScreen` and `AIRequestsScreen` instantiation and registration. The unified `AskScreen` should receive all the constructor arguments that `VoiceCommandsScreen` currently receives. Remove lines that register `voice_commands` and `ai_requests` screens.
 
 The `AskScreen` registration should look like:
 ```python
@@ -1091,7 +1091,7 @@ In `tests/test_screen_routing.py`, remove `VoiceCommandsScreen` from the import 
 
 - [ ] **Step 6: Verify compilation**
 
-Run: `python -m compileall yoyopy tests`
+Run: `python -m compileall yoyopod tests`
 Expected: No syntax errors.
 
 - [ ] **Step 7: Run full test suite**
@@ -1102,7 +1102,7 @@ Expected: All tests pass.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add yoyopy/ui/screens/navigation/ask.py yoyopy/ui/screens/navigation/__init__.py yoyopy/ui/screens/__init__.py yoyopy/app.py tests/test_screen_routing.py
+git add src/yoyopod/ui/screens/navigation/ask.py src/yoyopod/ui/screens/navigation/__init__.py src/yoyopod/ui/screens/__init__.py src/yoyopod/app.py tests/test_screen_routing.py
 git commit -m "refactor(ask): remove VoiceCommandsScreen and AIRequestsScreen
 
 Clean up the old three-class architecture. Only the unified AskScreen
@@ -1123,7 +1123,7 @@ Expected: All tests pass.
 
 - [ ] **Step 2: Run compilation check**
 
-Run: `python -m compileall yoyopy tests demos scripts`
+Run: `python -m compileall yoyopod tests demos scripts`
 Expected: No errors.
 
 - [ ] **Step 3: Verify the app starts in simulation mode**

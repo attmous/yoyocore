@@ -19,18 +19,18 @@ YoyoPod runs as a single Python application that coordinates:
 - local voice capture, speech-to-text, and spoken feedback
 - state transitions between playback and call flows
 
-The production entrypoint is `yoyopod.py`, which delegates to `YoyoPodApp` in `yoyopy/app.py`.
+The production entrypoint is `yoyopod.py`, which delegates to `YoyoPodApp` in `src/yoyopod/app.py`.
 `YoyoPodApp` is now a thin composition shell around focused runtime services in
-`yoyopy/runtime/`.
+`src/yoyopod/runtime/`.
 
-This extraction is a first pass, not the end state. `yoyopy/runtime/boot.py` is
+This extraction is a first pass, not the end state. `src/yoyopod/runtime/boot.py` is
 still the biggest remaining runtime hotspot and should be the next split target
 if more setup logic accumulates there.
 
 ## Runtime Topology
 
 ```text
-yoyopod.py / yoyopy.main
+yoyopod.py / yoyopod.main
   -> YoyoPodApp
      -> RuntimeBootService
      -> RuntimeLoopService
@@ -52,7 +52,7 @@ yoyopod.py / yoyopy.main
       -> CallCoordinator / PlaybackCoordinator / ScreenCoordinator / PowerCoordinator
       -> AppContext
          -> focused runtime state objects (`media`, `power`, `network`, `screen`, `voip`, `talk`, `voice`)
-         -> media state composes with canonical music models from `yoyopy/audio/music/models.py`
+         -> media state composes with canonical music models from `src/yoyopod/audio/music/models.py`
       -> LocalMusicService
       -> MpvBackend
         -> MpvProcess
@@ -77,54 +77,54 @@ yoyopod.py / yoyopy.main
 
 ### Application Layer
 
-- `yoyopy/app.py`: thin runtime shell and compatibility surface
-- `yoyopy/main.py`: package entry point
-- `yoyopy/fsm.py`: split music and call state models
-- `yoyopy/coordinators/runtime.py`: derived app runtime state
-- `yoyopy/app_context.py`: compatibility wrapper over focused shared runtime state
-- `yoyopy/runtime_state.py`: focused runtime state objects owned by `AppContext`
-- `yoyopy/runtime/boot.py`: boot-time composition and manager wiring
-- `yoyopy/runtime/loop.py`: coordinator-loop scheduling and queued main-thread work
-- `yoyopy/runtime/recovery.py`: backend recovery, power polling, and watchdog supervision
-- `yoyopy/runtime/screen_power.py`: screen wake/sleep policy and power overlays
-- `yoyopy/runtime/shutdown.py`: shutdown countdowns, hooks, and lifecycle cleanup
+- `src/yoyopod/app.py`: thin runtime shell and compatibility surface
+- `src/yoyopod/main.py`: package entry point
+- `src/yoyopod/fsm.py`: split music and call state models
+- `src/yoyopod/coordinators/runtime.py`: derived app runtime state
+- `src/yoyopod/app_context.py`: compatibility wrapper over focused shared runtime state
+- `src/yoyopod/runtime_state.py`: focused runtime state objects owned by `AppContext`
+- `src/yoyopod/runtime/boot.py`: boot-time composition and manager wiring
+- `src/yoyopod/runtime/loop.py`: coordinator-loop scheduling and queued main-thread work
+- `src/yoyopod/runtime/recovery.py`: backend recovery, power polling, and watchdog supervision
+- `src/yoyopod/runtime/screen_power.py`: screen wake/sleep policy and power overlays
+- `src/yoyopod/runtime/shutdown.py`: shutdown countdowns, hooks, and lifecycle cleanup
 
 ### Coordinators
 
-- `yoyopy/coordinators/call.py`: call-flow orchestration
-- `yoyopy/coordinators/playback.py`: music-flow orchestration
-- `yoyopy/coordinators/power.py`: power and shutdown-related orchestration
-- `yoyopy/coordinators/screen.py`: screen refresh and call-screen updates
-- `yoyopy/coordinators/runtime.py`: derived runtime state and shared runtime references
+- `src/yoyopod/coordinators/call.py`: call-flow orchestration
+- `src/yoyopod/coordinators/playback.py`: music-flow orchestration
+- `src/yoyopod/coordinators/power.py`: power and shutdown-related orchestration
+- `src/yoyopod/coordinators/screen.py`: screen refresh and call-screen updates
+- `src/yoyopod/coordinators/runtime.py`: derived runtime state and shared runtime references
 
 ### Audio and VoIP
 
-- `yoyopy/audio/local_service.py`: local playlists, shuffle source collection, recent history integration
-- `yoyopy/audio/music/backend.py`: `MusicBackend`, `MpvBackend`, `MockMusicBackend`
-- `yoyopy/audio/music/process.py`: app-managed mpv process lifecycle
-- `yoyopy/audio/music/ipc.py`: low-level mpv JSON IPC client
-- `yoyopy/audio/music/models.py`: `Track`, `Playlist`, `PlaybackQueue`, `MusicConfig`
-- `yoyopy/audio/volume.py`: shared ALSA and mpv output-volume coordination
-- `yoyopy/voip/manager.py`: call, message, and voice-note facade
-- `yoyopy/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
+- `src/yoyopod/audio/local_service.py`: local playlists, shuffle source collection, recent history integration
+- `src/yoyopod/audio/music/backend.py`: `MusicBackend`, `MpvBackend`, `MockMusicBackend`
+- `src/yoyopod/audio/music/process.py`: app-managed mpv process lifecycle
+- `src/yoyopod/audio/music/ipc.py`: low-level mpv JSON IPC client
+- `src/yoyopod/audio/music/models.py`: `Track`, `Playlist`, `PlaybackQueue`, `MusicConfig`
+- `src/yoyopod/audio/volume.py`: shared ALSA and mpv output-volume coordination
+- `src/yoyopod/voip/manager.py`: call, message, and voice-note facade
+- `src/yoyopod/voip/liblinphone_binding/`: native Liblinphone shim and CPython binding
 - `config/liblinphone_factory.conf`: repo-managed Liblinphone factory config for media, codec, and network defaults
 
 ### Power, Network, and Voice
 
-- `yoyopy/power/`: PiSugar power, RTC, watchdog, and safety policy code
-- `yoyopy/network/`: modem backend, PPP process management, GPS, and transport code
-- `yoyopy/voice/`: local capture, STT, TTS, and command-matching code
+- `src/yoyopod/power/`: PiSugar power, RTC, watchdog, and safety policy code
+- `src/yoyopod/network/`: modem backend, PPP process management, GPS, and transport code
+- `src/yoyopod/voice/`: local capture, STT, TTS, and command-matching code
 
 ### UI Layer
 
-- `yoyopy/ui/display/`: display HAL and adapters
-- `yoyopy/ui/input/`: input HAL, semantic actions, adapters
-- `yoyopy/ui/screens/`: screen classes split by feature
-- `yoyopy/ui/web_server.py`: simulation browser server
+- `src/yoyopod/ui/display/`: display HAL and adapters
+- `src/yoyopod/ui/input/`: input HAL, semantic actions, adapters
+- `src/yoyopod/ui/screens/`: screen classes split by feature
+- `src/yoyopod/ui/web_server.py`: simulation browser server
 
 ## Display Architecture
 
-`Display` in `yoyopy/ui/display/manager.py` is a facade over the HAL interface in `yoyopy/ui/display/hal.py`.
+`Display` in `src/yoyopod/ui/display/manager.py` is a facade over the HAL interface in `src/yoyopod/ui/display/hal.py`.
 
 Supported adapters:
 
@@ -132,7 +132,7 @@ Supported adapters:
 - `WhisplayDisplayAdapter`: 240x280 portrait
 - `SimulationDisplayAdapter`: browser-rendered portrait simulation
 
-Selection happens in `yoyopy/ui/display/factory.py` using:
+Selection happens in `src/yoyopod/ui/display/factory.py` using:
 
 1. explicit `display.hardware` config
 2. `YOYOPOD_DISPLAY` environment variable
@@ -162,9 +162,9 @@ Current adapters:
 
 Screen groups:
 
-- `yoyopy/ui/screens/navigation/`
-- `yoyopy/ui/screens/music/`
-- `yoyopy/ui/screens/voip/`
+- `src/yoyopod/ui/screens/navigation/`
+- `src/yoyopod/ui/screens/music/`
+- `src/yoyopod/ui/screens/voip/`
 
 `Screen` now exposes semantic handlers only:
 
@@ -176,10 +176,10 @@ Screen groups:
 
 Playback and call orchestration use composed models:
 
-- `MusicFSM` in `yoyopy/fsm.py`
-- `CallFSM` in `yoyopy/fsm.py`
-- `CallInterruptionPolicy` in `yoyopy/fsm.py`
-- `CoordinatorRuntime` in `yoyopy/coordinators/runtime.py`
+- `MusicFSM` in `src/yoyopod/fsm.py`
+- `CallFSM` in `src/yoyopod/fsm.py`
+- `CallInterruptionPolicy` in `src/yoyopod/fsm.py`
+- `CoordinatorRuntime` in `src/yoyopod/coordinators/runtime.py`
 
 `CoordinatorRuntime` derives the current application status from those models, including:
 
@@ -219,7 +219,7 @@ and updates:
 4. callbacks refresh `NowPlayingScreen`
 5. the derived runtime state stays synchronized with actual playback state
 
-Shared music-domain model ownership lives in `yoyopy/audio/music/models.py`. `Track` is the canonical track shape, `Playlist` is the local-library playlist summary, and `PlaybackQueue` is the runtime ordered queue used when the app needs selected-track state.
+Shared music-domain model ownership lives in `src/yoyopod/audio/music/models.py`. `Track` is the canonical track shape, `Playlist` is the local-library playlist summary, and `PlaybackQueue` is the runtime ordered queue used when the app needs selected-track state.
 
 ### 4G / GPS Bringup
 
@@ -249,11 +249,11 @@ These are known implementation constraints, not architecture goals.
 
 For current behavior, trust these files over older notes or demos:
 
-- `yoyopy/app.py`
-- `yoyopy/fsm.py`
-- `yoyopy/coordinators/runtime.py`
-- `yoyopy/audio/`
-- `yoyopy/voip/`
-- `yoyopy/ui/display/`
-- `yoyopy/ui/input/`
-- `yoyopy/ui/screens/`
+- `src/yoyopod/app.py`
+- `src/yoyopod/fsm.py`
+- `src/yoyopod/coordinators/runtime.py`
+- `src/yoyopod/audio/`
+- `src/yoyopod/voip/`
+- `src/yoyopod/ui/display/`
+- `src/yoyopod/ui/input/`
+- `src/yoyopod/ui/screens/`

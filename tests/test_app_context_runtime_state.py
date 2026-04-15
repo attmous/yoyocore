@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio.music.models import PlaybackQueue, Track
+from yoyopod.app_context import AppContext
+from yoyopod.audio.music.models import PlaybackQueue, Track
 
 
 def test_app_context_groups_runtime_state_by_concern() -> None:

@@ -22,11 +22,11 @@ Use `ci` as the default local before-PR command when you want the same gate-plus
 The staged gate currently covers the developer-workflow surface tracked in `[tool.yoyopod_quality]` inside `pyproject.toml`:
 
 - `scripts/quality.py`
-- `yoyopy/main.py`
-- `yoyopy/cli/__init__.py`
-- `yoyopy/cli/common.py`
-- `yoyopy/cli/build.py`
-- `yoyopy/cli/remote/`
+- `src/yoyopod/main.py`
+- `src/yoyopod/cli/__init__.py`
+- `src/yoyopod/cli/common.py`
+- `src/yoyopod/cli/build.py`
+- `src/yoyopod/cli/remote/`
 
 The gate enforces:
 
@@ -44,7 +44,7 @@ That is deliberate, not hidden:
 
 - full-repo `black --check` still wants to rewrite a large chunk of the tree
 - full-repo `ruff check .` still reports existing violations outside the gated workflow surface
-- full-repo `mypy yoyopy` still reports substantial legacy type debt outside the gated workflow surface
+- full-repo `mypy yoyopod` still reports substantial legacy type debt outside the gated workflow surface
 
 You can measure the current full-repo debt with:
 
