@@ -1,8 +1,29 @@
+import importlib.util
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
-import yoyopy.main as main_module
+import yoyopod.main as main_module
+
+
+def test_top_level_launcher_bootstraps_src_path() -> None:
+    """Local `python yoyopod.py` execution should work without an installed package."""
+
+    launcher_path = Path(__file__).resolve().parents[1] / "yoyopod.py"
+    expected_src_root = str(launcher_path.parent / "src")
+    original_sys_path = list(sys.path)
+
+    try:
+        sys.path[:] = [entry for entry in sys.path if entry != expected_src_root]
+        spec = importlib.util.spec_from_file_location("_yoyopod_launcher_test", launcher_path)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        assert sys.path[0] == expected_src_root
+        assert module.main is main_module.main
+    finally:
+        sys.path[:] = original_sys_path
 
 
 def test_configure_logger_uses_shared_utility(monkeypatch, tmp_path) -> None:

@@ -3,12 +3,12 @@
 
 from typing import Any, Callable, Optional
 
-from yoyopy.app_context import AppContext
-from yoyopy.ui.display import Display
-from yoyopy.ui.input import InputAction, InputManager
-from yoyopy.ui.input.hal import InputHAL
-from yoyopy.ui.screens.base import Screen
-from yoyopy.ui.screens import HomeScreen, MenuScreen, NowPlayingScreen, ScreenManager
+from yoyopod.app_context import AppContext
+from yoyopod.ui.display import Display
+from yoyopod.ui.input import InputAction, InputManager
+from yoyopod.ui.input.hal import InputHAL
+from yoyopod.ui.screens.base import Screen
+from yoyopod.ui.screens import HomeScreen, MenuScreen, NowPlayingScreen, ScreenManager
 
 
 class _ModeTrackingAdapter(InputHAL):

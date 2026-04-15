@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from yoyopy.ui.input import InputAction
-from yoyopy.ui.input.adapters import ptt_button
-from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
+from yoyopod.ui.input import InputAction
+from yoyopod.ui.input.adapters import ptt_button
+from yoyopod.ui.input.adapters.ptt_button import PTTInputAdapter
 
 
 def _record_actions(adapter: PTTInputAdapter) -> list[InputAction]:

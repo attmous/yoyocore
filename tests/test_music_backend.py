@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from yoyopy.audio.music.backend import MockMusicBackend, MpvBackend, MusicBackend
-from yoyopy.audio.music.models import MusicConfig, Track
+from yoyopod.audio.music.backend import MockMusicBackend, MpvBackend, MusicBackend
+from yoyopod.audio.music.models import MusicConfig, Track
 
 
 def test_mock_backend_satisfies_protocol() -> None:
@@ -146,7 +146,7 @@ def test_mpv_backend_waits_for_delayed_ipc_ready(monkeypatch) -> None:
     fake_ipc = FakeIpc()
     backend._process = FakeProcess()
     backend._ipc = fake_ipc
-    monkeypatch.setattr("yoyopy.audio.music.backend.time.sleep", lambda _: None)
+    monkeypatch.setattr("yoyopod.audio.music.backend.time.sleep", lambda _: None)
 
     assert backend.start() is True
     assert fake_ipc.connect_calls == 13
@@ -197,7 +197,7 @@ def test_mpv_backend_retries_spawn_when_early_launches_never_open_ipc(monkeypatc
     fake_process = FakeProcess()
     backend._process = fake_process
     backend._ipc = FakeIpc(fake_process)
-    monkeypatch.setattr("yoyopy.audio.music.backend.time.sleep", lambda _: None)
+    monkeypatch.setattr("yoyopod.audio.music.backend.time.sleep", lambda _: None)
 
     assert backend.start() is True
     assert fake_process.spawn_calls == 4

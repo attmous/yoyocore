@@ -238,12 +238,12 @@ On the Ask screen in quick-command listening state, the hint shows: `"Release = 
 
 | File | Change |
 |---|---|
-| `yoyopy/ui/input/adapters/ptt_button.py` | Fire BACK at hold threshold (not release); fire PTT_RELEASE on release after hold |
-| `yoyopy/ui/input/hal.py` | No change — PTT_RELEASE already exists in InputAction |
-| `yoyopy/ui/screens/navigation/hub.py` | `on_back` pushes Ask via `hold_ask` route; update footer hint text |
-| `yoyopy/ui/screens/router.py` | Add `"hold_ask"` route to `"hub"` routes |
-| `yoyopy/ui/screens/navigation/ask.py` | Add `_quick_command` mode, PTT capture flow, `on_ptt_release` handler, auto-return timer |
-| `yoyopy/ui/screens/base.py` | No change — `on_ptt_release` stub already exists |
+| `src/yoyopod/ui/input/adapters/ptt_button.py` | Fire BACK at hold threshold (not release); fire PTT_RELEASE on release after hold |
+| `src/yoyopod/ui/input/hal.py` | No change — PTT_RELEASE already exists in InputAction |
+| `src/yoyopod/ui/screens/navigation/hub.py` | `on_back` pushes Ask via `hold_ask` route; update footer hint text |
+| `src/yoyopod/ui/screens/router.py` | Add `"hold_ask"` route to `"hub"` routes |
+| `src/yoyopod/ui/screens/navigation/ask.py` | Add `_quick_command` mode, PTT capture flow, `on_ptt_release` handler, auto-return timer |
+| `src/yoyopod/ui/screens/base.py` | No change — `on_ptt_release` stub already exists |
 
 ### What does NOT change
 

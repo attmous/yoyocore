@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yoyopy.network.models import (
+from yoyopod.network.models import (
     GpsCoordinate,
     ModemState,
     ModemPhase,
@@ -37,7 +37,7 @@ def test_gps_coordinate_fields():
     assert coord.lng == 2.3522
 
 
-from yoyopy.events import (
+from yoyopod.events import (
     NetworkModemReadyEvent,
     NetworkRegisteredEvent,
     NetworkPppUpEvent,
@@ -45,7 +45,7 @@ from yoyopy.events import (
     NetworkSignalUpdateEvent,
     NetworkGpsFixEvent,
 )
-from yoyopy.app_context import AppContext
+from yoyopod.app_context import AppContext
 
 
 def test_network_events_are_frozen():
@@ -70,7 +70,7 @@ def test_app_context_update_network_status():
     assert ctx.is_connected is True
 
 
-from yoyopy.config.models import YoyoPodConfig, build_config_model
+from yoyopod.config.models import YoyoPodConfig, build_config_model
 
 
 def test_network_config_defaults():

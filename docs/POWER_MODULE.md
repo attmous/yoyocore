@@ -25,15 +25,15 @@ This module is responsible for:
 ## Architecture
 
 Main files:
-- `yoyopy/power/models.py`
-- `yoyopy/power/backend.py`
-- `yoyopy/power/manager.py`
-- `yoyopy/power/policies.py`
-- `yoyopy/power/watchdog.py`
-- `yoyopy/power/events.py`
-- `yoyopy/coordinators/power.py`
-- `yoyopy/ui/screens/system/power.py`
-- `yoyopy/cli/pi/power.py` (`yoyoctl pi power battery`, `yoyoctl pi power rtc`)
+- `src/yoyopod/power/models.py`
+- `src/yoyopod/power/backend.py`
+- `src/yoyopod/power/manager.py`
+- `src/yoyopod/power/policies.py`
+- `src/yoyopod/power/watchdog.py`
+- `src/yoyopod/power/events.py`
+- `src/yoyopod/coordinators/power.py`
+- `src/yoyopod/ui/screens/system/power.py`
+- `src/yoyopod/cli/pi/power.py` (`yoyoctl pi power battery`, `yoyoctl pi power rtc`)
 
 Runtime flow:
 
@@ -251,7 +251,7 @@ Current production unit:
 There is now a dedicated `Power Status` screen in the standard menu flow.
 
 Implementation:
-- `yoyopy/ui/screens/system/power.py`
+- `src/yoyopod/ui/screens/system/power.py`
 
 Current screen design:
 - page 1: battery / charging / external power / voltage / RTC / alarm

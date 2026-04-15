@@ -7,7 +7,7 @@ from PIL import Image
 
 
 def test_adapter_constants():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     assert CubiePimoroniAdapter.DISPLAY_TYPE == "pimoroni"
     assert CubiePimoroniAdapter.WIDTH == 320
@@ -17,7 +17,7 @@ def test_adapter_constants():
 
 
 def test_adapter_simulate_mode():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     assert adapter.simulate is True
@@ -27,7 +27,7 @@ def test_adapter_simulate_mode():
 
 
 def test_clear_fills_buffer():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     adapter.clear((255, 0, 0))
@@ -36,8 +36,8 @@ def test_clear_fills_buffer():
 
 
 def test_update_converts_to_rgb565_and_sends():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
-    from yoyopy.config.models import GpioPin, PimoroniGpioConfig
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.config.models import GpioPin, PimoroniGpioConfig
 
     gpio_config = PimoroniGpioConfig(
         dc=GpioPin("gpiochip0", 109),
@@ -45,7 +45,7 @@ def test_update_converts_to_rgb565_and_sends():
         backlight=GpioPin("gpiochip1", 35),
     )
     with patch(
-        "yoyopy.ui.display.adapters.st7789_spi.ST7789SpiDriver"
+        "yoyopod.ui.display.adapters.st7789_spi.ST7789SpiDriver"
     ) as mock_cls:
         driver = MagicMock()
         mock_cls.return_value = driver
@@ -65,7 +65,7 @@ def test_update_converts_to_rgb565_and_sends():
 
 
 def test_rgb565_conversion():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
 
@@ -83,7 +83,7 @@ def test_rgb565_conversion():
 
 
 def test_get_backend_kind():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     assert adapter.get_backend_kind() == "pil"
@@ -91,7 +91,7 @@ def test_get_backend_kind():
 
 
 def test_status_bar_renders():
-    from yoyopy.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
+    from yoyopod.ui.display.adapters.cubie_pimoroni import CubiePimoroniAdapter
 
     adapter = CubiePimoroniAdapter(simulate=True)
     adapter.status_bar(time_str="14:30", battery_percent=75, signal_strength=3)

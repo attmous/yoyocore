@@ -12,7 +12,7 @@ If you are new here, read these first:
 ## Source of truth
 
 For current behavior, trust:
-- current code in `yoyopy/`
+- current code in `src/yoyopod/`
 - this guide for setup and workflow
 - [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md) for runtime topology
 - [`../AGENTS.md`](../AGENTS.md) and `rules/` for repo guidance
@@ -123,7 +123,7 @@ python demos/demo_runtime_state.py --simulate
 Local validation:
 
 ```bash
-python -m compileall yoyopy tests demos scripts
+python -m compileall src/yoyopod tests demos scripts
 uv run python scripts/quality.py gate
 uv run pytest -q
 ```
@@ -195,7 +195,7 @@ yoyoctl remote logs --follow --filter ERROR
 ## Package Layout
 
 ```text
-yoyopy/
+src/yoyopod/
   app.py
   main.py
   fsm.py

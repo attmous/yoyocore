@@ -4,7 +4,7 @@
 
 **Goal:** Add a cellular connectivity layer to YoyoPod using the Waveshare SIM7600G-H 4G HAT B over UART, providing PPP internet for VoIP, modem telemetry for the UI, and on-demand GPS.
 
-**Architecture:** A new `yoyopy/network/` package follows the power module's Protocol + Backend + Manager pattern. A `SerialTransport` handles UART communication, an AT command layer parses modem responses into typed dataclasses, a `PppProcess` (modeled on `MpvProcess`) manages the `pppd` subprocess, and a `NetworkManager` facade integrates with the EventBus and AppContext. The modem serial port is shared — telemetry snapshots are taken before PPP starts, GPS queries briefly tear down PPP.
+**Architecture:** A new `src/yoyopod/network/` package follows the power module's Protocol + Backend + Manager pattern. A `SerialTransport` handles UART communication, an AT command layer parses modem responses into typed dataclasses, a `PppProcess` (modeled on `MpvProcess`) manages the `pppd` subprocess, and a `NetworkManager` facade integrates with the EventBus and AppContext. The modem serial port is shared — telemetry snapshots are taken before PPP starts, GPS queries briefly tear down PPP.
 
 **Tech Stack:** Python 3.12+, pyserial, pppd (system), typer (CLI), FastAPI (demo server), pytest
 
@@ -16,15 +16,15 @@
 
 | File | Responsibility |
 |---|---|
-| `yoyopy/network/__init__.py` | Public API exports |
-| `yoyopy/network/models.py` | `ModemState`, `SignalInfo`, `GpsCoordinate`, `NetworkConfig` dataclasses |
-| `yoyopy/network/transport.py` | `SerialTransport` — thread-safe pyserial UART wrapper |
-| `yoyopy/network/at_commands.py` | Typed AT command builder/parser |
-| `yoyopy/network/ppp.py` | `PppProcess` — pppd subprocess lifecycle (MpvProcess pattern) |
-| `yoyopy/network/gps.py` | `GpsReader` — GPS enable/query via AT commands |
-| `yoyopy/network/backend.py` | `NetworkBackend` protocol + `Sim7600Backend` implementation |
-| `yoyopy/network/manager.py` | `NetworkManager` facade (PowerManager pattern) |
-| `yoyopy/cli/pi/network.py` | `yoyoctl pi network` CLI commands |
+| `src/yoyopod/network/__init__.py` | Public API exports |
+| `src/yoyopod/network/models.py` | `ModemState`, `SignalInfo`, `GpsCoordinate`, `NetworkConfig` dataclasses |
+| `src/yoyopod/network/transport.py` | `SerialTransport` — thread-safe pyserial UART wrapper |
+| `src/yoyopod/network/at_commands.py` | Typed AT command builder/parser |
+| `src/yoyopod/network/ppp.py` | `PppProcess` — pppd subprocess lifecycle (MpvProcess pattern) |
+| `src/yoyopod/network/gps.py` | `GpsReader` — GPS enable/query via AT commands |
+| `src/yoyopod/network/backend.py` | `NetworkBackend` protocol + `Sim7600Backend` implementation |
+| `src/yoyopod/network/manager.py` | `NetworkManager` facade (PowerManager pattern) |
+| `src/yoyopod/cli/pi/network.py` | `yoyoctl pi network` CLI commands |
 | `demos/demo_gps_server.py` | Minimal FastAPI GPS endpoint |
 | `tests/test_network_models.py` | Model and config tests |
 | `tests/test_network_transport.py` | Transport and AT command tests |
@@ -35,11 +35,11 @@
 
 | File | Change |
 |---|---|
-| `yoyopy/config/models.py` | Add `AppNetworkConfig` dataclass, wire into `YoyoPodConfig` |
-| `yoyopy/events.py` | Add network event dataclasses |
-| `yoyopy/app_context.py` | Add `update_network_status()` method |
-| `yoyopy/app.py` | Wire `NetworkManager` into app bootstrap and main loop |
-| `yoyopy/cli/__init__.py` | Register `network` subcommand group |
+| `src/yoyopod/config/models.py` | Add `AppNetworkConfig` dataclass, wire into `YoyoPodConfig` |
+| `src/yoyopod/events.py` | Add network event dataclasses |
+| `src/yoyopod/app_context.py` | Add `update_network_status()` method |
+| `src/yoyopod/app.py` | Wire `NetworkManager` into app bootstrap and main loop |
+| `src/yoyopod/cli/__init__.py` | Register `network` subcommand group |
 | `config/yoyopod_config.yaml` | Add `network:` section |
 | `pyproject.toml` | Add `pyserial` dependency |
 
@@ -48,9 +48,9 @@
 ## Task 1: Data Models and Config
 
 **Files:**
-- Create: `yoyopy/network/__init__.py`
-- Create: `yoyopy/network/models.py`
-- Modify: `yoyopy/config/models.py:337-349` (YoyoPodConfig)
+- Create: `src/yoyopod/network/__init__.py`
+- Create: `src/yoyopod/network/models.py`
+- Modify: `src/yoyopod/config/models.py:337-349` (YoyoPodConfig)
 - Modify: `config/yoyopod_config.yaml`
 - Modify: `pyproject.toml`
 - Test: `tests/test_network_models.py`
@@ -63,7 +63,7 @@
 
 from __future__ import annotations
 
-from yoyopy.network.models import (
+from yoyopod.network.models import (
     GpsCoordinate,
     ModemState,
     ModemPhase,
@@ -101,17 +101,17 @@ def test_gps_coordinate_fields():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_models.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network'`
 
 - [ ] **Step 3: Create network package with models**
 
 ```python
-# yoyopy/network/__init__.py
+# src/yoyopod/network/__init__.py
 """4G cellular connectivity for YoyoPod."""
 ```
 
 ```python
-# yoyopy/network/models.py
+# src/yoyopod/network/models.py
 """Typed data models for the SIM7600G-H modem backend."""
 
 from __future__ import annotations
@@ -189,7 +189,7 @@ Expected: all 3 tests PASS
 Add to `tests/test_network_models.py`:
 
 ```python
-from yoyopy.config.models import YoyoPodConfig, build_config_model
+from yoyopod.config.models import YoyoPodConfig, build_config_model
 
 
 def test_network_config_defaults():
@@ -219,7 +219,7 @@ Expected: FAIL with `AttributeError: 'YoyoPodConfig' object has no attribute 'ne
 
 - [ ] **Step 7: Add AppNetworkConfig to config models**
 
-Add to `yoyopy/config/models.py` before `YoyoPodConfig`:
+Add to `src/yoyopod/config/models.py` before `YoyoPodConfig`:
 
 ```python
 @dataclass(slots=True)
@@ -269,7 +269,7 @@ Expected: all existing tests still pass
 - [ ] **Step 11: Commit**
 
 ```bash
-git add yoyopy/network/__init__.py yoyopy/network/models.py yoyopy/config/models.py config/yoyopod_config.yaml pyproject.toml tests/test_network_models.py
+git add src/yoyopod/network/__init__.py src/yoyopod/network/models.py src/yoyopod/config/models.py config/yoyopod_config.yaml pyproject.toml tests/test_network_models.py
 git commit -m "feat(network): add modem data models and network config"
 ```
 
@@ -278,7 +278,7 @@ git commit -m "feat(network): add modem data models and network config"
 ## Task 2: Serial Transport
 
 **Files:**
-- Create: `yoyopy/network/transport.py`
+- Create: `src/yoyopod/network/transport.py`
 - Test: `tests/test_network_transport.py`
 
 - [ ] **Step 1: Write failing test for SerialTransport**
@@ -292,7 +292,7 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock, patch
 
-from yoyopy.network.transport import SerialTransport, TransportError
+from yoyopod.network.transport import SerialTransport, TransportError
 
 
 class FakeSerial:
@@ -355,12 +355,12 @@ def test_send_command_raises_on_closed_port():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_transport.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.transport'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.transport'`
 
 - [ ] **Step 3: Implement SerialTransport**
 
 ```python
-# yoyopy/network/transport.py
+# src/yoyopod/network/transport.py
 """Thread-safe UART serial transport for AT commands."""
 
 from __future__ import annotations
@@ -451,7 +451,7 @@ Expected: 2 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/network/transport.py tests/test_network_transport.py
+git add src/yoyopod/network/transport.py tests/test_network_transport.py
 git commit -m "feat(network): add UART serial transport"
 ```
 
@@ -460,7 +460,7 @@ git commit -m "feat(network): add UART serial transport"
 ## Task 3: AT Command Layer
 
 **Files:**
-- Create: `yoyopy/network/at_commands.py`
+- Create: `src/yoyopod/network/at_commands.py`
 - Modify: `tests/test_network_transport.py`
 
 - [ ] **Step 1: Write failing tests for AT command parsing**
@@ -468,8 +468,8 @@ git commit -m "feat(network): add UART serial transport"
 Add to `tests/test_network_transport.py`:
 
 ```python
-from yoyopy.network.at_commands import AtCommandSet
-from yoyopy.network.models import SignalInfo
+from yoyopod.network.at_commands import AtCommandSet
+from yoyopod.network.models import SignalInfo
 
 
 class FakeTransport:
@@ -542,12 +542,12 @@ def test_get_registration_not_registered():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_transport.py::test_parse_signal_quality -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.at_commands'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.at_commands'`
 
 - [ ] **Step 3: Implement AtCommandSet**
 
 ```python
-# yoyopy/network/at_commands.py
+# src/yoyopod/network/at_commands.py
 """Typed AT command builder and response parser for SIM7600G-H."""
 
 from __future__ import annotations
@@ -557,10 +557,10 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from yoyopy.network.models import GpsCoordinate, SignalInfo
+from yoyopod.network.models import GpsCoordinate, SignalInfo
 
 if TYPE_CHECKING:
-    from yoyopy.network.transport import SerialTransport
+    from yoyopod.network.transport import SerialTransport
 
 # AT+COPS access technology values to human-readable names.
 _ACCESS_TECH = {
@@ -675,7 +675,7 @@ Expected: all 8 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/network/at_commands.py tests/test_network_transport.py
+git add src/yoyopod/network/at_commands.py tests/test_network_transport.py
 git commit -m "feat(network): add AT command parser for SIM7600"
 ```
 
@@ -684,7 +684,7 @@ git commit -m "feat(network): add AT command parser for SIM7600"
 ## Task 4: PPP Subprocess Manager
 
 **Files:**
-- Create: `yoyopy/network/ppp.py`
+- Create: `src/yoyopod/network/ppp.py`
 - Test: `tests/test_network_backend.py`
 
 - [ ] **Step 1: Write failing test for PppProcess**
@@ -698,7 +698,7 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import MagicMock, patch
 
-from yoyopy.network.ppp import PppProcess
+from yoyopod.network.ppp import PppProcess
 
 
 def test_ppp_spawn_constructs_correct_command():
@@ -750,12 +750,12 @@ def test_ppp_is_alive_when_dead():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_backend.py::test_ppp_spawn_constructs_correct_command -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.ppp'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.ppp'`
 
 - [ ] **Step 3: Implement PppProcess**
 
 ```python
-# yoyopy/network/ppp.py
+# src/yoyopod/network/ppp.py
 """pppd subprocess lifecycle manager."""
 
 from __future__ import annotations
@@ -843,7 +843,7 @@ Expected: 4 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/network/ppp.py tests/test_network_backend.py
+git add src/yoyopod/network/ppp.py tests/test_network_backend.py
 git commit -m "feat(network): add pppd subprocess manager"
 ```
 
@@ -852,7 +852,7 @@ git commit -m "feat(network): add pppd subprocess manager"
 ## Task 5: GPS Reader
 
 **Files:**
-- Create: `yoyopy/network/gps.py`
+- Create: `src/yoyopod/network/gps.py`
 - Modify: `tests/test_network_transport.py`
 
 - [ ] **Step 1: Write failing test for GpsReader**
@@ -860,7 +860,7 @@ git commit -m "feat(network): add pppd subprocess manager"
 Add to `tests/test_network_transport.py`:
 
 ```python
-from yoyopy.network.gps import GpsReader
+from yoyopod.network.gps import GpsReader
 
 
 def test_gps_reader_query_with_fix():
@@ -896,12 +896,12 @@ def test_gps_reader_enable():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_transport.py::test_gps_reader_query_with_fix -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.gps'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.gps'`
 
 - [ ] **Step 3: Implement GpsReader**
 
 ```python
-# yoyopy/network/gps.py
+# src/yoyopod/network/gps.py
 """GPS query and coordinate parsing for SIM7600G-H."""
 
 from __future__ import annotations
@@ -910,10 +910,10 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from yoyopy.network.at_commands import AtCommandSet
+from yoyopod.network.at_commands import AtCommandSet
 
 if TYPE_CHECKING:
-    from yoyopy.network.models import GpsCoordinate
+    from yoyopod.network.models import GpsCoordinate
 
 
 class GpsReader:
@@ -943,7 +943,7 @@ Expected: all 11 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/network/gps.py tests/test_network_transport.py
+git add src/yoyopod/network/gps.py tests/test_network_transport.py
 git commit -m "feat(network): add GPS reader"
 ```
 
@@ -952,7 +952,7 @@ git commit -m "feat(network): add GPS reader"
 ## Task 6: Network Backend Protocol and Sim7600Backend
 
 **Files:**
-- Create: `yoyopy/network/backend.py`
+- Create: `src/yoyopod/network/backend.py`
 - Modify: `tests/test_network_backend.py`
 
 - [ ] **Step 1: Write failing test for Sim7600Backend**
@@ -960,8 +960,8 @@ git commit -m "feat(network): add GPS reader"
 Add to `tests/test_network_backend.py`:
 
 ```python
-from yoyopy.network.backend import NetworkBackend, Sim7600Backend
-from yoyopy.network.models import ModemPhase, ModemState, SignalInfo
+from yoyopod.network.backend import NetworkBackend, Sim7600Backend
+from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
 
 class FakeAtCommands:
@@ -1097,12 +1097,12 @@ def test_backend_start_ppp():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_backend.py::test_backend_probe_success -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.backend'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.backend'`
 
 - [ ] **Step 3: Implement backend**
 
 ```python
-# yoyopy/network/backend.py
+# src/yoyopod/network/backend.py
 """Network backend protocol and SIM7600G-H implementation."""
 
 from __future__ import annotations
@@ -1111,14 +1111,14 @@ from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
-from yoyopy.network.at_commands import AtCommandSet
-from yoyopy.network.gps import GpsReader
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState
-from yoyopy.network.ppp import PppProcess
-from yoyopy.network.transport import SerialTransport
+from yoyopod.network.at_commands import AtCommandSet
+from yoyopod.network.gps import GpsReader
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState
+from yoyopod.network.ppp import PppProcess
+from yoyopod.network.transport import SerialTransport
 
 if TYPE_CHECKING:
-    from yoyopy.config.models import AppNetworkConfig
+    from yoyopod.config.models import AppNetworkConfig
 
 
 class NetworkBackend(Protocol):
@@ -1258,7 +1258,7 @@ Expected: all 7 tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/network/backend.py tests/test_network_backend.py
+git add src/yoyopod/network/backend.py tests/test_network_backend.py
 git commit -m "feat(network): add SIM7600 backend with probe, init, PPP, GPS"
 ```
 
@@ -1267,8 +1267,8 @@ git commit -m "feat(network): add SIM7600 backend with probe, init, PPP, GPS"
 ## Task 7: Network Events and AppContext Integration
 
 **Files:**
-- Modify: `yoyopy/events.py`
-- Modify: `yoyopy/app_context.py`
+- Modify: `src/yoyopod/events.py`
+- Modify: `src/yoyopod/app_context.py`
 - Modify: `tests/test_network_models.py`
 
 - [ ] **Step 1: Write failing test for events and AppContext**
@@ -1276,7 +1276,7 @@ git commit -m "feat(network): add SIM7600 backend with probe, init, PPP, GPS"
 Add to `tests/test_network_models.py`:
 
 ```python
-from yoyopy.events import (
+from yoyopod.events import (
     NetworkModemReadyEvent,
     NetworkRegisteredEvent,
     NetworkPppUpEvent,
@@ -1284,7 +1284,7 @@ from yoyopy.events import (
     NetworkSignalUpdateEvent,
     NetworkGpsFixEvent,
 )
-from yoyopy.app_context import AppContext
+from yoyopod.app_context import AppContext
 
 
 def test_network_events_are_frozen():
@@ -1316,7 +1316,7 @@ Expected: FAIL with `ImportError: cannot import name 'NetworkModemReadyEvent'`
 
 - [ ] **Step 3: Add network events**
 
-Add to `yoyopy/events.py`:
+Add to `src/yoyopod/events.py`:
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -1369,7 +1369,7 @@ class NetworkGpsFixEvent:
 
 - [ ] **Step 4: Add update_network_status to AppContext**
 
-Add to `yoyopy/app_context.py` in the `AppContext` class:
+Add to `src/yoyopod/app_context.py` in the `AppContext` class:
 
 ```python
 def update_network_status(
@@ -1396,7 +1396,7 @@ Expected: all 8 tests PASS
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/events.py yoyopy/app_context.py tests/test_network_models.py
+git add src/yoyopod/events.py src/yoyopod/app_context.py tests/test_network_models.py
 git commit -m "feat(network): add network events and AppContext integration"
 ```
 
@@ -1405,9 +1405,9 @@ git commit -m "feat(network): add network events and AppContext integration"
 ## Task 8: Network Manager Facade
 
 **Files:**
-- Create: `yoyopy/network/manager.py`
+- Create: `src/yoyopod/network/manager.py`
 - Create: `tests/test_network_manager.py`
-- Modify: `yoyopy/network/__init__.py`
+- Modify: `src/yoyopod/network/__init__.py`
 
 - [ ] **Step 1: Write failing test for NetworkManager**
 
@@ -1417,11 +1417,11 @@ git commit -m "feat(network): add network events and AppContext integration"
 
 from __future__ import annotations
 
-from yoyopy.config.models import AppNetworkConfig, build_config_model
-from yoyopy.event_bus import EventBus
-from yoyopy.events import NetworkPppUpEvent, NetworkPppDownEvent
-from yoyopy.network.manager import NetworkManager
-from yoyopy.network.models import ModemPhase, ModemState, SignalInfo
+from yoyopod.config.models import AppNetworkConfig, build_config_model
+from yoyopod.event_bus import EventBus
+from yoyopod.events import NetworkPppUpEvent, NetworkPppDownEvent
+from yoyopod.network.manager import NetworkManager
+from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
 
 class FakeBackend:
@@ -1529,12 +1529,12 @@ def test_manager_is_online():
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/test_network_manager.py -v`
-Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopy.network.manager'`
+Expected: FAIL with `ModuleNotFoundError: No module named 'yoyopod.network.manager'`
 
 - [ ] **Step 3: Implement NetworkManager**
 
 ```python
-# yoyopy/network/manager.py
+# src/yoyopod/network/manager.py
 """App-facing network manager facade."""
 
 from __future__ import annotations
@@ -1543,13 +1543,13 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from yoyopy.network.backend import Sim7600Backend
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState
+from yoyopod.network.backend import Sim7600Backend
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState
 
 if TYPE_CHECKING:
-    from yoyopy.config import ConfigManager
-    from yoyopy.config.models import AppNetworkConfig
-    from yoyopy.event_bus import EventBus
+    from yoyopod.config import ConfigManager
+    from yoyopod.config.models import AppNetworkConfig
+    from yoyopod.event_bus import EventBus
 
 
 class NetworkManager:
@@ -1575,7 +1575,7 @@ class NetworkManager:
 
     def start(self) -> None:
         """Open modem, initialize, and start PPP."""
-        from yoyopy.events import (
+        from yoyopod.events import (
             NetworkModemReadyEvent,
             NetworkPppUpEvent,
             NetworkRegisteredEvent,
@@ -1613,7 +1613,7 @@ class NetworkManager:
 
     def stop(self) -> None:
         """Stop PPP and close the modem."""
-        from yoyopy.events import NetworkPppDownEvent
+        from yoyopod.events import NetworkPppDownEvent
 
         logger.info("Stopping network manager")
         try:
@@ -1634,7 +1634,7 @@ class NetworkManager:
 
     def query_gps(self) -> GpsCoordinate | None:
         """Query GPS coordinates (may briefly interrupt PPP)."""
-        from yoyopy.events import NetworkGpsFixEvent
+        from yoyopod.events import NetworkGpsFixEvent
 
         coord = self.backend.query_gps()
         if coord is not None:
@@ -1655,12 +1655,12 @@ class NetworkManager:
 - [ ] **Step 4: Update __init__.py exports**
 
 ```python
-# yoyopy/network/__init__.py
+# src/yoyopod/network/__init__.py
 """4G cellular connectivity for YoyoPod."""
 
-from yoyopy.network.backend import NetworkBackend, Sim7600Backend
-from yoyopy.network.manager import NetworkManager
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
+from yoyopod.network.backend import NetworkBackend, Sim7600Backend
+from yoyopod.network.manager import NetworkManager
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
 
 __all__ = [
     "GpsCoordinate",
@@ -1686,7 +1686,7 @@ Expected: all tests pass
 - [ ] **Step 7: Commit**
 
 ```bash
-git add yoyopy/network/manager.py yoyopy/network/__init__.py tests/test_network_manager.py
+git add src/yoyopod/network/manager.py src/yoyopod/network/__init__.py tests/test_network_manager.py
 git commit -m "feat(network): add NetworkManager facade with EventBus integration"
 ```
 
@@ -1695,15 +1695,15 @@ git commit -m "feat(network): add NetworkManager facade with EventBus integratio
 ## Task 9: App Bootstrap Wiring
 
 **Files:**
-- Modify: `yoyopy/app.py`
+- Modify: `src/yoyopod/app.py`
 
 - [ ] **Step 1: Add NetworkManager to app.py imports**
 
-Add to the imports in `yoyopy/app.py`:
+Add to the imports in `src/yoyopod/app.py`:
 
 ```python
-from yoyopy.network import NetworkManager
-from yoyopy.events import NetworkPppUpEvent, NetworkPppDownEvent
+from yoyopod.network import NetworkManager
+from yoyopod.events import NetworkPppUpEvent, NetworkPppDownEvent
 ```
 
 - [ ] **Step 2: Add network_manager field to YoyoPodApp.__init__**
@@ -1778,7 +1778,7 @@ Expected: all tests pass (network module is disabled by default, so no impact on
 - [ ] **Step 7: Commit**
 
 ```bash
-git add yoyopy/app.py
+git add src/yoyopod/app.py
 git commit -m "feat(network): wire NetworkManager into app bootstrap"
 ```
 
@@ -1787,14 +1787,14 @@ git commit -m "feat(network): wire NetworkManager into app bootstrap"
 ## Task 10: CLI Commands
 
 **Files:**
-- Create: `yoyopy/cli/pi/network.py`
-- Modify: `yoyopy/cli/__init__.py`
+- Create: `src/yoyopod/cli/pi/network.py`
+- Modify: `src/yoyopod/cli/__init__.py`
 
 - [ ] **Step 1: Implement CLI commands**
 
 ```python
-# yoyopy/cli/pi/network.py
-"""yoyopy/cli/pi/network.py — SIM7600 modem and GPS commands."""
+# src/yoyopod/cli/pi/network.py
+"""src/yoyopod/cli/pi/network.py — SIM7600 modem and GPS commands."""
 
 from __future__ import annotations
 
@@ -1802,7 +1802,7 @@ from typing import Annotated
 
 import typer
 
-from yoyopy.cli.common import configure_logging, resolve_config_dir
+from yoyopod.cli.common import configure_logging, resolve_config_dir
 
 network_app = typer.Typer(name="network", help="SIM7600 modem and GPS commands.", no_args_is_help=True)
 
@@ -1815,8 +1815,8 @@ def probe(
     """Check if the SIM7600 modem responds to AT commands."""
     from loguru import logger
 
-    from yoyopy.config import ConfigManager
-    from yoyopy.network import NetworkManager
+    from yoyopod.config import ConfigManager
+    from yoyopod.network import NetworkManager
 
     configure_logging(verbose)
     config_path = resolve_config_dir(config_dir)
@@ -1827,7 +1827,7 @@ def probe(
         logger.error("network module disabled in yoyopod_config.yaml")
         raise typer.Exit(code=1)
 
-    from yoyopy.network.transport import SerialTransport, TransportError
+    from yoyopod.network.transport import SerialTransport, TransportError
 
     transport = SerialTransport(
         port=manager.config.serial_port,
@@ -1835,7 +1835,7 @@ def probe(
     )
     try:
         transport.open()
-        from yoyopy.network.at_commands import AtCommandSet
+        from yoyopod.network.at_commands import AtCommandSet
 
         at = AtCommandSet(transport)
         if at.ping():
@@ -1858,9 +1858,9 @@ def status(
     """Show modem status: signal, carrier, registration, PPP state."""
     from loguru import logger
 
-    from yoyopy.config import ConfigManager
-    from yoyopy.network import NetworkManager
-    from yoyopy.network.backend import Sim7600Backend
+    from yoyopod.config import ConfigManager
+    from yoyopod.network import NetworkManager
+    from yoyopod.network.backend import Sim7600Backend
 
     configure_logging(verbose)
     config_path = resolve_config_dir(config_dir)
@@ -1906,9 +1906,9 @@ def gps(
     """Query current GPS coordinates."""
     from loguru import logger
 
-    from yoyopy.config import ConfigManager
-    from yoyopy.network import NetworkManager
-    from yoyopy.network.backend import Sim7600Backend
+    from yoyopod.config import ConfigManager
+    from yoyopod.network import NetworkManager
+    from yoyopod.network.backend import Sim7600Backend
 
     configure_logging(verbose)
     config_path = resolve_config_dir(config_dir)
@@ -1945,10 +1945,10 @@ def gps(
 
 - [ ] **Step 2: Register the network subcommand group**
 
-In `yoyopy/cli/__init__.py`, find where `power_app` is added to the `pi_app` typer and add:
+In `src/yoyopod/cli/__init__.py`, find where `power_app` is added to the `pi_app` typer and add:
 
 ```python
-from yoyopy.cli.pi.network import network_app
+from yoyopod.cli.pi.network import network_app
 
 pi_app.add_typer(network_app)
 ```
@@ -1961,7 +1961,7 @@ Expected: all tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add yoyopy/cli/pi/network.py yoyopy/cli/__init__.py
+git add src/yoyopod/cli/pi/network.py src/yoyopod/cli/__init__.py
 git commit -m "feat(network): add yoyoctl pi network CLI commands"
 ```
 
@@ -1998,9 +1998,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from yoyopy.config import ConfigManager
-from yoyopy.network import NetworkManager
-from yoyopy.network.backend import Sim7600Backend
+from yoyopod.config import ConfigManager
+from yoyopod.network import NetworkManager
+from yoyopod.network.backend import Sim7600Backend
 
 app = FastAPI(title="YoyoPod GPS Demo")
 

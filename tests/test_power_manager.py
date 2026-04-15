@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from yoyopy.config import ConfigManager
-from yoyopy.power.manager import PowerManager
-from yoyopy.power.models import BatteryState, PowerConfig, PowerSnapshot, RTCState
+from yoyopod.config import ConfigManager
+from yoyopod.power.manager import PowerManager
+from yoyopod.power.models import BatteryState, PowerConfig, PowerSnapshot, RTCState
 
 
 class FakeBackend:

@@ -1,7 +1,7 @@
 """Tests for the split FSM orchestration layer and derived runtime state."""
 
-from yoyopy.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
-from yoyopy.fsm import (
+from yoyopod.coordinators.runtime import AppRuntimeState, CoordinatorRuntime
+from yoyopod.fsm import (
     CallFSM,
     CallInterruptionPolicy,
     CallSessionState,

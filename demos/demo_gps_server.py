@@ -20,9 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from yoyopy.config import ConfigManager
-from yoyopy.network import NetworkManager
-from yoyopy.network.backend import Sim7600Backend
+from yoyopod.config import ConfigManager
+from yoyopod.network import NetworkManager
+from yoyopod.network.backend import Sim7600Backend
 
 app = FastAPI(title="YoyoPod GPS Demo")
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yoyopy.app_context import AppContext
-from yoyopy.audio import LocalMusicService, MockMusicBackend
-from yoyopy.ui.input import InteractionProfile
-from yoyopy.ui.screens import PlaylistScreen
+from yoyopod.app_context import AppContext
+from yoyopod.audio import LocalMusicService, MockMusicBackend
+from yoyopod.ui.input import InteractionProfile
+from yoyopod.ui.screens import PlaylistScreen
 
 
 class FakeLvglBinding:

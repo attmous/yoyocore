@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from yoyopy.ui.input import InputAction
-from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
+from yoyopod.ui.input import InputAction
+from yoyopod.ui.input.adapters.ptt_button import PTTInputAdapter
 
 
 class FakePTTAdapter(PTTInputAdapter):

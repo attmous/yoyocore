@@ -6,14 +6,14 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
-from yoyopy.app_context import AppContext
-from yoyopy.runtime.voice import (
+from yoyopod.app_context import AppContext
+from yoyopod.runtime.voice import (
     VoiceCommandExecutor,
     VoiceCommandOutcome,
     VoiceRuntimeCoordinator,
     VoiceSettingsResolver,
 )
-from yoyopy.voice import VoiceCaptureResult, VoiceSettings, VoiceTranscript
+from yoyopod.voice import VoiceCaptureResult, VoiceSettings, VoiceTranscript
 
 
 class _FakeContact:

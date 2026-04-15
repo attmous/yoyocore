@@ -34,19 +34,19 @@ That means the app does not yet have one global audio hardware contract. Device 
 
 ### Music
 
-- `yoyopy/audio/music/process.py` launches `mpv` with one ALSA target
-- `yoyopy/audio/volume.py` owns app-facing output volume and writes selected ALSA output controls
+- `src/yoyopod/audio/music/process.py` launches `mpv` with one ALSA target
+- `src/yoyopod/audio/volume.py` owns app-facing output volume and writes selected ALSA output controls
 
 ### Calls
 
 - `config/voip_config.yaml` carries playback, ringer, capture, and media device IDs
-- `yoyopy/voip/backend.py` directly issues startup `amixer` capture-tuning commands
+- `src/yoyopod/voip/backend.py` directly issues startup `amixer` capture-tuning commands
 
 ### Voice Commands
 
-- `yoyopy/voice/capture.py` resolves `arecord` capture candidates
-- `yoyopy/voice/output.py` resolves `aplay` playback candidates
-- `yoyopy/voice/tts.py` depends on that playback helper for spoken prompts
+- `src/yoyopod/voice/capture.py` resolves `arecord` capture candidates
+- `src/yoyopod/voice/output.py` resolves `aplay` playback candidates
+- `src/yoyopod/voice/tts.py` depends on that playback helper for spoken prompts
 
 The effect is that one physical audio stack is managed by several different policy owners.
 
@@ -115,8 +115,8 @@ Add one app-facing facade, for example:
 
 Suggested home:
 
-- `yoyopy/audio/devices.py`
-- or `yoyopy/audio/hardware.py`
+- `src/yoyopod/audio/devices.py`
+- or `src/yoyopod/audio/hardware.py`
 
 Primary responsibilities:
 

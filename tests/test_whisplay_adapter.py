@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 from PIL import Image
 
-from yoyopy.ui.display.adapters.whisplay import (
+from yoyopod.ui.display.adapters.whisplay import (
     WhisplayDisplayAdapter,
     _patch_vendor_gpiod_compat,
 )

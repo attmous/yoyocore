@@ -162,11 +162,11 @@ Add a local voice service boundary with two parts:
 
 Suggested implementation structure:
 
-- `yoyopy/voice/stt.py`
-- `yoyopy/voice/tts.py`
-- `yoyopy/voice/commands.py`
-- `yoyopy/voice/service.py`
-- `yoyopy/voice/models.py`
+- `src/yoyopod/voice/stt.py`
+- `src/yoyopod/voice/tts.py`
+- `src/yoyopod/voice/commands.py`
+- `src/yoyopod/voice/service.py`
+- `src/yoyopod/voice/models.py`
 
 ### Backend Requirements
 

@@ -4,7 +4,7 @@
 **Scope:** Whisplay-first LVGL migration for the CPython YoyoPod runtime
 **Status:** Historical migration record, partly completed
 
-> Current note: Whisplay now runs on the LVGL path in the current runtime. This document is still useful for migration context and rationale, but it is not the primary source of truth for current behavior. For current implementation details, trust `AGENTS.md`, `docs/SYSTEM_ARCHITECTURE.md`, and the code under `yoyopy/ui/lvgl_binding/`.
+> Current note: Whisplay now runs on the LVGL path in the current runtime. This document is still useful for migration context and rationale, but it is not the primary source of truth for current behavior. For current implementation details, trust `AGENTS.md`, `docs/SYSTEM_ARCHITECTURE.md`, and the code under `src/yoyopod/ui/lvgl_binding/`.
 
 > Read this as migration history plus remaining rationale, not as proof that every phase item below is still pending.
 
@@ -32,7 +32,7 @@
 ### Phase 0: Whisplay LVGL Proof
 
 - Build LVGL `v9.5.0` on the Pi as a shared library for the proof only.
-- Create a minimal native bridge under `yoyopy/ui/lvgl_binding/native/` that links to LVGL and exposes a narrow ABI:
+- Create a minimal native bridge under `src/yoyopod/ui/lvgl_binding/native/` that links to LVGL and exposes a narrow ABI:
   - init/shutdown
   - display registration
   - input registration
@@ -48,7 +48,7 @@
 ### Phase 1: Production Backend Integration
 
 - Stop using `/usr/local` as the production contract after the proof; production must build from repo-pinned sources.
-- Add `LvglDisplayBackend` plus a Python binding layer under `yoyopy/ui/lvgl_binding/`.
+- Add `LvglDisplayBackend` plus a Python binding layer under `src/yoyopod/ui/lvgl_binding/`.
 - Python binds to the shim header, not to all LVGL headers.
 - Keep `Display` as the app entrypoint, but add backend-aware accessors:
   - `backend_kind`

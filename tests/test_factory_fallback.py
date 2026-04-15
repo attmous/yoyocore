@@ -7,7 +7,7 @@ import pytest
 
 def test_display_factory_falls_back_to_cubie_pimoroni_simulation():
     """When displayhatmini and GPIO config are both unavailable, use simulation."""
-    from yoyopy.ui.display.factory import get_display
+    from yoyopod.ui.display.factory import get_display
 
     # Without displayhatmini and without board config, pimoroni should fall back
     display = get_display(hardware="pimoroni", simulate=False)
@@ -23,7 +23,7 @@ def test_display_factory_falls_back_to_cubie_pimoroni_simulation():
 
 def test_input_factory_falls_back_to_gpiod_buttons():
     """When displayhatmini is unavailable, use GpiodButtonAdapter for pimoroni display."""
-    from yoyopy.ui.input.factory import get_input_manager
+    from yoyopod.ui.input.factory import get_input_manager
 
     mock_display = MagicMock()
     mock_display.DISPLAY_TYPE = "pimoroni"

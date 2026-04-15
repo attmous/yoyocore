@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from yoyopy.power.backend import PiSugarBackend, PowerTransportError
-from yoyopy.power.models import PowerConfig
+from yoyopod.power.backend import PiSugarBackend, PowerTransportError
+from yoyopod.power.models import PowerConfig
 
 
 class FakeTransport:

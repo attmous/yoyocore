@@ -11,7 +11,7 @@ For music playback, the runtime path is:
 
 ```text
 yoyopod.py
-  -> yoyopy.main
+  -> yoyopod.main
      -> YoyoPodApp
         -> LocalMusicService
         -> MpvBackend
@@ -60,7 +60,7 @@ audio:
 
 ## Music Domain Models
 
-`yoyopy/audio/music/models.py` is the canonical ownership point for shared music-domain data.
+`src/yoyopod/audio/music/models.py` is the canonical ownership point for shared music-domain data.
 
 - `Track` is the shared track model used by mpv metadata, recent-history persistence, and UI playback reads.
 - `Playlist` is the discovered local-playlist summary returned by library scans.
@@ -216,12 +216,12 @@ They are separate software paths that meet at the same codec/hardware.
 
 ## Source Files
 
-- `yoyopy/app.py`
-- `yoyopy/audio/local_service.py`
-- `yoyopy/audio/music/backend.py`
-- `yoyopy/audio/music/process.py`
-- `yoyopy/audio/music/ipc.py`
-- `yoyopy/audio/music/models.py`
-- `yoyopy/audio/volume.py`
+- `src/yoyopod/app.py`
+- `src/yoyopod/audio/local_service.py`
+- `src/yoyopod/audio/music/backend.py`
+- `src/yoyopod/audio/music/process.py`
+- `src/yoyopod/audio/music/ipc.py`
+- `src/yoyopod/audio/music/models.py`
+- `src/yoyopod/audio/volume.py`
 - `config/yoyopod_config.yaml`
 - `config/voip_config.yaml`

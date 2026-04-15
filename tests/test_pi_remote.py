@@ -3,7 +3,7 @@
 import pytest
 import yaml
 
-from yoyopy.cli.remote.ops import (
+from yoyopod.cli.remote.ops import (
     DEPLOY_CONFIG_PATH,
     PiDeployConfig,
     RemoteConfig,
@@ -30,14 +30,14 @@ from yoyopy.cli.remote.ops import (
     should_use_direct_rsync,
     sync_path_is_excluded,
 )
-from yoyopy.cli.remote.infra import (
+from yoyopod.cli.remote.infra import (
     build_config_editor_command,
     build_local_override_template,
     build_power_command,
     build_service_command,
 )
-from yoyopy.cli.remote.lvgl import build_lvgl_soak_command
-from yoyopy.cli.remote.setup import build_setup_command, build_verify_setup_command
+from yoyopod.cli.remote.lvgl import build_lvgl_soak_command
+from yoyopod.cli.remote.setup import build_setup_command, build_verify_setup_command
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -234,8 +234,8 @@ def test_build_rsync_command_supports_custom_executable() -> None:
 def test_resolve_local_executable_uses_common_windows_rsync_paths(monkeypatch) -> None:
     """Windows helper should find rsync even when the current PATH has not refreshed yet."""
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.sys.platform", "win32")
-    monkeypatch.setattr("yoyopy.cli.remote.ops.shutil.which", lambda _program: None)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.sys.platform", "win32")
+    monkeypatch.setattr("yoyopod.cli.remote.ops.shutil.which", lambda _program: None)
     monkeypatch.setattr(Path, "exists", lambda self: str(self) == r"C:\msys64\usr\bin\rsync.exe")
 
     assert resolve_local_executable("rsync") == r"C:\msys64\usr\bin\rsync.exe"
@@ -244,7 +244,7 @@ def test_resolve_local_executable_uses_common_windows_rsync_paths(monkeypatch) -
 def test_should_use_direct_rsync_disables_known_windows_msys_builds(monkeypatch) -> None:
     """Windows should prefer the archive fallback for MSYS/Git rsync builds."""
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.sys.platform", "win32")
+    monkeypatch.setattr("yoyopod.cli.remote.ops.sys.platform", "win32")
     monkeypatch.delenv("YOYOPOD_PI_FORCE_RSYNC", raising=False)
 
     assert should_use_direct_rsync(r"C:\msys64\usr\bin\rsync.exe") is False
@@ -253,7 +253,7 @@ def test_should_use_direct_rsync_disables_known_windows_msys_builds(monkeypatch)
 def test_should_use_direct_rsync_supports_force_override(monkeypatch) -> None:
     """An explicit env override should allow direct rsync for debugging."""
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.sys.platform", "win32")
+    monkeypatch.setattr("yoyopod.cli.remote.ops.sys.platform", "win32")
     monkeypatch.setenv("YOYOPOD_PI_FORCE_RSYNC", "1")
 
     assert should_use_direct_rsync(r"C:\msys64\usr\bin\rsync.exe") is True
@@ -268,7 +268,7 @@ def test_sync_path_is_excluded_supports_dir_and_glob_patterns() -> None:
     assert sync_path_is_excluded("pkg/__pycache__", patterns, is_dir=True) is True
     assert sync_path_is_excluded("pkg/module.pyc", patterns, is_dir=False) is True
     assert sync_path_is_excluded("dist/demo.egg-info/PKG-INFO", patterns, is_dir=False) is True
-    assert sync_path_is_excluded("yoyopy/app.py", patterns, is_dir=False) is False
+    assert sync_path_is_excluded("src/yoyopod/app.py", patterns, is_dir=False) is False
 
 
 def test_build_sync_file_manifest_skips_excluded_entries(tmp_path) -> None:
@@ -290,8 +290,8 @@ def test_build_sync_file_manifest_skips_excluded_entries(tmp_path) -> None:
         rsync_exclude=(".git/", ".cache/", "__pycache__/", "*.pyc", "build/", "logs/"),
     )
 
-    (tmp_path / "yoyopy").mkdir()
-    (tmp_path / "yoyopy" / "app.py").write_text("print('ok')\n", encoding="utf-8")
+    (tmp_path / "src" / "yoyopod").mkdir(parents=True)
+    (tmp_path / "src" / "yoyopod" / "app.py").write_text("print('ok')\n", encoding="utf-8")
     (tmp_path / ".cache").mkdir()
     (tmp_path / ".cache" / "lvgl").mkdir()
     (tmp_path / ".cache" / "lvgl" / "CMakeLists.txt").write_text("cmake\n", encoding="utf-8")
@@ -304,7 +304,7 @@ def test_build_sync_file_manifest_skips_excluded_entries(tmp_path) -> None:
 
     manifest = build_sync_file_manifest(tmp_path, deploy_config)
 
-    assert manifest == ["yoyopy/app.py"]
+    assert manifest == ["src/yoyopod/app.py"]
 
 
 def test_build_native_shim_refresh_command_covers_both_native_builds() -> None:
@@ -314,8 +314,8 @@ def test_build_native_shim_refresh_command_covers_both_native_builds() -> None:
 
     assert "'yoyoctl', 'build', 'lvgl'" in command
     assert "'yoyoctl', 'build', 'liblinphone'" in command
-    assert "libyoyopy_lvgl_shim.so" in command
-    assert "libyoyopy_liblinphone_shim.so" in command
+    assert "libyoyopod_lvgl_shim.so" in command
+    assert "libyoyopod_liblinphone_shim.so" in command
     assert "[pi-remote] info=rebuilding" in command
     assert command.endswith("} ")
 
@@ -383,9 +383,9 @@ def test_build_local_preflight_commands_cover_compile_and_pytest() -> None:
 
     assert commands[0][0] == "compileall"
     assert commands[0][1][1:3] == ["-m", "compileall"]
-    assert "yoyopy/cli/pi/smoke.py" in commands[0][1]
-    assert "yoyopy/cli/pi/voip.py" in commands[0][1]
-    assert "yoyopy/power/backend.py" in commands[0][1]
+    assert "src/yoyopod/cli/pi/smoke.py" in commands[0][1]
+    assert "src/yoyopod/cli/pi/voip.py" in commands[0][1]
+    assert "src/yoyopod/power/backend.py" in commands[0][1]
     assert commands[1] == ("pytest", ["uv", "run", "pytest", "-q"])
 
 
@@ -506,7 +506,7 @@ def test_resolve_local_validation_target_uses_clean_head_and_remote_branch(monke
     def fake_run_local_capture(command):
         return responses[tuple(command)]
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.run_local_capture", fake_run_local_capture)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.run_local_capture", fake_run_local_capture)
 
     assert resolve_local_validation_target(branch="", sha=None) == (
         "feature/117",
@@ -518,9 +518,9 @@ def test_resolve_local_validation_target_rejects_dirty_worktree(monkeypatch) -> 
     """Dirty local state should stop the committed validation flow immediately."""
 
     def fake_run_local_capture(_command):
-        return SimpleNamespace(returncode=0, stdout=" M yoyopy/app.py\n", stderr="")
+        return SimpleNamespace(returncode=0, stdout=" M src/yoyopod/app.py\n", stderr="")
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.run_local_capture", fake_run_local_capture)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.run_local_capture", fake_run_local_capture)
 
     with pytest.raises(SystemExit, match="Commit and push before `yoyoctl remote validate`"):
         resolve_local_validation_target(branch="", sha=None)
@@ -611,8 +611,8 @@ def test_run_screenshot_uses_sigusr1_for_readback(monkeypatch, tmp_path) -> None
     def fake_subprocess_run(command, check=False):
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.run_remote_capture", fake_run_remote_capture)
-    monkeypatch.setattr("yoyopy.cli.remote.ops.subprocess.run", fake_subprocess_run)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.run_remote_capture", fake_run_remote_capture)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.subprocess.run", fake_subprocess_run)
 
     args = Namespace(readback=True, output=str(tmp_path / "pi_screenshot.png"))
     exit_code = run_screenshot(
@@ -643,8 +643,8 @@ def test_run_screenshot_uses_sigusr2_for_default_shadow_path(monkeypatch, tmp_pa
     def fake_subprocess_run(command, check=False):
         return SimpleNamespace(returncode=0)
 
-    monkeypatch.setattr("yoyopy.cli.remote.ops.run_remote_capture", fake_run_remote_capture)
-    monkeypatch.setattr("yoyopy.cli.remote.ops.subprocess.run", fake_subprocess_run)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.run_remote_capture", fake_run_remote_capture)
+    monkeypatch.setattr("yoyopod.cli.remote.ops.subprocess.run", fake_subprocess_run)
 
     args = Namespace(readback=False, output=str(tmp_path / "pi_screenshot.png"))
     exit_code = run_screenshot(

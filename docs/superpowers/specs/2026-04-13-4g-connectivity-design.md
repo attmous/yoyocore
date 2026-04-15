@@ -29,7 +29,7 @@ The app owns the modem lifecycle via AT commands (init, registration, GPS) on `/
 ## Package Structure
 
 ```
-yoyopy/network/
+src/yoyopod/network/
 ├── __init__.py
 ├── backend.py          # NetworkBackend protocol + Sim7600Backend
 ├── transport.py        # UART serial transport (pyserial)
@@ -130,7 +130,7 @@ GPS queries use the AT command port (`/dev/ttyUSB2`) which is separate from the 
 
 ## EventBus Integration
 
-New events in `yoyopy/events.py`:
+New events in `src/yoyopod/events.py`:
 
 - `NetworkEvent.MODEM_READY` — modem probed and initialized
 - `NetworkEvent.REGISTERED` — attached to cellular network
@@ -153,7 +153,7 @@ New events in `yoyopy/events.py`:
 
 ## Configuration
 
-Config model added to `yoyopy/config/models.py`:
+Config model added to `src/yoyopod/config/models.py`:
 
 ```python
 class NetworkConfig:

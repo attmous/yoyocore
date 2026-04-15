@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
-from yoyopy.audio.music.ipc import MpvIpcClient
+from yoyopod.audio.music.ipc import MpvIpcClient
 
 
 def _make_socket_pair(tmp_path: Path) -> tuple[str, socket.socket]:
@@ -92,7 +92,7 @@ def test_connect_and_send_command(tmp_path: Path) -> None:
     if not hasattr(socket, "AF_UNIX"):
         fake_socket = _FakeSocket()
         with patch.object(socket, "AF_UNIX", 1, create=True), patch(
-            "yoyopy.audio.music.ipc.socket.socket",
+            "yoyopod.audio.music.ipc.socket.socket",
             return_value=fake_socket,
         ):
             client = MpvIpcClient(str(tmp_path / "test-mpv.sock"))
@@ -133,7 +133,7 @@ def test_event_callback_fires(tmp_path: Path) -> None:
         fake_socket = _FakeEventSocket()
         events_received: list[dict] = []
         with patch.object(socket, "AF_UNIX", 1, create=True), patch(
-            "yoyopy.audio.music.ipc.socket.socket",
+            "yoyopod.audio.music.ipc.socket.socket",
             return_value=fake_socket,
         ):
             client = MpvIpcClient(str(tmp_path / "test-mpv.sock"))
@@ -186,7 +186,7 @@ def test_event_callback_can_send_command_without_blocking_reader_thread(tmp_path
     callback_results: list[str] = []
 
     with patch.object(socket, "AF_UNIX", 1, create=True), patch(
-        "yoyopy.audio.music.ipc.socket.socket",
+        "yoyopod.audio.music.ipc.socket.socket",
         return_value=fake_socket,
     ):
         client = MpvIpcClient(str(tmp_path / "test-mpv.sock"))

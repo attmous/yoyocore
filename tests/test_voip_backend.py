@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 from cffi import FFI
 
-from yoyopy.voip import (
+from yoyopod.voip import (
     BackendStopped,
     CallState,
     CallStateChanged,
@@ -28,7 +28,7 @@ from yoyopy.voip import (
     VoIPManager,
     VoIPMessageRecord,
 )
-from yoyopy.voip.liblinphone_binding import LiblinphoneBinding
+from yoyopod.voip.liblinphone_binding import LiblinphoneBinding
 
 
 class FakeBinding:
@@ -235,7 +235,7 @@ def test_liblinphone_backend_uses_shared_output_volume_and_capture_only_alsa(mon
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("yoyopy.voip.backend.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.voip.backend.subprocess.run", fake_run)
 
     binding = FakeBinding()
     config = build_config()
@@ -269,7 +269,7 @@ def test_liblinphone_backend_matches_wm8960_card_from_capture_device(monkeypatch
         commands.append(command)
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr("yoyopy.voip.backend.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.voip.backend.subprocess.run", fake_run)
 
     backend = LiblinphoneBackend(build_config(), binding=FakeBinding())
 
@@ -550,7 +550,7 @@ def test_voip_manager_builds_message_store_under_directory(tmp_path: Path) -> No
 def test_liblinphone_shim_records_voice_notes_as_wav() -> None:
     """The native recorder shim should explicitly match the .wav files used by the app."""
 
-    shim_source = Path("yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
+    shim_source = Path("src/yoyopod/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
         encoding="utf-8"
     )
 
@@ -560,11 +560,11 @@ def test_liblinphone_shim_records_voice_notes_as_wav() -> None:
 def test_liblinphone_shim_wires_incoming_message_debug_paths() -> None:
     """The native shim should cover aggregated and undecryptable incoming message paths."""
 
-    shim_source = Path("yoyopy/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
+    shim_source = Path("src/yoyopod/voip/liblinphone_binding/native/liblinphone_shim.c").read_text(
         encoding="utf-8"
     )
 
-    assert "linphone_core_cbs_set_messages_received(g_state.core_cbs, yoyopy_on_messages_received);" in shim_source
+    assert "linphone_core_cbs_set_messages_received(g_state.core_cbs, yoyopod_on_messages_received);" in shim_source
     assert "linphone_core_set_chat_messages_aggregation_enabled(g_state.core, FALSE);" in shim_source
     assert "linphone_core_cbs_set_message_received_unable_decrypt(" in shim_source
     assert "linphone_account_params_enable_cpim_in_basic_chat_room(params, TRUE);" in shim_source
@@ -572,9 +572,9 @@ def test_liblinphone_shim_wires_incoming_message_debug_paths() -> None:
     assert "linphone_account_params_set_lime_server_url(params, lime_server_url);" in shim_source
     assert "linphone_factory_create_chat_room_cbs(g_state.factory);" in shim_source
     assert "linphone_chat_room_add_callbacks(chat_room, g_state.chat_room_cbs);" in shim_source
-    assert "linphone_chat_room_cbs_set_message_received(g_state.chat_room_cbs, yoyopy_on_chat_room_message_received);" in shim_source
+    assert "linphone_chat_room_cbs_set_message_received(g_state.chat_room_cbs, yoyopod_on_chat_room_message_received);" in shim_source
     assert "linphone_logging_service_set_log_level_mask(" in shim_source
-    assert "yoyopy_log_account_diagnostics(\"registration_ok\");" in shim_source
+    assert "yoyopod_log_account_diagnostics(\"registration_ok\");" in shim_source
     assert "linphone_core_search_chat_room(" in shim_source
     assert "linphone_core_create_chat_room_6(" in shim_source
     assert "linphone_chat_room_params_set_backend(params, LinphoneChatRoomBackendFlexisipChat);" in shim_source
@@ -584,7 +584,7 @@ def test_liblinphone_shim_wires_incoming_message_debug_paths() -> None:
     assert "linphone_core_enable_auto_download_voice_recordings(g_state.core, FALSE);" in shim_source
     assert 'linphone_chat_room_params_set_subject(params, "YoyoPod");' in shim_source
     assert "linphone_core_delete_chat_room(g_state.core, chat_room);" in shim_source
-    assert shim_source.count("chat_room = yoyopy_get_direct_chat_room(sip_address);") >= 2
+    assert shim_source.count("chat_room = yoyopod_get_direct_chat_room(sip_address);") >= 2
 
 
 def test_voip_manager_handles_backend_stop_event() -> None:

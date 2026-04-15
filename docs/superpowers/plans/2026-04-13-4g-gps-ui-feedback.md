@@ -16,10 +16,10 @@
 
 | File | Change |
 |---|---|
-| `yoyopy/app_context.py` | Add `gps_has_fix` field, extend `update_network_status()` |
-| `yoyopy/ui/screens/theme.py` | Add signal bars and GPS dot to `render_status_bar()` |
-| `yoyopy/ui/screens/system/power.py` | Add `network_manager` to `__init__`, add Network and GPS pages to `build_pages()` |
-| `yoyopy/app.py` | Pass `network_manager` to `PowerScreen`, subscribe to GPS events |
+| `src/yoyopod/app_context.py` | Add `gps_has_fix` field, extend `update_network_status()` |
+| `src/yoyopod/ui/screens/theme.py` | Add signal bars and GPS dot to `render_status_bar()` |
+| `src/yoyopod/ui/screens/system/power.py` | Add `network_manager` to `__init__`, add Network and GPS pages to `build_pages()` |
+| `src/yoyopod/app.py` | Pass `network_manager` to `PowerScreen`, subscribe to GPS events |
 | `tests/test_network_models.py` | Add test for `gps_has_fix` in `update_network_status()` |
 
 ---
@@ -27,7 +27,7 @@
 ## Task 1: AppContext gps_has_fix field
 
 **Files:**
-- Modify: `yoyopy/app_context.py`
+- Modify: `src/yoyopod/app_context.py`
 - Modify: `tests/test_network_models.py`
 
 - [ ] **Step 1: Write failing test**
@@ -54,7 +54,7 @@ Expected: FAIL with `AttributeError: 'AppContext' object has no attribute 'gps_h
 
 - [ ] **Step 3: Add gps_has_fix to AppContext**
 
-In `yoyopy/app_context.py`, in the `__init__` method, after line 154 (`self.connection_type: str = "none"`), add:
+In `src/yoyopod/app_context.py`, in the `__init__` method, after line 154 (`self.connection_type: str = "none"`), add:
 
 ```python
         self.gps_has_fix: bool = False
@@ -102,7 +102,7 @@ Expected: all tests PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/app_context.py tests/test_network_models.py
+git add src/yoyopod/app_context.py tests/test_network_models.py
 git commit -m "feat(ui): add gps_has_fix to AppContext"
 ```
 
@@ -111,11 +111,11 @@ git commit -m "feat(ui): add gps_has_fix to AppContext"
 ## Task 2: Status bar signal bars and GPS indicator
 
 **Files:**
-- Modify: `yoyopy/ui/screens/theme.py`
+- Modify: `src/yoyopod/ui/screens/theme.py`
 
 - [ ] **Step 1: Add signal bar and GPS rendering constants**
 
-In `yoyopy/ui/screens/theme.py`, after the existing status bar constants (around line 42), add:
+In `src/yoyopod/ui/screens/theme.py`, after the existing status bar constants (around line 42), add:
 
 ```python
 STATUS_SIGNAL_BAR_WIDTH = 3
@@ -183,7 +183,7 @@ Expected: all tests pass
 - [ ] **Step 4: Commit**
 
 ```bash
-git add yoyopy/ui/screens/theme.py
+git add src/yoyopod/ui/screens/theme.py
 git commit -m "feat(ui): add signal bars and GPS indicator to status bar"
 ```
 
@@ -192,11 +192,11 @@ git commit -m "feat(ui): add signal bars and GPS indicator to status bar"
 ## Task 3: Network and GPS Setup pages
 
 **Files:**
-- Modify: `yoyopy/ui/screens/system/power.py`
+- Modify: `src/yoyopod/ui/screens/system/power.py`
 
 - [ ] **Step 1: Add network_manager parameter to PowerScreen.__init__**
 
-In `yoyopy/ui/screens/system/power.py`, modify the `__init__` signature (line 43) to add `network_manager` after `power_manager`:
+In `src/yoyopod/ui/screens/system/power.py`, modify the `__init__` signature (line 43) to add `network_manager` after `power_manager`:
 
 ```python
     def __init__(
@@ -232,7 +232,7 @@ Add after `_build_voice_rows` (around line 271):
             return [("Status", "Disabled")]
 
         state = self.network_manager.modem_state
-        from yoyopy.network.models import ModemPhase
+        from yoyopod.network.models import ModemPhase
 
         if state.phase == ModemPhase.ONLINE:
             status_text = "Online"
@@ -320,7 +320,7 @@ Expected: all tests pass (existing PowerScreen tests should still pass since net
 - [ ] **Step 6: Commit**
 
 ```bash
-git add yoyopy/ui/screens/system/power.py
+git add src/yoyopod/ui/screens/system/power.py
 git commit -m "feat(ui): add Network and GPS pages to Setup screen"
 ```
 
@@ -329,11 +329,11 @@ git commit -m "feat(ui): add Network and GPS pages to Setup screen"
 ## Task 4: Wire network_manager into PowerScreen and subscribe to GPS events
 
 **Files:**
-- Modify: `yoyopy/app.py`
+- Modify: `src/yoyopod/app.py`
 
 - [ ] **Step 1: Pass network_manager to PowerScreen constructor**
 
-In `yoyopy/app.py`, find where `PowerScreen` is constructed (in `_setup_screens`). It currently looks like:
+In `src/yoyopod/app.py`, find where `PowerScreen` is constructed (in `_setup_screens`). It currently looks like:
 
 ```python
 self.power_screen = PowerScreen(
@@ -358,12 +358,12 @@ self.power_screen = PowerScreen(
 
 - [ ] **Step 2: Subscribe to NetworkGpsFixEvent to update gps_has_fix**
 
-In the imports section of `app.py`, ensure `NetworkGpsFixEvent` is imported. It should already be available via `yoyopy/events.py`.
+In the imports section of `app.py`, ensure `NetworkGpsFixEvent` is imported. It should already be available via `src/yoyopod/events.py`.
 
 Add to the imports alongside the existing `NetworkPppUpEvent`:
 
 ```python
-from yoyopy.events import NetworkPppUpEvent, NetworkGpsFixEvent
+from yoyopod.events import NetworkPppUpEvent, NetworkGpsFixEvent
 ```
 
 In `__init__`, add a subscription after the existing `NetworkPppUpEvent` subscription:
@@ -407,7 +407,7 @@ Expected: all tests pass
 - [ ] **Step 5: Commit**
 
 ```bash
-git add yoyopy/app.py
+git add src/yoyopod/app.py
 git commit -m "feat(ui): wire NetworkManager into PowerScreen and GPS events"
 ```
 
@@ -426,8 +426,8 @@ git commit -m "feat(ui): wire NetworkManager into PowerScreen and GPS events"
 
 from __future__ import annotations
 
-from yoyopy.ui.screens.system.power import PowerPage, PowerScreen
-from yoyopy.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
+from yoyopod.ui.screens.system.power import PowerPage, PowerScreen
+from yoyopod.network.models import GpsCoordinate, ModemPhase, ModemState, SignalInfo
 
 
 class FakeDisplay:

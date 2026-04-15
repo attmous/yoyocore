@@ -63,11 +63,11 @@ No separate Mopidy process or music daemon is part of the stack anymore.
 ### Display / native UI
 
 - vendored `liblvgl.so.9`
-- `libyoyopy_lvgl_shim.so`
+- `libyoyopod_lvgl_shim.so`
 
 ### Native VoIP bridge
 
-- `libyoyopy_liblinphone_shim.so`
+- `libyoyopod_liblinphone_shim.so`
 
 ## Python-Level Dependencies Used By The App
 

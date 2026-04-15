@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yoyopy.app_context import AppContext
+from yoyopod.app_context import AppContext
 
 
 def test_app_context_tracks_voice_volume_and_toggles() -> None:

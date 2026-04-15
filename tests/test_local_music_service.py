@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yoyopy.audio import LocalMusicService, MockMusicBackend, RecentTrackHistoryStore, Track
-from yoyopy.coordinators.playback import PlaybackCoordinator
+from yoyopod.audio import LocalMusicService, MockMusicBackend, RecentTrackHistoryStore, Track
+from yoyopod.coordinators.playback import PlaybackCoordinator
 
 
 class StubRuntime:

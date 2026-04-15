@@ -184,7 +184,7 @@ The skills depend on YoyoPod's loguru-based logging implementation providing:
 - `SIGUSR1` handler: uses LVGL readback first and falls back to the adapter screenshot method.
 - `SIGUSR2` handler: remains available as a legacy shadow-first debug path.
 - `lv_conf.h` must enable `LV_USE_SNAPSHOT 1`.
-- C shim must expose a `yoyopy_lvgl_snapshot()` function.
+- C shim must expose a `yoyopod_lvgl_snapshot()` function.
 
 **Config addition to `pi-deploy.yaml`:**
 

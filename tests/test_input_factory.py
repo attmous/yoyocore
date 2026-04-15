@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from yoyopy.ui.input.hal import InputAction
-from yoyopy.ui.input import InteractionProfile, get_input_manager
-from yoyopy.ui.input.adapters.ptt_button import PTTInputAdapter
+from yoyopod.ui.input.hal import InputAction
+from yoyopod.ui.input import InteractionProfile, get_input_manager
+from yoyopod.ui.input.adapters.ptt_button import PTTInputAdapter
 
 
 class WhisplayDisplayAdapter:
@@ -79,7 +79,7 @@ def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatc
 
     server = FakeServer()
 
-    import yoyopy.ui.web_server as web_server
+    import yoyopod.ui.web_server as web_server
 
     monkeypatch.setattr(web_server, "get_server", lambda *args, **kwargs: server)
 
