@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 import time
 from queue import SimpleQueue
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 from loguru import logger
 
@@ -165,9 +165,6 @@ class YoyoPodApp:
         self.auto_resume_after_call = True
         self._voip_registered = False
         self._ui_state = AppRuntimeState.IDLE
-
-        # Configuration
-        self.config: Dict[str, Any] = {}
 
         # Extracted coordinators
         self.coordinator_runtime: Optional[CoordinatorRuntime] = None

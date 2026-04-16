@@ -25,7 +25,6 @@ def _build_runtime() -> CoordinatorRuntime:
         incoming_call_screen=None,
         outgoing_call_screen=None,
         in_call_screen=None,
-        config={},
         config_manager=None,
     )
 

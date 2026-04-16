@@ -214,7 +214,7 @@ This waits for the startup marker and matching PID before returning success.
 ```bash
 yoyoctl remote logs --lines 200
 yoyoctl remote logs --errors
-yoyoctl remote logs --filter voip
+yoyoctl remote logs --filter comm
 yoyoctl remote logs --filter coord
 yoyoctl remote logs --follow --filter ERROR
 ```
@@ -225,7 +225,7 @@ This tails the file sinks declared in `deploy/pi-deploy.yaml`, which is the stab
 - `<project-dir>/logs/yoyopod_errors.log`
 - `/tmp/yoyopod.pid`
 
-For keep-alive freeze triage, watch the `voip` and `coord` lines together:
+For keep-alive freeze triage, watch the `comm` and `coord` lines together:
 
 - `VoIP timing window`: rolling summary of keep-alive schedule delay, iterate duration, and the worst loop gap in that window
 - `VoIP iterate timing drift`: one-off warning when a keep-alive step ran late or took unusually long

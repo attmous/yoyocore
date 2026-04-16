@@ -313,8 +313,7 @@ class CallCoordinator:
             if self.runtime.config_manager.get_sip_username().strip():
                 return True
 
-        config_file = self.runtime.config.get("voip", {}).get("config_file")
-        return bool(config_file)
+        return False
 
     def _ensure_outgoing_call_session(self) -> None:
         """Capture callee metadata for an outgoing call once it starts."""

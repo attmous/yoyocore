@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import sys
+import types
+
+from yoyopod.config.models import AppInputConfig
 from yoyopod.ui.input.hal import InputAction
 from yoyopod.ui.input import InteractionProfile, get_input_manager
 from yoyopod.ui.input.adapters.ptt_button import PTTInputAdapter
@@ -27,14 +31,12 @@ def test_whisplay_factory_applies_one_button_profile_and_custom_timings() -> Non
     """Whisplay factory wiring should pass typed timing settings into the adapter."""
     manager = get_input_manager(
         WhisplayDisplayAdapter(),
-        config={
-            "input": {
-                "ptt_navigation": True,
-                "whisplay_debounce_ms": 80,
-                "whisplay_double_tap_ms": 240,
-                "whisplay_long_hold_ms": 950,
-            }
-        },
+        input_settings=AppInputConfig(
+            ptt_navigation=True,
+            whisplay_debounce_ms=80,
+            whisplay_double_tap_ms=240,
+            whisplay_long_hold_ms=950,
+        ),
         simulate=True,
     )
 
@@ -79,9 +81,9 @@ def test_simulation_factory_uses_whisplay_profile_and_browser_buttons(monkeypatc
 
     server = FakeServer()
 
-    import yoyopod.ui.web_server as web_server
-
-    monkeypatch.setattr(web_server, "get_server", lambda *args, **kwargs: server)
+    fake_web_server = types.ModuleType("yoyopod.ui.web_server")
+    fake_web_server.get_server = lambda *args, **kwargs: server
+    monkeypatch.setitem(sys.modules, "yoyopod.ui.web_server", fake_web_server)
 
     manager = get_input_manager(
         SimulationDisplayAdapter(),

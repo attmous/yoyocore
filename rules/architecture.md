@@ -17,8 +17,8 @@ yoyopod.py / src/yoyopod/main.py  (entry points)
     |- MpvBackend (audio/music/backend.py)
     |  |- MpvProcess (audio/music/process.py)
     |  `- MpvIpcClient (audio/music/ipc.py) -- mpv JSON IPC
-    |- VoIPManager (voip/manager.py)
-    |  `- LiblinphoneBackend (voip/backend.py)
+    |- VoIPManager (communication/calling/manager.py)
+    |  `- LiblinphoneBackend (communication/calling/backend.py)
     |- Display HAL (ui/display/) -- factory pattern, 3 adapters
     |- Input HAL (ui/input/) -- semantic actions, 3 adapters
     `- ScreenManager (ui/screens/manager.py) -- stack-based navigation
@@ -71,7 +71,7 @@ yoyopod.py / src/yoyopod/main.py  (entry points)
 
 ### Subsystem managers and backends
 
-- `audio/`, `voip/`, `power/`, `network/`, and `voice/` own subsystem behavior and backend integration.
+- `audio/`, `communication/`, `people/`, `power/`, `network/`, and `voice/` own subsystem behavior and backend integration.
 - Manager layers provide the app-facing facade.
 - Backend-specific details stay behind the subsystem boundary whenever possible.
 

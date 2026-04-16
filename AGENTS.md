@@ -1,8 +1,8 @@
 # YoyoPod - Agent Instructions
 
-**Last Updated:** 2026-04-09
+**Last Updated:** 2026-04-16
 **Target Hardware:** Raspberry Pi Zero 2W
-**Project:** iPod-inspired VoIP and mpv-based local music player with a small-screen, button-driven UI
+**Project:** iPod-inspired communication, local music, modem, and voice device with a small-screen button UI
 
 ---
 
@@ -60,9 +60,9 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
   - split `MusicFSM` and `CallFSM`
   - coordinator modules under `src/yoyopod/coordinators/`
   - derived runtime state in `CoordinatorRuntime`
-  - declarative screen routing
-  - typed config models with YAML plus env overlay
-  - dedicated `src/yoyopod/voip/` package
+  - focused runtime services under `src/yoyopod/runtime/`
+  - typed config models with canonical domain-owned YAML layers plus env overlay
+  - `src/yoyopod/communication/`, `src/yoyopod/people/`, `src/yoyopod/network/`, and `src/yoyopod/voice/` packages
 - PiSugar-backed power management is now implemented:
   - telemetry polling
   - low-battery warning and graceful shutdown
@@ -72,7 +72,7 @@ When asked to deploy, sync, restart, check status, view logs, or take a screensh
 - Production Raspberry Pi deployment now has a committed systemd unit template under `deploy/systemd/`.
 - Whisplay now runs on the LVGL rendering path in production under `src/yoyopod/ui/lvgl_binding/`.
 - Production local music now runs through the app-managed mpv backend under `src/yoyopod/audio/music/`.
-- Production VoIP now runs through Liblinphone under `src/yoyopod/voip/liblinphone_binding/` and `src/yoyopod/voip/backend.py`.
+- Production communication now runs through Liblinphone under `src/yoyopod/communication/integrations/liblinphone_binding/` and `src/yoyopod/communication/calling/backend.py`.
 - CI validates the staged quality gate plus Python test suite; the local mirror is `uv run python scripts/quality.py ci`.
 - Raspberry Pi validation has a defined path through the `yoyoctl pi validate` suite and `yoyoctl remote`.
 
@@ -99,12 +99,15 @@ When in doubt, trust these files first:
 - `src/yoyopod/events.py`
 - `src/yoyopod/coordinators/runtime.py`
 - `src/yoyopod/audio/`
-- `src/yoyopod/voip/`
+- `src/yoyopod/communication/`
+- `src/yoyopod/people/`
+- `src/yoyopod/network/`
 - `src/yoyopod/power/`
 - `src/yoyopod/ui/display/`
 - `src/yoyopod/ui/lvgl_binding/`
 - `src/yoyopod/ui/input/`
 - `src/yoyopod/ui/screens/`
+- `src/yoyopod/voice/`
 - `README.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/POWER_MODULE.md`
@@ -120,12 +123,14 @@ Current production topology:
 ```text
 yoyopod.py / yoyopod.main
   -> YoyoPodApp
+     -> RuntimeBootService / RuntimeLoopService / RecoverySupervisor
+     -> ScreenPowerService / ShutdownLifecycleService
      -> EventBus
      -> MusicFSM
      -> CallFSM
      -> CallInterruptionPolicy
      -> CoordinatorRuntime
-     -> CallCoordinator / PlaybackCoordinator / ScreenCoordinator
+     -> CallCoordinator / PlaybackCoordinator / PowerCoordinator / ScreenCoordinator
      -> Display facade
         -> display factory
         -> Pimoroni | Whisplay | Simulation adapters
@@ -140,9 +145,12 @@ yoyopod.py / yoyopod.main
         -> MpvIpcClient
      -> VoIPManager
         -> LiblinphoneBackend
+     -> PeopleDirectory
      -> PowerManager
         -> PiSugarBackend
         -> PiSugarWatchdog
+     -> NetworkManager
+     -> VoiceRuntimeCoordinator
 ```
 
 Key design points:
@@ -173,7 +181,7 @@ Key design points:
 - `src/yoyopod/coordinators/screen.py` - screen refresh and call-screen updates
 - `src/yoyopod/coordinators/runtime.py` - derived `AppRuntimeState` and shared runtime references
 
-### Audio And VoIP
+### Audio And Communication
 
 - `src/yoyopod/audio/local_service.py` - filesystem-backed playlists, shuffle source collection, and recent-track integration
 - `src/yoyopod/audio/music/backend.py` - `MusicBackend`, `MpvBackend`, and `MockMusicBackend`
@@ -181,12 +189,18 @@ Key design points:
 - `src/yoyopod/audio/music/ipc.py` - low-level mpv JSON IPC client
 - `src/yoyopod/audio/music/models.py` - `Track`, `Playlist`, and `MusicConfig`
 - `src/yoyopod/audio/volume.py` - shared output-volume coordination across ALSA and mpv
-- `src/yoyopod/voip/manager.py` - app-facing VoIP facade
-- `src/yoyopod/voip/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, `MockVoIPBackend`
-- `src/yoyopod/voip/models.py` - SIP config plus typed call/message backend events
-- `src/yoyopod/voip/liblinphone_binding/` - native Liblinphone shim and CPython cffi binding
-- `src/yoyopod/voip/messages.py` - persistent voice-note/message metadata store
-- `src/yoyopod/voip/history.py` - persistent recent/missed-call store for the Talk flow
+- `src/yoyopod/communication/calling/manager.py` - app-facing VoIP facade
+- `src/yoyopod/communication/calling/backend.py` - `VoIPBackend`, `LiblinphoneBackend`, and `MockVoIPBackend`
+- `src/yoyopod/communication/models.py` - shared communication-facing typed models and re-exports
+- `src/yoyopod/communication/calling/history.py` - persistent recent/missed-call store for the Talk flow
+- `src/yoyopod/communication/messaging/` - voice-note/message metadata store
+- `src/yoyopod/communication/integrations/liblinphone_binding/` - native Liblinphone shim and CPython cffi binding
+- `src/yoyopod/people/directory.py` - mutable contacts and people lookup
+
+### Network And Voice
+
+- `src/yoyopod/network/` - modem, PPP, GPS, and transport code
+- `src/yoyopod/voice/` - local capture, STT, TTS, and command matching
 
 ### Power
 
@@ -224,10 +238,17 @@ Key design points:
 
 ### Configuration
 
-- `config/voip_config.yaml`
-- `config/liblinphone_factory.conf`
-- `config/contacts.yaml`
-- `config/yoyopod_config.yaml`
+- `config/app/core.yaml`
+- `config/audio/music.yaml`
+- `config/device/hardware.yaml`
+- `config/network/cellular.yaml`
+- `config/voice/assistant.yaml`
+- `config/communication/calling.yaml`
+- `config/communication/messaging.yaml`
+- `config/communication/calling.secrets.example.yaml`
+- `config/communication/integrations/liblinphone_factory.conf`
+- `config/people/directory.yaml`
+- `config/people/contacts.seed.yaml`
 - `src/yoyopod/config/models.py` - typed config models
 - `src/yoyopod/config/manager.py` - current config facade used by the app
 
@@ -340,9 +361,9 @@ ssh rpi-zero "killall -9 python"
 
 If SIP behavior looks wrong, inspect the Liblinphone shim and backend boundary:
 
-- `src/yoyopod/voip/liblinphone_binding/native/liblinphone_shim.c`
-- `src/yoyopod/voip/liblinphone_binding/binding.py`
-- `src/yoyopod/voip/backend.py`
+- `src/yoyopod/communication/integrations/liblinphone_binding/native/liblinphone_shim.c`
+- `src/yoyopod/communication/integrations/liblinphone_binding/binding.py`
+- `src/yoyopod/communication/calling/backend.py`
 
 ---
 
@@ -369,10 +390,10 @@ CI-safe tests are in `tests/`. Hardware diagnostics were intentionally moved out
 
 These old names are no longer correct:
 
-- `src/yoyopod/connectivity/` -> use `src/yoyopod/voip/`
-- `src/yoyopod/connectivity/voip_manager.py` -> use `src/yoyopod/voip/manager.py`
-- `src/yoyopod/connectivity/voip_backend.py` -> use `src/yoyopod/voip/backend.py`
-- `src/yoyopod/connectivity/voip_types.py` -> use `src/yoyopod/voip/models.py`
+- `src/yoyopod/connectivity/` -> use `src/yoyopod/communication/`
+- `src/yoyopod/connectivity/voip_manager.py` -> use `src/yoyopod/communication/calling/manager.py`
+- `src/yoyopod/connectivity/voip_backend.py` -> use `src/yoyopod/communication/calling/backend.py`
+- `src/yoyopod/connectivity/voip_types.py` -> use `src/yoyopod/communication/models.py`
 - `state_machine.py` -> removed; use `src/yoyopod/fsm.py` and `src/yoyopod/coordinators/runtime.py`
 - `demo_yoyopod_phase1.py` -> removed
 - `tests/test_phase1_state_machine.py` -> replaced by `tests/test_fsm_runtime.py`

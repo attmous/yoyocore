@@ -9,6 +9,7 @@ from typing import Any, Dict, Optional
 
 from loguru import logger
 
+from yoyopod.config.models import AppInputConfig
 from yoyopod.ui.input.hal import InputAction, InteractionProfile
 from yoyopod.ui.input.manager import InputManager
 
@@ -42,6 +43,8 @@ def _get_simulated_hardware(display_adapter: object) -> str | None:
 def get_input_manager(
     display_adapter: object,
     config: Optional[Dict[str, Any]] = None,
+    *,
+    input_settings: AppInputConfig | None = None,
     simulate: bool = False,
 ) -> Optional[InputManager]:
     """
@@ -52,7 +55,8 @@ def get_input_manager(
 
     Args:
         display_adapter: Display adapter instance (to determine hardware type)
-        config: Configuration dict with input settings (optional)
+        config: Legacy configuration dict with input settings (optional)
+        input_settings: Typed input settings from the canonical app config
         simulate: Run in simulation mode (no hardware)
 
     Returns:
@@ -60,6 +64,8 @@ def get_input_manager(
     """
     config = config or {}
     input_config = config.get("input", {})
+    if not isinstance(input_config, dict):
+        input_config = {}
 
     manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
     adapter_name = display_adapter.__class__.__name__
@@ -72,7 +78,11 @@ def get_input_manager(
     if display_type == "pimoroni":
         logger.info("  Detected Pimoroni Display HAT Mini")
         display_device = getattr(display_adapter, "device", None)
-        gpio_input_config = input_config.get("pimoroni_gpio", {})
+        gpio_input_config = (
+            input_settings.pimoroni_gpio
+            if input_settings is not None
+            else input_config.get("pimoroni_gpio", {})
+        )
 
         # Try Pi-native displayhatmini button reading first
         _has_displayhatmini = False
@@ -108,16 +118,32 @@ def get_input_manager(
     elif display_type == "whisplay":
         logger.info("  Detected Whisplay HAT")
         whisplay_device = getattr(display_adapter, "device", None)
-        enable_navigation = input_config.get("ptt_navigation", True)
+        enable_navigation = (
+            input_settings.ptt_navigation
+            if input_settings is not None
+            else input_config.get("ptt_navigation", True)
+        )
         if enable_navigation:
             manager.set_interaction_profile(InteractionProfile.ONE_BUTTON)
         else:
             logger.warning(
                 "  -> Whisplay raw PTT mode is experimental; keeping standard interaction profile",
             )
-        debounce_time = float(input_config.get("whisplay_debounce_ms", 50)) / 1000.0
-        double_click_time = float(input_config.get("whisplay_double_tap_ms", 300)) / 1000.0
-        long_press_time = float(input_config.get("whisplay_long_hold_ms", 800)) / 1000.0
+        debounce_time = float(
+            input_settings.whisplay_debounce_ms
+            if input_settings is not None
+            else input_config.get("whisplay_debounce_ms", 50)
+        ) / 1000.0
+        double_click_time = float(
+            input_settings.whisplay_double_tap_ms
+            if input_settings is not None
+            else input_config.get("whisplay_double_tap_ms", 300)
+        ) / 1000.0
+        long_press_time = float(
+            input_settings.whisplay_long_hold_ms
+            if input_settings is not None
+            else input_config.get("whisplay_long_hold_ms", 800)
+        ) / 1000.0
         adapter_simulate = bool(simulate or display_type == "simulation" or whisplay_device is None)
 
         if whisplay_device or adapter_simulate:

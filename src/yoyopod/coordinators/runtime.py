@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -90,7 +90,6 @@ class CoordinatorRuntime:
     incoming_call_screen: IncomingCallScreen | None
     outgoing_call_screen: OutgoingCallScreen | None
     in_call_screen: InCallScreen | None
-    config: dict[str, Any]
     config_manager: ConfigManager | None
     music_backend: MusicBackend | None = None
     context: AppContext | None = None

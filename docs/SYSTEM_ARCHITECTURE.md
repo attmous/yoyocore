@@ -55,7 +55,7 @@ This is the startup sequence that exists on `main` today.
 5. `RuntimeBootService.setup()` currently executes boot in this order:
    1. `load_configuration()`
       - builds `ConfigManager`
-      - loads typed app settings and the compatibility config dict
+      - loads the typed app, media, network, voice, communication, and people settings
       - opens persistent stores for call history and recent tracks
       - starts the async voice-device catalog refresh
       - resolves screen timeout, brightness, and auto-resume settings

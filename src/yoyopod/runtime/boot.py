@@ -112,7 +112,6 @@ class RuntimeBootService:
             self.app.config_manager = ConfigManager(config_dir=self.app.config_dir)
             self.app.app_settings = self.app.config_manager.get_app_settings()
             self.app.media_settings = self.app.config_manager.get_media_settings()
-            self.app.config = self.app.config_manager.get_app_config_dict()
             self.app.people_directory = PeopleDirectory.from_config_manager(self.app.config_manager)
             self.app.call_history_store = CallHistoryStore(
                 self.app.config_manager.resolve_runtime_path(
@@ -246,7 +245,7 @@ class RuntimeBootService:
             logger.info("  - InputManager")
             self.app.input_manager = get_input_manager(
                 display_adapter=display.get_adapter(),
-                config=self.app.config,
+                input_settings=self.app.app_settings.input,
                 simulate=self.app.simulate,
             )
             if self.app.input_manager:
@@ -802,7 +801,6 @@ class RuntimeBootService:
             incoming_call_screen=self.app.incoming_call_screen,
             outgoing_call_screen=self.app.outgoing_call_screen,
             in_call_screen=self.app.in_call_screen,
-            config=self.app.config,
             config_manager=self.app.config_manager,
             context=self.app.context,
             ui_state=self.app._ui_state,
