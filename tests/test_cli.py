@@ -45,6 +45,7 @@ def test_pi_music_provision_test_library_help():
 def test_remote_help():
     result = runner.invoke(app, ["remote", "--help"])
     assert result.exit_code == 0
+    assert "navigation-soak" in _plain(result.output)
 
 
 def test_build_help():
@@ -128,6 +129,9 @@ def test_pi_lvgl_soak_help():
     assert "--cycles" in _plain(result.output)
     assert "--simulate" in _plain(result.output)
     assert "--hold-seconds" in _plain(result.output)
+    assert "--idle-seconds" in _plain(result.output)
+    assert "--with-music" in _plain(result.output)
+    assert "--test-music-dir" in _plain(result.output)
 
 
 def test_pi_lvgl_probe_help():
@@ -168,6 +172,7 @@ def test_pi_validate_help():
     assert "smoke" in output
     assert "music" in output
     assert "voip" in output
+    assert "navigation" in output
     assert "stability" in output
 
 
@@ -203,6 +208,25 @@ def test_pi_validate_stability_help():
     output = _plain(result.output)
     assert "--cycles" in output
     assert "--hold-seconds" in output
+    assert "--idle-seconds" in output
+    assert "--with-music" in output
+    assert "--test-music-dir" in output
+
+
+def test_pi_validate_navigation_help():
+    result = runner.invoke(
+        app,
+        ["pi", "validate", "navigation", "--help"],
+        terminal_width=200,
+    )
+    assert result.exit_code == 0
+    output = _plain(result.output)
+    assert "--cycles" in output
+    assert "--idle-seconds" in output
+    assert "--tail-idle-seconds" in output
+    assert "--with-playback" in output
+    assert "--provision-test-mu" in output
+    assert "--test-music-dir" in output
 
 
 def test_pi_tune_help():
@@ -234,19 +258,23 @@ def test_remote_sync_help():
 
 
 def test_remote_validate_help():
-    result = runner.invoke(app, ["remote", "validate", "--help"])
+    result = runner.invoke(app, ["remote", "validate", "--help"], terminal_width=200)
     assert result.exit_code == 0
-    assert "--branch" in _plain(result.output)
-    assert "--sha" in _plain(result.output)
-    assert "--with-music" in _plain(result.output)
-    assert "--test-music-dir" in _plain(result.output)
-    assert "--lines" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--branch" in output
+    assert "--sha" in output
+    assert "--with-music" in output
+    assert "--with-navigation-s" in output
+    assert "--test-music-dir" in output
+    assert "--lines" in output
 
 
 def test_remote_smoke_help():
-    result = runner.invoke(app, ["remote", "smoke", "--help"])
+    result = runner.invoke(app, ["remote", "smoke", "--help"], terminal_width=200)
     assert result.exit_code == 0
-    assert "--test-music-dir" in _plain(result.output)
+    output = _plain(result.output)
+    assert "--test-music-dir" in output
+    assert "--with-navigation-s" in output
 
 
 def test_remote_provision_test_music_help():
@@ -256,13 +284,33 @@ def test_remote_provision_test_music_help():
 
 
 def test_remote_preflight_help():
-    result = runner.invoke(app, ["remote", "preflight", "--help"])
+    result = runner.invoke(app, ["remote", "preflight", "--help"], terminal_width=200)
     assert result.exit_code == 0
+    assert "--with-navigation-s" in _plain(result.output)
 
 
 def test_remote_lvgl_soak_help():
     result = runner.invoke(app, ["remote", "lvgl-soak", "--help"])
     assert result.exit_code == 0
+    output = _plain(result.output)
+    assert "--cycles" in output
+    assert "--hold-seconds" in output
+    assert "--idle-seconds" in output
+    assert "--with-music" in output
+    assert "--test-music-dir" in output
+    assert "--skip-sleep" in output
+
+
+def test_remote_navigation_soak_help():
+    result = runner.invoke(app, ["remote", "navigation-soak", "--help"], terminal_width=200)
+    assert result.exit_code == 0
+    output = _plain(result.output)
+    assert "--cycles" in output
+    assert "--idle-seconds" in output
+    assert "--tail-idle-seconds" in output
+    assert "--with-playback" in output
+    assert "--provision-test-mu" in output
+    assert "--test-music-dir" in output
 
 
 def test_remote_power_help():

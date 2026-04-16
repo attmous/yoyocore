@@ -23,7 +23,7 @@ The repo-owned command for that flow is:
 ```bash
 git branch --show-current
 git rev-parse HEAD
-yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-lvgl-soak
+yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-navigation-soak
 ```
 
 `yoyoctl remote validate` is the default because it:
@@ -60,6 +60,7 @@ The `rpi-deploy` Claude Code plugin is still the high-level integration surface,
 | `/yoyopod-restart` | Restart the already-synced app |
 | `/yoyopod-status` | Health check dashboard |
 | `/yoyopod-screenshot [--readback]` | Capture display output as PNG |
+| `yoyoctl remote navigation-soak` | Run the target navigation and idle soak over SSH |
 
 Lower-level `yoyoctl remote` commands:
 
@@ -67,6 +68,7 @@ Lower-level `yoyoctl remote` commands:
 - `yoyoctl remote sync` is the committed-code sync primitive
 - `yoyoctl remote smoke` is the remote smoke primitive
 - `yoyoctl remote restart` restarts the synced app and verifies startup
+- `yoyoctl remote navigation-soak` runs the action-driven navigation and idle soak remotely
 - `yoyoctl remote rsync` is not the default; use it only as an explicit debugging override
 
 Target-side `yoyoctl pi validate` commands:
@@ -75,6 +77,7 @@ Target-side `yoyoctl pi validate` commands:
 - `yoyoctl pi validate smoke` checks environment, display, input, and optional PiSugar telemetry
 - `yoyoctl pi validate music` checks the mpv backend in isolation
 - `yoyoctl pi validate voip` checks Liblinphone startup and SIP registration in isolation
+- `yoyoctl pi validate navigation` runs the one-button navigation, idle, and playback stress path used for freeze repro
 - `yoyoctl pi validate stability` runs the repeated LVGL transition and sleep/wake stability pass
 
 Config lives in `deploy/pi-deploy.yaml` plus optional `deploy/pi-deploy.local.yaml` for machine-specific host and user overrides. Preferred edit flow:

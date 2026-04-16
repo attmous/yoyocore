@@ -37,6 +37,7 @@ yoyoctl pi validate deploy
 yoyoctl pi validate smoke
 yoyoctl pi validate music
 yoyoctl pi validate voip
+yoyoctl pi validate navigation
 yoyoctl pi validate stability
 ```
 

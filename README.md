@@ -21,6 +21,7 @@ uv run yoyoctl setup verify-host
 python yoyopod.py --simulate
 uv run python scripts/quality.py ci
 yoyoctl pi validate smoke
+yoyoctl pi validate navigation --with-playback
 ```
 
 For the full setup, validation, and Pi workflow, start with:

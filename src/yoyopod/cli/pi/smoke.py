@@ -454,74 +454,35 @@ def _voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
         manager.stop()
 
 
-def _lvgl_soak_check(config_dir: Path) -> CheckResult:
-    """Run a small LVGL transition and sleep/wake soak on the active app path."""
-    import time as _time
-
-    from yoyopod.app import YoyoPodApp
-    from yoyopod.events import UserActivityEvent
-
-    def _pump_app(app: YoyoPodApp, duration_seconds: float) -> None:
-        deadline = _time.monotonic() + max(0.0, duration_seconds)
-        while _time.monotonic() < deadline:
-            app._process_pending_main_thread_actions()
-            now = _time.monotonic()
-            app._attempt_manager_recovery()
-            app._poll_power_status(now=now)
-            app._pump_lvgl_backend(now)
-            app._feed_watchdog_if_due(now)
-            app._update_screen_power(now)
-            _time.sleep(0.05)
-
-    def _exercise_sleep_wake(app: YoyoPodApp) -> tuple[bool, str]:
-        timeout_seconds = max(1.0, float(app._screen_timeout_seconds or 0.0))
-        app._last_user_activity_at = _time.monotonic() - timeout_seconds - 1.0
-        _pump_app(app, 0.35)
-        if app.context is None or app.context.screen_awake:
-            return False, "screen did not enter sleep during soak"
-        app.event_bus.publish(UserActivityEvent(action_name="lvgl_soak"))
-        _pump_app(app, 0.35)
-        if app.context is None or not app.context.screen_awake:
-            return False, "screen did not wake after simulated activity"
-        return True, "sleep/wake ok"
-
-    app = YoyoPodApp(config_dir=str(config_dir), simulate=False)
-    if not app.setup():
-        return CheckResult(name="lvgl_soak", status="fail", details="app setup failed")
+def _lvgl_soak_check(
+    config_dir: Path,
+    *,
+    with_music: bool = False,
+    provision_test_music: bool = True,
+    test_music_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR,
+) -> CheckResult:
+    """Run the target navigation and idle soak on the active LVGL app path."""
+    from yoyopod.cli.pi.stability import NavigationSoakError, run_navigation_idle_soak
 
     try:
-        if app.display is None or app.screen_manager is None:
-            return CheckResult(name="lvgl_soak", status="fail", details="display or screen manager not initialized")
-
-        if app.display.backend_kind != "lvgl":
-            return CheckResult(name="lvgl_soak", status="fail", details=f"backend is {app.display.backend_kind}, expected lvgl")
-
-        screens = [
-            "hub", "listen", "playlists", "now_playing",
-            "call", "talk_contact", "call_history", "contacts",
-            "voice_note", "ask", "power",
-        ]
-
-        transitions = 0
-        for _cycle in range(1):
-            for screen_name in screens:
-                if screen_name not in app.screen_manager.screens:
-                    continue
-                app.screen_manager.replace_screen(screen_name)
-                _pump_app(app, 0.15)
-                transitions += 1
-
-        sleep_ok, sleep_details = _exercise_sleep_wake(app)
-        if not sleep_ok:
-            return CheckResult(name="lvgl_soak", status="fail", details=sleep_details)
-
-        return CheckResult(
-            name="lvgl_soak",
-            status="pass",
-            details=f"backend=lvgl, transitions={transitions}, {sleep_details}",
+        report = run_navigation_idle_soak(
+            config_dir=str(config_dir),
+            simulate=False,
+            cycles=1,
+            hold_seconds=0.15,
+            idle_seconds=0.5,
+            with_music=with_music,
+            provision_test_music=provision_test_music,
+            test_music_dir=test_music_dir,
         )
-    finally:
-        app.stop()
+    except NavigationSoakError as exc:
+        return CheckResult(name="lvgl_soak", status="fail", details=str(exc))
+
+    return CheckResult(
+        name="lvgl_soak",
+        status="pass",
+        details=report.summary(),
+    )
 
 
 def _print_summary(results: list[CheckResult]) -> None:
@@ -606,7 +567,14 @@ def smoke(
             results.append(_voip_check(config_path, voip_timeout))
 
         if with_lvgl_soak:
-            results.append(_lvgl_soak_check(config_path))
+            results.append(
+                _lvgl_soak_check(
+                    config_path,
+                    with_music=with_music,
+                    provision_test_music=provision_test_music,
+                    test_music_dir=test_music_dir,
+                )
+            )
     finally:
         if display is not None:
             try:

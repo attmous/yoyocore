@@ -92,6 +92,8 @@ Useful variations:
 ```bash
 yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip
 yoyoctl remote validate --branch <branch> --sha <commit> --with-power --with-rtc
+yoyoctl remote validate --branch <branch> --sha <commit> --with-navigation-soak
+yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-navigation-soak
 yoyoctl remote validate --branch <branch> --sha <commit> --with-lvgl-soak
 yoyoctl remote validate --branch <branch> --sha <commit> --skip-uv-sync
 ```
@@ -158,6 +160,7 @@ Use this when you want the stable checkout updated but do not want the full vali
 yoyoctl remote smoke
 yoyoctl remote smoke --with-power --with-rtc
 yoyoctl remote smoke --with-music --with-voip --with-rtc
+yoyoctl remote smoke --with-navigation-soak
 yoyoctl remote smoke --with-lvgl-soak
 ```
 
@@ -166,6 +169,7 @@ This composes the target-side suite:
 - `yoyoctl pi validate smoke`
 - `yoyoctl pi validate music`
 - `yoyoctl pi validate voip`
+- `yoyoctl pi validate navigation`
 - `yoyoctl pi validate stability`
 
 Useful variations:
@@ -287,6 +291,8 @@ This installs `deploy/systemd/yoyopod@.service` onto the Pi as `yoyopod@<remote-
 yoyoctl remote whisplay
 yoyoctl remote whisplay --duration-seconds 45 --double-tap-ms 240 --long-hold-ms 900
 yoyoctl remote lvgl-soak
+yoyoctl remote navigation-soak
+yoyoctl remote navigation-soak --with-playback --idle-seconds 5 --tail-idle-seconds 20
 yoyoctl remote rtc status
 yoyoctl remote power
 ```
@@ -296,7 +302,7 @@ yoyoctl remote power
 `yoyoctl remote preflight` is still useful, but it is a preparation step, not the full hardware-validation finish line.
 
 ```bash
-yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-lvgl-soak
+yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-navigation-soak --with-lvgl-soak
 ```
 
 What it does:
@@ -340,15 +346,22 @@ If you use it, say clearly that the board is running a dirty-tree override inste
    ```
 5. Validate on the Pi:
    ```bash
-   yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-lvgl-soak
+   yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip
    ```
 6. Manually test on the target hardware while the app remains running.
+
+When you are chasing idle freezes or routed-screen hangs, add the deterministic soak:
+
+```bash
+yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-navigation-soak
+```
 
 ## Release / Pre-Merge Checklist
 
 - local branch is green with `uv run python scripts/quality.py ci`
 - branch is pushed and reviewed
 - `yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-lvgl-soak` passes
+- if you touched idle navigation, `yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-navigation-soak` passes
 - the app starts cleanly and stays running for manual hardware testing
 - manual sanity still passes for display, input, music, SIP registration, and call flow
 
