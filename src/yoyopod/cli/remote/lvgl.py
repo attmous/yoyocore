@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import shlex
 from typing import Annotated
 
 import typer
 
+from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod.cli.remote.ops import (
     _resolve_remote_config,
     run_remote,
@@ -21,6 +23,10 @@ def build_lvgl_soak_command(
     *,
     cycles: int = 2,
     hold_seconds: float = 0.2,
+    idle_seconds: float = 1.0,
+    with_music: bool = False,
+    provision_test_music: bool = True,
+    test_music_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR,
     skip_sleep: bool = False,
     verbose: bool = False,
 ) -> str:
@@ -32,6 +38,14 @@ def build_lvgl_soak_command(
         parts.extend(["--cycles", str(cycles)])
     if hold_seconds != 0.2:
         parts.extend(["--hold-seconds", str(hold_seconds)])
+    if idle_seconds != 1.0:
+        parts.extend(["--idle-seconds", str(idle_seconds)])
+    if with_music:
+        parts.append("--with-music")
+        if not provision_test_music:
+            parts.append("--no-provision-test-music")
+        elif test_music_dir != DEFAULT_TEST_MUSIC_TARGET_DIR:
+            parts.extend(["--test-music-dir", shlex.quote(test_music_dir)])
     if skip_sleep:
         parts.append("--skip-sleep")
     return " ".join(parts)
@@ -61,6 +75,31 @@ def lvgl_soak(
     hold_seconds: Annotated[
         float, typer.Option("--hold-seconds", help="How long to keep each screen active.")
     ] = 0.2,
+    idle_seconds: Annotated[
+        float,
+        typer.Option("--idle-seconds", help="How long to idle after each full navigation cycle."),
+    ] = 1.0,
+    with_music: Annotated[
+        bool,
+        typer.Option(
+            "--with-music",
+            help="Exercise playlist loading and now-playing actions during the soak.",
+        ),
+    ] = False,
+    provision_test_music: Annotated[
+        bool,
+        typer.Option(
+            "--provision-test-music/--no-provision-test-music",
+            help="Seed deterministic validation music before playback soak steps.",
+        ),
+    ] = True,
+    test_music_dir: Annotated[
+        str,
+        typer.Option(
+            "--test-music-dir",
+            help="Dedicated target directory for validation-only test music assets.",
+        ),
+    ] = DEFAULT_TEST_MUSIC_TARGET_DIR,
     skip_sleep: Annotated[
         bool, typer.Option("--skip-sleep", help="Skip the sleep/wake exercise.")
     ] = False,
@@ -76,6 +115,10 @@ def lvgl_soak(
         build_lvgl_soak_command(
             cycles=cycles,
             hold_seconds=hold_seconds,
+            idle_seconds=idle_seconds,
+            with_music=with_music,
+            provision_test_music=provision_test_music,
+            test_music_dir=test_music_dir,
             skip_sleep=skip_sleep,
             verbose=verbose,
         ),

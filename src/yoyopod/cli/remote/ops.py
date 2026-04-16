@@ -675,6 +675,7 @@ def build_smoke_command(
     with_rtc: bool = False,
     with_music: bool = False,
     with_voip: bool = False,
+    with_navigation_soak: bool = False,
     with_lvgl_soak: bool = False,
     provision_test_music: bool = True,
     test_music_target_dir: str | None = None,
@@ -710,8 +711,24 @@ def build_smoke_command(
             voip_command += f" --timeout {voip_timeout}"
         commands.append(voip_command)
 
+    if with_navigation_soak:
+        navigation_command = "uv run yoyoctl pi validate navigation"
+        if verbose:
+            navigation_command += " --verbose"
+        if not provision_test_music:
+            navigation_command += " --no-provision-test-music"
+        elif test_music_target_dir:
+            navigation_command += f" --test-music-dir {shlex.quote(test_music_target_dir)}"
+        commands.append(navigation_command)
+
     if with_lvgl_soak:
         stability_command = "uv run yoyoctl pi validate stability"
+        if with_music:
+            stability_command += " --with-music"
+            if not provision_test_music:
+                stability_command += " --no-provision-test-music"
+            elif test_music_target_dir:
+                stability_command += f" --test-music-dir {shlex.quote(test_music_target_dir)}"
         if verbose:
             stability_command += " --verbose"
         commands.append(stability_command)
@@ -829,7 +846,7 @@ def sync(
         raise typer.Exit(code=rc)
 
 
-def validate(
+def remote_validate(
     host: Annotated[
         str, typer.Option("--host", help="SSH host or alias for the Raspberry Pi.")
     ] = "",
@@ -885,10 +902,18 @@ def validate(
     with_voip: Annotated[
         bool, typer.Option("--with-voip", help="Include SIP registration checks.")
     ] = False,
+    with_navigation_soak: Annotated[
+        bool,
+        typer.Option(
+            "--with-navigation-soak",
+            help="Include the target navigation and idle stability soak.",
+        ),
+    ] = False,
     with_lvgl_soak: Annotated[
         bool,
         typer.Option(
-            "--with-lvgl-soak", help="Include a short LVGL transition and sleep/wake soak."
+            "--with-lvgl-soak",
+            help="Include the legacy LVGL transition and sleep/wake soak.",
         ),
     ] = False,
     verbose: Annotated[
@@ -933,8 +958,11 @@ def validate(
             with_rtc=with_rtc,
             with_music=with_music,
             provision_test_music=provision_test_music,
-            test_music_target_dir=resolved_test_music_dir if with_music else None,
+            test_music_target_dir=(
+                resolved_test_music_dir if (with_music or with_navigation_soak) else None
+            ),
             with_voip=with_voip,
+            with_navigation_soak=with_navigation_soak,
             with_lvgl_soak=with_lvgl_soak,
             verbose=verbose,
             music_timeout=music_timeout,
@@ -956,7 +984,7 @@ def validate(
         raise typer.Exit(code=inspect_exit_code)
 
 
-def smoke(
+def remote_smoke(
     host: Annotated[
         str, typer.Option("--host", help="SSH host or alias for the Raspberry Pi.")
     ] = "",
@@ -995,10 +1023,18 @@ def smoke(
     with_voip: Annotated[
         bool, typer.Option("--with-voip", help="Include SIP registration checks.")
     ] = False,
+    with_navigation_soak: Annotated[
+        bool,
+        typer.Option(
+            "--with-navigation-soak",
+            help="Include the target navigation and idle stability soak.",
+        ),
+    ] = False,
     with_lvgl_soak: Annotated[
         bool,
         typer.Option(
-            "--with-lvgl-soak", help="Include a short LVGL transition and sleep/wake soak."
+            "--with-lvgl-soak",
+            help="Include the legacy LVGL transition and sleep/wake soak.",
         ),
     ] = False,
     verbose: Annotated[
@@ -1023,8 +1059,11 @@ def smoke(
             with_rtc=with_rtc,
             with_music=with_music,
             provision_test_music=provision_test_music,
-            test_music_target_dir=resolved_test_music_dir if with_music else None,
+            test_music_target_dir=(
+                resolved_test_music_dir if (with_music or with_navigation_soak) else None
+            ),
             with_voip=with_voip,
+            with_navigation_soak=with_navigation_soak,
             with_lvgl_soak=with_lvgl_soak,
             verbose=verbose,
             music_timeout=music_timeout,
@@ -1035,7 +1074,7 @@ def smoke(
         raise typer.Exit(code=rc)
 
 
-def provision_test_music(
+def remote_provision_test_music(
     host: Annotated[
         str, typer.Option("--host", help="SSH host or alias for the Raspberry Pi.")
     ] = "",
@@ -1076,7 +1115,7 @@ def provision_test_music(
         raise typer.Exit(code=rc)
 
 
-def preflight(
+def remote_preflight(
     host: Annotated[
         str, typer.Option("--host", help="SSH host or alias for the Raspberry Pi.")
     ] = "",
@@ -1138,10 +1177,18 @@ def preflight(
             "--with-voip", help="Include SIP registration checks in the remote smoke pass."
         ),
     ] = False,
+    with_navigation_soak: Annotated[
+        bool,
+        typer.Option(
+            "--with-navigation-soak",
+            help="Include the target navigation and idle stability soak.",
+        ),
+    ] = False,
     with_lvgl_soak: Annotated[
         bool,
         typer.Option(
-            "--with-lvgl-soak", help="Include the LVGL soak helper in the remote smoke pass."
+            "--with-lvgl-soak",
+            help="Include the legacy LVGL transition and sleep/wake soak in the remote smoke pass.",
         ),
     ] = False,
     verbose: Annotated[
@@ -1181,8 +1228,11 @@ def preflight(
             with_rtc=with_rtc,
             with_music=with_music,
             provision_test_music=provision_test_music,
-            test_music_target_dir=resolved_test_music_dir if with_music else None,
+            test_music_target_dir=(
+                resolved_test_music_dir if (with_music or with_navigation_soak) else None
+            ),
             with_voip=with_voip,
+            with_navigation_soak=with_navigation_soak,
             with_lvgl_soak=with_lvgl_soak,
             verbose=verbose,
             music_timeout=music_timeout,
@@ -1549,6 +1599,7 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         default=deploy_config.test_music_target_dir,
     )
     validate_parser.add_argument("--with-voip", action="store_true")
+    validate_parser.add_argument("--with-navigation-soak", action="store_true")
     validate_parser.add_argument("--with-lvgl-soak", action="store_true")
     validate_parser.add_argument("--verbose", action="store_true")
     validate_parser.add_argument("--music-timeout", type=int, default=5)
@@ -1586,6 +1637,7 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
         default=deploy_config.test_music_target_dir,
     )
     smoke_parser.add_argument("--with-voip", action="store_true")
+    smoke_parser.add_argument("--with-navigation-soak", action="store_true")
     smoke_parser.add_argument("--with-lvgl-soak", action="store_true")
     smoke_parser.add_argument("--verbose", action="store_true")
     smoke_parser.add_argument("--music-timeout", type=int, default=5)
@@ -1618,8 +1670,32 @@ def build_parser(deploy_config: PiDeployConfig) -> argparse.ArgumentParser:
     )
     lvgl_soak_parser.add_argument("--cycles", type=int, default=2)
     lvgl_soak_parser.add_argument("--hold-seconds", type=float, default=0.2)
+    lvgl_soak_parser.add_argument("--idle-seconds", type=float, default=1.0)
+    lvgl_soak_parser.add_argument("--with-music", action="store_true")
+    lvgl_soak_parser.add_argument("--no-provision-test-music", action="store_true")
+    lvgl_soak_parser.add_argument(
+        "--test-music-dir",
+        default=deploy_config.test_music_target_dir,
+    )
     lvgl_soak_parser.add_argument("--skip-sleep", action="store_true")
     lvgl_soak_parser.add_argument("--verbose", action="store_true")
+
+    navigation_soak_parser = subparsers.add_parser(
+        "navigation-soak",
+        help="Run the target navigation and idle stability soak remotely",
+    )
+    navigation_soak_parser.add_argument("--cycles", type=int, default=2)
+    navigation_soak_parser.add_argument("--hold-seconds", type=float, default=0.35)
+    navigation_soak_parser.add_argument("--idle-seconds", type=float, default=3.0)
+    navigation_soak_parser.add_argument("--tail-idle-seconds", type=float, default=10.0)
+    navigation_soak_parser.add_argument("--no-with-playback", action="store_true")
+    navigation_soak_parser.add_argument("--no-provision-test-music", action="store_true")
+    navigation_soak_parser.add_argument(
+        "--test-music-dir",
+        default=deploy_config.test_music_target_dir,
+    )
+    navigation_soak_parser.add_argument("--skip-sleep", action="store_true")
+    navigation_soak_parser.add_argument("--verbose", action="store_true")
 
     rtc_parser = subparsers.add_parser(
         "rtc",

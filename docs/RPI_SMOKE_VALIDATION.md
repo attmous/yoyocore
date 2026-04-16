@@ -34,6 +34,8 @@ Useful variations:
 ```bash
 yoyoctl remote validate --branch <branch> --sha <commit> --with-power --with-rtc
 yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip
+yoyoctl remote validate --branch <branch> --sha <commit> --with-navigation-soak
+yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-navigation-soak
 yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-lvgl-soak
 ```
 
@@ -73,6 +75,7 @@ yoyoctl pi validate smoke
 yoyoctl pi validate smoke --with-power --with-rtc
 yoyoctl pi validate music
 yoyoctl pi validate voip
+yoyoctl pi validate navigation
 yoyoctl pi validate stability
 ```
 
@@ -82,6 +85,7 @@ What each command checks:
 - `smoke`: target environment, display initialization on real hardware, matching input adapter construction and start/stop, plus optional PiSugar power and RTC checks
 - `music`: mpv music-backend startup using `config/yoyopod_config.yaml`
 - `voip`: Liblinphone startup and SIP registration using `config/voip_config.yaml`
+- `navigation`: repeatable one-button routed navigation with explicit idle dwells, click-driven transitions, optional playlist/shuffle playback, and a final sleep/wake pass
 - `stability`: repeated LVGL transition plus sleep/wake recovery on the active app path
 
 Useful flags:
@@ -91,6 +95,9 @@ Useful flags:
 - `yoyoctl pi music provision-test-library --target-dir ~/YoyoPod_Test_Music`
 - `yoyoctl remote provision-test-music`
 - `yoyoctl pi validate voip --timeout 15`
+- `yoyoctl pi validate navigation --with-playback --test-music-dir ~/YoyoPod_Test_Music`
+- `yoyoctl pi validate navigation --cycles 3 --idle-seconds 5 --tail-idle-seconds 20`
+- `yoyoctl remote navigation-soak --with-playback --test-music-dir ~/YoyoPod_Test_Music`
 - `yoyoctl pi validate stability --cycles 3 --hold-seconds 0.3`
 - `--verbose` on any suite command
 
@@ -175,6 +182,22 @@ Use this when Whisplay rendering feels fast but you still want a hardware pass f
 - sleep/wake recovery
 - LVGL-only corruption or stuck redraw issues
 
+### Navigation and idle stability soak
+
+```bash
+yoyoctl pi validate navigation
+yoyoctl pi validate navigation --with-playback --test-music-dir ~/YoyoPod_Test_Music
+yoyoctl remote navigation-soak --with-playback --idle-seconds 5 --tail-idle-seconds 20
+```
+
+Use this when you want a reproducible freeze-repro path that keeps the app mostly idle but still exercises:
+
+- routed one-button navigation from the real input dispatcher
+- click-driven transitions into `Listen`, `Talk`, `Ask`, and `Setup`
+- playlist and shuffle playback navigation while mpv is active
+- explicit idle dwell windows between actions
+- a final tail-idle and sleep/wake pass on the hub
+
 ### PiSugar RTC drill
 
 ```bash
@@ -217,6 +240,7 @@ Only use it when:
 - `input` fails: check the matching display adapter initialized correctly first
 - `music` fails: verify `mpv` is installed, the configured socket path is writable, and the provision target under `test_music_target_dir` is writable when deterministic seeding is enabled
 - `voip` fails: verify the Liblinphone shim build, `config/liblinphone_factory.conf`, SIP credentials, network reachability, and audio device configuration
+- `navigation` fails: rerun `yoyoctl pi validate navigation --verbose` or `yoyoctl remote navigation-soak --verbose` and inspect which expected screen or playback transition stalled
 - `stability` fails: rerun `yoyoctl pi validate stability --verbose` or `yoyoctl pi lvgl soak` for a deeper LVGL-only pass
 - `validate` fails before launch: check whether the branch was actually pushed and whether the Pi checkout is reachable over SSH
 

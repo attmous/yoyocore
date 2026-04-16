@@ -41,6 +41,7 @@ from yoyopod.cli.remote.infra import (
     build_service_command,
 )
 from yoyopod.cli.remote.lvgl import build_lvgl_soak_command
+from yoyopod.cli.remote.navigation import build_navigation_soak_command
 from yoyopod.cli.remote.setup import build_setup_command, build_verify_setup_command
 from argparse import Namespace
 from pathlib import Path
@@ -357,6 +358,7 @@ def test_build_smoke_command_adds_optional_checks() -> None:
         with_music=True,
         test_music_target_dir=DEPLOY_CONFIG.test_music_target_dir,
         with_voip=True,
+        with_navigation_soak=True,
         with_lvgl_soak=True,
         verbose=True,
         music_timeout=10,
@@ -369,6 +371,7 @@ def test_build_smoke_command_adds_optional_checks() -> None:
     assert "uv run yoyoctl pi validate music" in command
     assert shlex.quote(DEPLOY_CONFIG.test_music_target_dir) in command
     assert "uv run yoyoctl pi validate voip" in command
+    assert "uv run yoyoctl pi validate navigation" in command
     assert "uv run yoyoctl pi validate stability" in command
     assert "--verbose" in command
     assert "--timeout 10" in command
@@ -578,6 +581,9 @@ def test_build_lvgl_soak_command_supports_cycles_and_sleep_toggle() -> None:
         verbose=True,
         cycles=3,
         hold_seconds=0.35,
+        idle_seconds=5.0,
+        with_music=True,
+        test_music_dir="/tmp/yoyopod-lvgl",
         skip_sleep=True,
     )
 
@@ -585,6 +591,36 @@ def test_build_lvgl_soak_command_supports_cycles_and_sleep_toggle() -> None:
     assert "--verbose" in command
     assert "--cycles 3" in command
     assert "--hold-seconds 0.35" in command
+    assert "--idle-seconds 5.0" in command
+    assert "--with-music" in command
+    assert "--test-music-dir /tmp/yoyopod-lvgl" in command
+    assert "--skip-sleep" in command
+
+
+def test_build_navigation_soak_command_supports_playback_and_idle_flags() -> None:
+    """Navigation soak helper should forward the target-side soak options."""
+
+    command = build_navigation_soak_command(
+        verbose=True,
+        cycles=3,
+        hold_seconds=0.4,
+        idle_seconds=6.0,
+        tail_idle_seconds=20.0,
+        with_playback=False,
+        provision_test_music=False,
+        test_music_target_dir="/tmp/yoyopod-nav",
+        skip_sleep=True,
+    )
+
+    assert command.startswith("uv run yoyoctl pi validate navigation")
+    assert "--verbose" in command
+    assert "--cycles 3" in command
+    assert "--hold-seconds 0.4" in command
+    assert "--idle-seconds 6.0" in command
+    assert "--tail-idle-seconds 20.0" in command
+    assert "--no-with-playback" in command
+    assert "--no-provision-test-music" in command
+    assert "--test-music-dir /tmp/yoyopod-nav" in command
     assert "--skip-sleep" in command
 
 
@@ -638,6 +674,27 @@ def test_build_parser_describes_current_screenshot_signal_contract() -> None:
 
     assert "SIGUSR1" in readback_action.help
     assert "SIGUSR2" in readback_action.help
+
+
+def test_build_parser_includes_navigation_soak_surface() -> None:
+    """Legacy argparse parity should include the navigation soak command and flags."""
+
+    parser = build_parser(DEPLOY_CONFIG)
+    command_action = next(
+        action for action in parser._actions if getattr(action, "dest", "") == "command"
+    )
+
+    validate_parser = command_action.choices["validate"]
+    smoke_parser = command_action.choices["smoke"]
+    navigation_parser = command_action.choices["navigation-soak"]
+
+    assert any("--with-navigation-soak" in action.option_strings for action in validate_parser._actions)
+    assert any("--with-navigation-soak" in action.option_strings for action in smoke_parser._actions)
+    assert any("--tail-idle-seconds" in action.option_strings for action in navigation_parser._actions)
+    assert any(
+        "--no-provision-test-music" in action.option_strings
+        for action in navigation_parser._actions
+    )
 
 
 def test_run_screenshot_uses_sigusr1_for_readback(monkeypatch, tmp_path) -> None:

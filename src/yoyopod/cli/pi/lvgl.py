@@ -7,7 +7,9 @@ from typing import Annotated, Optional
 
 import typer
 
+from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod.cli.common import configure_logging
+from yoyopod.cli.pi.stability import NavigationSoakError, run_navigation_idle_soak
 
 lvgl_app = typer.Typer(name="lvgl", help="LVGL display stress-test and probe commands.", no_args_is_help=True)
 
@@ -18,110 +20,57 @@ def soak(
     simulate: Annotated[bool, typer.Option("--simulate", help="Run against simulation instead of hardware.")] = False,
     cycles: Annotated[int, typer.Option("--cycles", help="How many full transition cycles to run.")] = 2,
     hold_seconds: Annotated[float, typer.Option("--hold-seconds", help="How long to keep each screen active during the soak.")] = 0.2,
+    idle_seconds: Annotated[
+        float,
+        typer.Option(
+            "--idle-seconds",
+            help="How long to idle after each full navigation cycle.",
+        ),
+    ] = 1.0,
+    with_music: Annotated[
+        bool,
+        typer.Option(
+            "--with-music",
+            help="Exercise playlist loading and now-playing actions during the soak.",
+        ),
+    ] = False,
+    provision_test_music: Annotated[
+        bool,
+        typer.Option(
+            "--provision-test-music/--no-provision-test-music",
+            help="Seed the deterministic validation music library before playback soak steps.",
+        ),
+    ] = True,
+    test_music_dir: Annotated[
+        str,
+        typer.Option(
+            "--test-music-dir",
+            help="Dedicated target directory for validation-only test music assets.",
+        ),
+    ] = DEFAULT_TEST_MUSIC_TARGET_DIR,
     skip_sleep: Annotated[bool, typer.Option("--skip-sleep", help="Skip the sleep/wake exercise.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
 ) -> None:
-    """Run a deterministic LVGL screen-transition soak pass against YoyoPod."""
+    """Run a deterministic LVGL navigation and idle soak pass against YoyoPod."""
     from loguru import logger
 
-    from yoyopod.app import YoyoPodApp
-    from yoyopod.events import UserActivityEvent
-
     configure_logging(verbose)
-
-    def _pump_app(app: YoyoPodApp, duration_seconds: float) -> None:
-        """Pump the coordinator-thread services without entering the full app run loop."""
-        deadline = time.monotonic() + max(0.0, duration_seconds)
-        while time.monotonic() < deadline:
-            app._process_pending_main_thread_actions()
-            now = time.monotonic()
-            app._attempt_manager_recovery()
-            app._poll_power_status(now=now)
-            app._pump_lvgl_backend(now)
-            app._feed_watchdog_if_due(now)
-            app._update_screen_power(now)
-            time.sleep(0.05)
-
-    def _exercise_sleep_wake(app: YoyoPodApp) -> tuple[bool, str]:
-        """Force one sleep/wake cycle against the current app."""
-        timeout_seconds = max(1.0, float(app._screen_timeout_seconds or 0.0))
-        app._last_user_activity_at = time.monotonic() - timeout_seconds - 1.0
-        _pump_app(app, 0.35)
-        if app.context is None or app.context.screen_awake:
-            return False, "screen did not enter sleep during soak"
-
-        app.event_bus.publish(UserActivityEvent(action_name="lvgl_soak"))
-        _pump_app(app, 0.35)
-        if app.context is None or not app.context.screen_awake:
-            return False, "screen did not wake after simulated activity"
-
-        return True, "sleep/wake ok"
-
-    def run_lvgl_soak(
-        *,
-        config_dir: str = "config",
-        simulate: bool = False,
-        cycles: int = 2,
-        hold_seconds: float = 0.2,
-        exercise_sleep: bool = True,
-    ) -> tuple[bool, str]:
-        """Run a deterministic screen-transition soak and return success/details."""
-        app = YoyoPodApp(config_dir=config_dir, simulate=simulate)
-        if not app.setup():
-            return False, "app setup failed"
-
-        try:
-            if app.display is None or app.screen_manager is None:
-                return False, "display or screen manager not initialized"
-
-            if app.display.backend_kind != "lvgl":
-                return False, f"backend is {app.display.backend_kind}, expected lvgl"
-
-            screens = [
-                "hub",
-                "listen",
-                "playlists",
-                "now_playing",
-                "call",
-                "talk_contact",
-                "call_history",
-                "contacts",
-                "voice_note",
-                "ask",
-                "power",
-            ]
-
-            transitions = 0
-            for _cycle in range(max(1, cycles)):
-                for screen_name in screens:
-                    if screen_name not in app.screen_manager.screens:
-                        continue
-                    app.screen_manager.replace_screen(screen_name)
-                    _pump_app(app, hold_seconds)
-                    transitions += 1
-
-            sleep_details = "sleep/wake skipped"
-            if exercise_sleep:
-                sleep_ok, sleep_details = _exercise_sleep_wake(app)
-                if not sleep_ok:
-                    return False, sleep_details
-
-            return True, f"backend=lvgl, transitions={transitions}, {sleep_details}"
-        finally:
-            app.stop()
-
-    ok, details = run_lvgl_soak(
-        config_dir=config_dir,
-        simulate=simulate,
-        cycles=cycles,
-        hold_seconds=hold_seconds,
-        exercise_sleep=not skip_sleep,
-    )
-    if ok:
-        logger.info(f"LVGL soak passed: {details}")
-    else:
-        logger.error(f"LVGL soak failed: {details}")
+    try:
+        report = run_navigation_idle_soak(
+            config_dir=config_dir,
+            simulate=simulate,
+            cycles=cycles,
+            hold_seconds=hold_seconds,
+            idle_seconds=idle_seconds,
+            skip_sleep=skip_sleep,
+            with_music=with_music,
+            provision_test_music=provision_test_music,
+            test_music_dir=test_music_dir,
+        )
+    except NavigationSoakError as exc:
+        logger.error(f"LVGL soak failed: {exc}")
         raise typer.Exit(code=1)
+    logger.info(f"LVGL soak passed: {report.summary()}")
 
 
 @lvgl_app.command()

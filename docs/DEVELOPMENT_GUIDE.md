@@ -148,6 +148,7 @@ yoyoctl pi validate smoke
 yoyoctl pi validate smoke --with-power --with-rtc
 yoyoctl pi validate music
 yoyoctl pi validate voip
+yoyoctl pi validate navigation
 yoyoctl pi validate stability
 ```
 
@@ -163,7 +164,9 @@ yoyoctl remote status
 git branch --show-current
 git rev-parse HEAD
 yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-voip --with-lvgl-soak
-yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-lvgl-soak
+yoyoctl remote validate --branch <branch> --sha <commit> --with-music --with-navigation-soak
+yoyoctl remote navigation-soak --with-playback --idle-seconds 5 --tail-idle-seconds 20
+yoyoctl remote preflight --branch <branch> --with-music --with-voip --with-navigation-soak --with-lvgl-soak
 yoyoctl remote service status
 yoyoctl remote logs --lines 200
 ```
