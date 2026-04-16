@@ -1,0 +1,4 @@
+# Raspberry Pi Zero 2W power-domain overrides.
+
+power:
+  watchdog_i2c_bus: 1

@@ -158,6 +158,7 @@ Tracked config lives in:
 - `config/app/core.yaml`
 - `config/audio/music.yaml`
 - `config/device/hardware.yaml`
+- `config/power/backend.yaml`
 - `config/network/cellular.yaml`
 - `config/voice/assistant.yaml`
 - `config/communication/calling.yaml`

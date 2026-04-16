@@ -1,5 +1,6 @@
 """Power management foundation for YoyoPod."""
 
+from yoyopod.config.models import PowerConfig
 from yoyopod.power.backend import (
     PiSugarAutoTransport,
     PiSugarBackend,
@@ -19,13 +20,13 @@ from yoyopod.power.events import (
 from yoyopod.power.manager import PowerManager
 from yoyopod.power.models import (
     BatteryState,
-    PowerConfig,
     PowerDeviceInfo,
     PowerSnapshot,
     RTCState,
     ShutdownState,
 )
 from yoyopod.power.policies import PowerSafetyPolicy
+from yoyopod.power.runtime import PowerRuntimeService
 from yoyopod.power.watchdog import PiSugarWatchdog, WatchdogCommandError
 
 __all__ = [
@@ -37,6 +38,7 @@ __all__ = [
     "PiSugarAutoTransport",
     "build_pisugar_transport",
     "PowerManager",
+    "PowerRuntimeService",
     "PiSugarWatchdog",
     "WatchdogCommandError",
     "PowerConfig",
@@ -52,4 +54,3 @@ __all__ = [
     "GracefulShutdownCancelled",
     "PowerSafetyPolicy",
 ]
-

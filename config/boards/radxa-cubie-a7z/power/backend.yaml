@@ -1,0 +1,4 @@
+# Radxa Cubie A7Z power-domain overrides.
+
+power:
+  watchdog_i2c_bus: 7

@@ -1,4 +1,0 @@
-# Raspberry Pi Zero 2W board overrides.
-
-power:
-  watchdog_i2c_bus: 1

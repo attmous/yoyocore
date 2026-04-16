@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from yoyopod.power.models import PowerConfig
+from yoyopod.power import PowerConfig
 from yoyopod.power.watchdog import PiSugarWatchdog, WatchdogCommandError
 
 

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from yoyopod.config.models import PowerConfig
 from yoyopod.power.events import (
     GracefulShutdownCancelled,
     GracefulShutdownRequested,
     LowBatteryWarningRaised,
 )
-from yoyopod.power.models import PowerConfig, PowerSnapshot
+from yoyopod.power.models import PowerSnapshot
 
 
 @dataclass(slots=True)

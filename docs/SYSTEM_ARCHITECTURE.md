@@ -42,14 +42,15 @@ This is the startup sequence that exists on `main` today.
    - The installed `yoyopod` console script in `pyproject.toml` also targets `yoyopod.main:main`.
 2. `main()` configures process-level runtime plumbing before app setup starts.
    - `load_composed_app_settings()` reads `config/app/core.yaml` and `config/device/hardware.yaml` early enough to resolve logging settings.
-   - `ConfigManager` later composes domain-owned layers such as `config/audio/music.yaml`, `config/network/cellular.yaml`, `config/voice/assistant.yaml`, and the communication files into the full runtime model.
+   - `ConfigManager` later composes domain-owned layers such as `config/audio/music.yaml`, `config/power/backend.yaml`, `config/network/cellular.yaml`, `config/voice/assistant.yaml`, and the communication files into the full runtime model.
    - `configure_logger()` builds the shared `loguru` runtime config and enables console plus file logging.
    - `write_pid_file()` writes the current PID.
    - `log_startup()` emits the startup marker consumed by Pi deploy and remote-validation workflows.
    - `--simulate` is parsed before the app is constructed.
 3. `main()` constructs `YoyoPodApp(config_dir="config", simulate=simulate)`.
    - The constructor does not start hardware or backend processes yet.
-   - It allocates the typed `EventBus`, runtime services (`RuntimeBootService`, `RuntimeLoopService`, `RecoverySupervisor`, `ScreenPowerService`, `ShutdownLifecycleService`), and the long-lived placeholder fields for managers, screens, and shared context.
+   - It allocates the typed `EventBus`, runtime services (`RuntimeBootService`, `RuntimeLoopService`, `RecoverySupervisor`, `PowerRuntimeService`, `ScreenPowerService`, `ShutdownLifecycleService`), and the long-lived placeholder fields for managers, screens, and shared context.
+   - `RecoverySupervisor` now keeps VoIP/music recovery while `yoyopod.power.runtime.PowerRuntimeService` owns PiSugar polling and watchdog cadence.
    - It also registers app-level event subscriptions on the `EventBus` so later boot stages can publish typed events back onto the coordinator thread.
 4. `main()` calls `app.setup()`, which delegates to `RuntimeBootService.setup()`.
 5. `RuntimeBootService.setup()` currently executes boot in this order:
@@ -116,6 +117,7 @@ yoyopod.py / yoyopod.main
      -> RuntimeBootService
      -> RuntimeLoopService
      -> RecoverySupervisor
+     -> PowerRuntimeService
      -> ScreenPowerService
       -> ShutdownLifecycleService
       -> EventBus
@@ -166,9 +168,10 @@ yoyopod.py / yoyopod.main
 - `src/yoyopod/runtime_state.py`: focused runtime state objects owned by `AppContext`
 - `src/yoyopod/runtime/boot.py`: boot-time composition and manager wiring
 - `src/yoyopod/runtime/loop.py`: coordinator-loop scheduling and queued main-thread work
-- `src/yoyopod/runtime/recovery.py`: backend recovery, power polling, and watchdog supervision
+- `src/yoyopod/runtime/recovery.py`: backend recovery supervision
 - `src/yoyopod/runtime/screen_power.py`: screen wake/sleep policy and power overlays
 - `src/yoyopod/runtime/shutdown.py`: shutdown countdowns, hooks, and lifecycle cleanup
+- `src/yoyopod/power/runtime.py`: power polling and watchdog cadence
 
 ### Coordinators
 

@@ -23,7 +23,9 @@ Tracked authored config lives under `config/` and is split by ownership:
 - `config/audio/music.yaml`
   - local music policy, startup volume, and media runtime paths
 - `config/device/hardware.yaml`
-  - shared hardware truth: `input`, `display`, `power`, `communication_audio`, `media_audio`, `voice_audio`
+  - shared hardware truth: `input`, `display`, `communication_audio`, `media_audio`, `voice_audio`
+- `config/power/backend.yaml`
+  - PiSugar backend transport, watchdog, polling, and shutdown policy
 - `config/network/cellular.yaml`
   - cellular modem policy and transport settings
 - `config/voice/assistant.yaml`
@@ -74,9 +76,11 @@ Examples:
 
 - `config/boards/rpi-zero-2w/audio/music.yaml`
 - `config/boards/rpi-zero-2w/device/hardware.yaml`
+- `config/boards/rpi-zero-2w/power/backend.yaml`
 - `config/boards/rpi-zero-2w/network/cellular.yaml`
 - `config/boards/radxa-cubie-a7z/audio/music.yaml`
 - `config/boards/radxa-cubie-a7z/device/hardware.yaml`
+- `config/boards/radxa-cubie-a7z/power/backend.yaml`
 
 Future domains should follow the same pattern instead of inventing one-off
 overlay shapes.
@@ -107,6 +111,9 @@ Current exemplar package homes:
 - `src/yoyopod/audio/`
   - local music/media behavior, history, output-volume coordination, and mpv backend wiring
   - `__init__.py` is the app-facing seam
+- `src/yoyopod/power/`
+  - PiSugar backend, watchdog, safety policy, typed events, and power-runtime supervision
+  - `__init__.py` is the app-facing seam
 - `src/yoyopod/voice/`
   - local voice behavior, models, and backends
   - device inventory/helpers live outside this package
@@ -117,6 +124,7 @@ The app layer should import from domain seams such as:
 
 - `yoyopod.network`
 - `yoyopod.audio`
+- `yoyopod.power`
 - `yoyopod.communication`
 - `yoyopod.people`
 
@@ -169,6 +177,19 @@ The media/audio migration follows the same cutover shape:
 - `src/yoyopod/audio/` as the domain-owned package home
 - app/runtime composition depending on the `yoyopod.audio` seam via
   `MusicConfig.from_config_manager()` instead of hand-mapping media fields
+
+## Power Migration Pattern
+
+The power migration follows the same cutover shape:
+
+- power backend and shutdown policy under `config/power/backend.yaml`
+- `ConfigManager.get_power_settings()` as the typed runtime seam
+- `src/yoyopod/power/` as the domain-owned package home
+- app/runtime composition depending on `PowerManager.from_config_manager()`
+  instead of reading power state from app-shell config
+- power polling and PiSugar watchdog cadence owned by the power domain via
+  `src/yoyopod/power/runtime.py`, while app/runtime composition still owns
+  scheduling and shutdown orchestration
 
 ## Template For Future Migrations
 

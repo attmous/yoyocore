@@ -1,8 +1,5 @@
 # Radxa Cubie A7Z board overrides.
 
-power:
-  watchdog_i2c_bus: 7
-
 display:
   pimoroni_gpio:
     spi_bus: 1

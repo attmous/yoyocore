@@ -1,4 +1,4 @@
-"""Focused tests for canonical config topology and people-data ownership."""
+"""Focused tests for canonical config topology, power ownership, and people data."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from yoyopod.config import ConfigManager
 from yoyopod.audio import MusicConfig
 from yoyopod.network import NetworkManager
 from yoyopod.people import PeopleDirectory
+from yoyopod.power import PowerManager
 
 
 def _write_yaml(base_dir: Path, relative_path: str, payload: dict) -> Path:
@@ -151,6 +152,35 @@ def test_media_config_composes_domain_policy_with_device_owned_routing(tmp_path:
         manager.resolve_runtime_path(manager.get_recent_tracks_file())
         == tmp_path / "data" / "media" / "recent_tracks.json"
     )
+
+
+def test_power_config_loads_from_canonical_domain_backend_file(tmp_path: Path) -> None:
+    """Power should load from its domain-owned backend file instead of app-shell config."""
+
+    config_dir = tmp_path / "config"
+    _write_yaml(
+        config_dir,
+        "power/backend.yaml",
+        {
+            "power": {
+                "transport": "tcp",
+                "tcp_host": "192.168.178.10",
+                "tcp_port": 9002,
+                "watchdog_enabled": True,
+                "watchdog_i2c_bus": 7,
+            }
+        },
+    )
+
+    manager = ConfigManager(config_dir=str(config_dir))
+    power_manager = PowerManager.from_config_manager(manager)
+
+    assert manager.power_config_loaded is True
+    assert not hasattr(manager.get_app_settings(), "power")
+    assert manager.get_power_settings().transport == "tcp"
+    assert manager.get_runtime_settings().power.tcp_port == 9002
+    assert power_manager.config.tcp_host == "192.168.178.10"
+    assert power_manager.config.watchdog_i2c_bus == 7
 
 
 def test_network_config_composes_domain_owned_cellular_settings(tmp_path: Path) -> None:

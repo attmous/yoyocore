@@ -86,6 +86,7 @@ Tracked config files live under `config/`:
 - `config/app/core.yaml`
 - `config/audio/music.yaml`
 - `config/device/hardware.yaml`
+- `config/power/backend.yaml`
 - `config/network/cellular.yaml`
 - `config/voice/assistant.yaml`
 - `config/communication/calling.yaml`
@@ -102,7 +103,9 @@ Key settings:
 - `config/audio/music.yaml`
   - `audio.music_dir`, `audio.recent_tracks_file`, `audio.mpv_*`, `audio.default_volume`
 - `config/device/hardware.yaml`
-  - `input.*`, `display.*`, `power.*`, `communication_audio.*`, `media_audio.*`, `voice_audio.*`
+  - `input.*`, `display.*`, `communication_audio.*`, `media_audio.*`, `voice_audio.*`
+- `config/power/backend.yaml`
+  - `power.*` PiSugar backend transport, watchdog, polling, warning, and shutdown policy
 - `config/network/cellular.yaml`
   - `network.*` cellular modem enablement, ports, APN, GPS, and PPP timeout
 - `config/voice/assistant.yaml`

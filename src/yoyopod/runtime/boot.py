@@ -96,7 +96,7 @@ class RuntimeBootService:
             self.setup_voip_callbacks()
             self.setup_music_callbacks()
             self.app.shutdown_service.register_power_shutdown_hooks()
-            self.app.recovery_service.poll_power_status(force=True, now=time.monotonic())
+            self.app.power_runtime.poll_status(force=True, now=time.monotonic())
 
             logger.info("YoyoPod setup complete")
             return True

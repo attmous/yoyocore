@@ -202,7 +202,7 @@ class NavigationSoakRunner:
                     profile_name = app.input_manager.interaction_profile.value
                     return False, f"profile is {profile_name}, expected one_button"
 
-                app.recovery_service.start_watchdog(now=time.monotonic())
+                app.power_runtime.start_watchdog(now=time.monotonic())
                 self._pump = _RuntimePump(app, self.stats)
                 self._pump.run_for(self.hold_seconds)
 

@@ -86,7 +86,7 @@ def test_board_config_overlays_base_config(tmp_path, monkeypatch) -> None:
     )
     _write_yaml(
         tmp_path,
-        "device/hardware.yaml",
+        "power/backend.yaml",
         {
             "power": {
                 "watchdog_i2c_bus": 1,
@@ -114,7 +114,7 @@ def test_board_config_overlays_base_config(tmp_path, monkeypatch) -> None:
     )
     _write_yaml(
         tmp_path,
-        "boards/radxa-cubie-a7z/device/hardware.yaml",
+        "boards/radxa-cubie-a7z/power/backend.yaml",
         {
             "power": {
                 "watchdog_i2c_bus": 7,
@@ -134,7 +134,10 @@ def test_board_config_overlays_base_config(tmp_path, monkeypatch) -> None:
     assert config_manager.app_settings.ui.theme == "retro"
     assert config_manager.get_media_settings().music.music_dir == "/home/radxa/Music"
     assert config_manager.get_default_output_volume() == 72
-    assert config_manager.app_settings.power.watchdog_i2c_bus == 7
+    assert config_manager.power_backend_layers[-1] == (
+        tmp_path / "boards" / "radxa-cubie-a7z" / "power" / "backend.yaml"
+    )
+    assert config_manager.get_power_settings().watchdog_i2c_bus == 7
 
 
 def test_missing_board_overlay_falls_back_to_base_config(tmp_path, monkeypatch) -> None:
@@ -158,9 +161,9 @@ def test_missing_board_overlay_falls_back_to_base_config(tmp_path, monkeypatch) 
             }
         },
     )
-    base_device_file = _write_yaml(
+    base_power_file = _write_yaml(
         tmp_path,
-        "device/hardware.yaml",
+        "power/backend.yaml",
         {
             "power": {
                 "watchdog_i2c_bus": 1,
@@ -175,8 +178,8 @@ def test_missing_board_overlay_falls_back_to_base_config(tmp_path, monkeypatch) 
     assert config_manager.app_config_file == tmp_path / "app" / "core.yaml"
     assert config_manager.media_music_layers[0] == base_file
     assert config_manager.media_music_layers[-1] == base_file
-    assert config_manager.device_hardware_layers[0] == base_device_file
-    assert config_manager.device_hardware_layers[-1] == base_device_file
+    assert config_manager.power_backend_layers[0] == base_power_file
+    assert config_manager.power_backend_layers[-1] == base_power_file
     assert config_manager.app_settings.ui.theme == "dark"
     assert config_manager.get_media_settings().music.music_dir == "/srv/base-music"
-    assert config_manager.app_settings.power.watchdog_i2c_bus == 1
+    assert config_manager.get_power_settings().watchdog_i2c_bus == 1

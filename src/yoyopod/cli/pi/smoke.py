@@ -202,7 +202,7 @@ def _power_check(config_dir: Path) -> CheckResult:
         return CheckResult(
             name="power",
             status="warn",
-            details="power backend disabled in config/app/core.yaml",
+            details="power backend disabled in config/power/backend.yaml",
         )
 
     snapshot = manager.refresh()
@@ -233,7 +233,7 @@ def _rtc_check(config_dir: Path) -> CheckResult:
         return CheckResult(
             name="rtc",
             status="warn",
-            details="power backend disabled in config/app/core.yaml",
+            details="power backend disabled in config/power/backend.yaml",
         )
 
     snapshot = manager.refresh()

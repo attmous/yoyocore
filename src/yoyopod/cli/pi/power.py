@@ -30,7 +30,7 @@ def battery(
     config_manager = ConfigManager(config_dir=str(config_path))
     manager = PowerManager.from_config_manager(config_manager)
     if not manager.config.enabled:
-        logger.error("power backend disabled in config/app/core.yaml")
+        logger.error("power backend disabled in config/power/backend.yaml")
         raise typer.Exit(code=1)
 
     snapshot = manager.refresh()
@@ -91,7 +91,7 @@ def _build_power_manager(config_dir: str) -> object:
     config_manager = ConfigManager(config_dir=str(config_path))
     manager = PowerManager.from_config_manager(config_manager)
     if not manager.config.enabled:
-        logger.error("power backend disabled in config/app/core.yaml")
+        logger.error("power backend disabled in config/power/backend.yaml")
         raise typer.Exit(code=1)
     return manager
 

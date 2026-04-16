@@ -9,9 +9,9 @@ from typing import Callable, Protocol
 
 from loguru import logger
 
+from yoyopod.config.models import PowerConfig
 from yoyopod.power.models import (
     BatteryState,
-    PowerConfig,
     PowerDeviceInfo,
     PowerSnapshot,
     RTCState,
@@ -306,4 +306,3 @@ def _extract_response_value(command: str, response: str) -> str:
     if not value:
         raise PowerTransportError(f"Malformed response for {command!r}: {response!r}")
     return value
-

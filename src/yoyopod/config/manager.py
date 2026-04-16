@@ -13,6 +13,7 @@ from yoyopod.config.models import (
     MediaConfig,
     NetworkConfig,
     PeopleDirectoryConfig,
+    PowerConfig,
     VoiceConfig,
     YoyoPodConfig,
     YoyoPodRuntimeConfig,
@@ -29,6 +30,7 @@ from yoyopod.config.storage import (
 APP_CORE_CONFIG = Path("app/core.yaml")
 AUDIO_MUSIC_CONFIG = Path("audio/music.yaml")
 DEVICE_HARDWARE_CONFIG = Path("device/hardware.yaml")
+POWER_BACKEND_CONFIG = Path("power/backend.yaml")
 NETWORK_CELLULAR_CONFIG = Path("network/cellular.yaml")
 VOICE_ASSISTANT_CONFIG = Path("voice/assistant.yaml")
 COMMUNICATION_CALLING_CONFIG = Path("communication/calling.yaml")
@@ -95,6 +97,11 @@ class ConfigManager:
             self.config_board,
             DEVICE_HARDWARE_CONFIG,
         )
+        self.power_backend_layers = resolve_config_layers(
+            self.config_dir,
+            self.config_board,
+            POWER_BACKEND_CONFIG,
+        )
         self.network_cellular_layers = resolve_config_layers(
             self.config_dir,
             self.config_board,
@@ -125,6 +132,7 @@ class ConfigManager:
         self.app_config_file = self.app_core_layers[-1]
         self.device_hardware_file = self.device_hardware_layers[-1]
         self.media_music_file = self.media_music_layers[-1]
+        self.power_backend_file = self.power_backend_layers[-1]
         self.network_cellular_file = self.network_cellular_layers[-1]
         self.voice_assistant_file = self.voice_assistant_layers[-1]
         self.communication_calling_file = self.communication_calling_layers[-1]
@@ -133,6 +141,7 @@ class ConfigManager:
 
         self.app_settings = YoyoPodConfig()
         self.media_settings = MediaConfig()
+        self.power_settings = PowerConfig()
         self.network_settings = NetworkConfig()
         self.voice_settings = VoiceConfig()
         self.communication_settings = CommunicationConfig()
@@ -141,6 +150,7 @@ class ConfigManager:
 
         self.app_config: dict[str, Any] = config_to_dict(self.app_settings)
         self.media_config: dict[str, Any] = config_to_dict(self.media_settings)
+        self.power_config: dict[str, Any] = config_to_dict(self.power_settings)
         self.network_config: dict[str, Any] = config_to_dict(self.network_settings)
         self.voice_config: dict[str, Any] = config_to_dict(self.voice_settings)
         self.communication_config: dict[str, Any] = config_to_dict(self.communication_settings)
@@ -148,6 +158,7 @@ class ConfigManager:
 
         self.app_config_loaded = False
         self.media_config_loaded = False
+        self.power_config_loaded = False
         self.network_config_loaded = False
         self.voice_config_loaded = False
         self.communication_config_loaded = False
@@ -162,6 +173,7 @@ class ConfigManager:
 
         self.load_app_config()
         self.load_media_config()
+        self.load_power_config()
         self.load_network_config()
         self.load_voice_config()
         self.load_communication_config()
@@ -174,6 +186,7 @@ class ConfigManager:
         self.runtime_settings = YoyoPodRuntimeConfig(
             app=self.app_settings,
             media=self.media_settings,
+            power=self.power_settings,
             network=self.network_settings,
             voice=self.voice_settings,
             communication=self.communication_settings,
@@ -323,6 +336,30 @@ class ConfigManager:
             self.media_settings = MediaConfig()
             self.media_config = config_to_dict(self.media_settings)
             self.media_config_loaded = False
+            self._refresh_runtime_settings()
+            return False
+
+    def load_power_config(self) -> bool:
+        """Load the typed power config from domain-owned backend layers."""
+
+        self.power_config_loaded = _config_loaded(self.power_backend_layers)
+        try:
+            payload = load_yaml_layers(self.power_backend_layers)
+            self.power_settings = build_config_model(PowerConfig, payload.get("power", payload))
+            self.power_config = config_to_dict(self.power_settings)
+            self._refresh_runtime_settings()
+
+            if self.power_config_loaded:
+                logger.info("Power configuration loaded successfully")
+            else:
+                logger.warning("No authored power config found; using typed defaults")
+
+            return self.power_config_loaded
+        except Exception:
+            logger.exception("Error loading power config")
+            self.power_settings = PowerConfig()
+            self.power_config = config_to_dict(self.power_settings)
+            self.power_config_loaded = False
             self._refresh_runtime_settings()
             return False
 
@@ -494,6 +531,11 @@ class ConfigManager:
 
         return self.media_settings
 
+    def get_power_settings(self) -> PowerConfig:
+        """Return the composed typed power settings."""
+
+        return self.power_settings
+
     def get_network_settings(self) -> NetworkConfig:
         """Return the composed typed network settings."""
 
@@ -523,6 +565,11 @@ class ConfigManager:
         """Return the plain-dict form of the composed media settings."""
 
         return dict(self.media_config)
+
+    def get_power_config_dict(self) -> dict[str, Any]:
+        """Return the plain-dict form of the composed power settings."""
+
+        return dict(self.power_config)
 
     def get_runtime_config_dict(self) -> dict[str, Any]:
         """Return the plain-dict form of the composed runtime settings."""

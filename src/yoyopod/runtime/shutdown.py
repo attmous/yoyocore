@@ -146,7 +146,7 @@ class ShutdownLifecycleService:
         if self.app._shutdown_completed:
             return
 
-        self.app.recovery_service.suppress_watchdog_feeding("pending system poweroff")
+        self.app.power_runtime.suppress_watchdog_feeding("pending system poweroff")
         self.app.screen_power_service.render_power_overlay(
             "Powering Off",
             "Saving state...",
@@ -174,7 +174,7 @@ class ShutdownLifecycleService:
         self.app._stopping = True
 
         if disable_watchdog:
-            self.app.recovery_service.disable_watchdog()
+            self.app.power_runtime.disable_watchdog()
 
         self.app.boot_service.ensure_coordinators()
         assert self.app.call_coordinator is not None

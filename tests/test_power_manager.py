@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
 from yoyopod.config import ConfigManager
-from yoyopod.power.manager import PowerManager
-from yoyopod.power.models import BatteryState, PowerConfig, PowerSnapshot, RTCState
+from yoyopod.power import BatteryState, PowerConfig, PowerManager, PowerSnapshot, RTCState
 
 
 class FakeBackend:
@@ -99,12 +99,12 @@ def test_power_manager_returns_unavailable_snapshot_when_backend_refresh_fails()
 
 
 def test_power_manager_reads_power_config_from_config_manager(tmp_path) -> None:
-    """Typed application settings should feed the power manager configuration."""
+    """Typed power-domain settings should feed the power manager configuration."""
 
     config_dir = tmp_path
-    hardware_file = config_dir / "device" / "hardware.yaml"
-    hardware_file.parent.mkdir(parents=True, exist_ok=True)
-    hardware_file.write_text(
+    power_file = config_dir / "power" / "backend.yaml"
+    power_file.parent.mkdir(parents=True, exist_ok=True)
+    power_file.write_text(
         """
 power:
   enabled: true

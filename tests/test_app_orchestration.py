@@ -842,6 +842,17 @@ def test_recovery_service_schedules_music_reconnect_off_main_thread() -> None:
     assert app._voip_recovery.next_attempt_at == 1.0
 
 
+def test_recovery_service_no_longer_owns_power_runtime_helpers() -> None:
+    """Power polling/watchdog ownership should stay on the dedicated power runtime service."""
+
+    app = YoyoPodApp(simulate=True)
+
+    assert hasattr(app, "power_runtime")
+    assert not hasattr(app.recovery_service, "poll_power_status")
+    assert not hasattr(app.recovery_service, "start_watchdog")
+    assert not hasattr(app.recovery_service, "feed_watchdog_if_due")
+
+
 def test_music_recovery_backoff_doubles_after_success() -> None:
     """Background music recovery results should update backoff on success and failure."""
     app = YoyoPodApp(simulate=True)
@@ -1585,13 +1596,13 @@ def test_runtime_loop_logs_named_blocking_spans(
         lambda self: 0.01,
     )
     monkeypatch.setattr(RuntimeLoopService, "_VOIP_TIMING_SUMMARY_INTERVAL_SECONDS", 0.0)
-    original_poll_power_status = app.recovery_service.poll_power_status
+    original_poll_power_status = app.power_runtime.poll_status
 
     def slow_poll_power_status(*, now: float | None = None, force: bool = False) -> None:
         time.sleep(0.02)
         original_poll_power_status(now=now, force=force)
 
-    app.recovery_service.poll_power_status = slow_poll_power_status
+    app.power_runtime.poll_status = slow_poll_power_status
     try:
         app.runtime_loop.run_iteration(
             monotonic_now=1.0,

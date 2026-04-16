@@ -10,14 +10,15 @@ import yaml
 from yoyopod.config import (
     ConfigManager,
     MediaConfig,
+    PowerConfig,
     VoiceConfig,
     YoyoPodConfig,
     load_config_model_from_yaml,
 )
 
 
-def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None:
-    """Missing authored config should resolve to typed defaults in memory."""
+def test_app_shell_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None:
+    """Missing app-shell config should resolve to typed defaults in memory."""
 
     monkeypatch.delenv("YOYOPOD_MUSIC_DIR", raising=False)
     monkeypatch.delenv("YOYOPOD_MPV_SOCKET", raising=False)
@@ -35,23 +36,7 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.input.ptt_navigation is True
     assert settings.input.whisplay_double_tap_ms == 300
     assert settings.input.whisplay_long_hold_ms == 800
-    assert settings.power.enabled is True
-    assert settings.power.backend == "pisugar"
-    assert settings.power.transport == "auto"
-    assert settings.power.socket_path == "/tmp/pisugar-server.sock"
-    assert settings.power.tcp_port == 8423
-    assert settings.power.low_battery_warning_percent == 20.0
-    assert settings.power.low_battery_warning_cooldown_seconds == 300.0
-    assert settings.power.auto_shutdown_enabled is True
-    assert settings.power.critical_shutdown_percent == 10.0
-    assert settings.power.shutdown_delay_seconds == 15.0
-    assert settings.power.shutdown_command == "sudo -n shutdown -h now"
-    assert settings.power.shutdown_state_file == "data/last_shutdown_state.json"
-    assert settings.power.watchdog_enabled is False
-    assert settings.power.watchdog_timeout_seconds == 60
-    assert settings.power.watchdog_feed_interval_seconds == 15.0
-    assert settings.power.watchdog_i2c_bus == 1
-    assert settings.power.watchdog_i2c_address == 0x57
+    assert not hasattr(settings, "power")
     assert settings.display.hardware == "auto"
     assert settings.display.whisplay_renderer == "lvgl"
     assert settings.display.lvgl_buffer_lines == 40
@@ -71,6 +56,41 @@ def test_app_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> Non
     assert settings.diagnostics.responsiveness_capture_cooldown_seconds == 30.0
     assert settings.diagnostics.responsiveness_recent_input_window_seconds == 3.0
     assert settings.diagnostics.responsiveness_capture_dir == "logs/responsiveness"
+
+
+def test_power_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None:
+    """Missing power config should still resolve to typed PiSugar defaults."""
+
+    monkeypatch.delenv("YOYOPOD_POWER_ENABLED", raising=False)
+    monkeypatch.delenv("YOYOPOD_POWER_TRANSPORT", raising=False)
+    monkeypatch.delenv("YOYOPOD_PISUGAR_PORT", raising=False)
+    monkeypatch.delenv("YOYOPOD_LOW_BATTERY_WARNING_PERCENT", raising=False)
+    monkeypatch.delenv("YOYOPOD_CRITICAL_BATTERY_SHUTDOWN_PERCENT", raising=False)
+    monkeypatch.delenv("YOYOPOD_POWER_SHUTDOWN_COMMAND", raising=False)
+    monkeypatch.delenv("YOYOPOD_POWER_WATCHDOG_ENABLED", raising=False)
+    monkeypatch.delenv("YOYOPOD_POWER_WATCHDOG_I2C_ADDRESS", raising=False)
+
+    config_file = tmp_path / "power" / "backend.yaml"
+    settings = load_config_model_from_yaml(PowerConfig, config_file)
+
+    assert not config_file.exists()
+    assert settings.enabled is True
+    assert settings.backend == "pisugar"
+    assert settings.transport == "auto"
+    assert settings.socket_path == "/tmp/pisugar-server.sock"
+    assert settings.tcp_port == 8423
+    assert settings.low_battery_warning_percent == 20.0
+    assert settings.low_battery_warning_cooldown_seconds == 300.0
+    assert settings.auto_shutdown_enabled is True
+    assert settings.critical_shutdown_percent == 10.0
+    assert settings.shutdown_delay_seconds == 15.0
+    assert settings.shutdown_command == "sudo -n shutdown -h now"
+    assert settings.shutdown_state_file == "data/last_shutdown_state.json"
+    assert settings.watchdog_enabled is False
+    assert settings.watchdog_timeout_seconds == 60
+    assert settings.watchdog_feed_interval_seconds == 15.0
+    assert settings.watchdog_i2c_bus == 1
+    assert settings.watchdog_i2c_address == 0x57
 
 
 def test_media_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None:
@@ -171,6 +191,19 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
         ),
         encoding="utf-8",
     )
+    power_file = tmp_path / "power" / "backend.yaml"
+    power_file.parent.mkdir(parents=True, exist_ok=True)
+    power_file.write_text(
+        yaml.safe_dump(
+            {
+                "power": {
+                    "enabled": True,
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setenv("YOYOPOD_MPV_SOCKET", "/tmp/test-mpv.sock")
     monkeypatch.setenv("YOYOPOD_AUTO_RESUME_AFTER_CALL", "false")
@@ -203,14 +236,18 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     config_manager = ConfigManager(config_dir=str(tmp_path))
     settings = config_manager.get_app_settings()
     media_settings = config_manager.get_media_settings()
+    power_settings = config_manager.get_power_settings()
     voice_settings = config_manager.get_voice_settings()
     config_dict = config_manager.get_app_config_dict()
     media_dict = config_manager.get_media_config_dict()
+    power_dict = config_manager.get_power_config_dict()
     runtime_dict = config_manager.get_runtime_config_dict()
 
     assert config_manager.app_config_loaded is True
     assert config_manager.media_config_loaded is True
+    assert config_manager.power_config_loaded is True
     assert not hasattr(settings, "audio")
+    assert not hasattr(settings, "power")
     assert media_settings.music.music_dir == "/srv/music"
     assert media_settings.music.mpv_socket == "/tmp/test-mpv.sock"
     assert media_settings.music.mpv_binary == "/usr/local/bin/mpv"
@@ -218,16 +255,16 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert media_settings.music.auto_resume_after_call is False
     assert settings.input.whisplay_double_tap_ms == 260
     assert settings.input.whisplay_long_hold_ms == 900
-    assert settings.power.transport == "tcp"
-    assert settings.power.tcp_port == 9001
-    assert settings.power.low_battery_warning_percent == 17.5
-    assert settings.power.critical_shutdown_percent == 8.5
-    assert settings.power.shutdown_delay_seconds == 22.0
-    assert settings.power.shutdown_command == "sudo -n poweroff"
-    assert settings.power.watchdog_enabled is True
-    assert settings.power.watchdog_timeout_seconds == 90
-    assert settings.power.watchdog_feed_interval_seconds == 30.0
-    assert settings.power.watchdog_i2c_address == 0x58
+    assert power_settings.transport == "tcp"
+    assert power_settings.tcp_port == 9001
+    assert power_settings.low_battery_warning_percent == 17.5
+    assert power_settings.critical_shutdown_percent == 8.5
+    assert power_settings.shutdown_delay_seconds == 22.0
+    assert power_settings.shutdown_command == "sudo -n poweroff"
+    assert power_settings.watchdog_enabled is True
+    assert power_settings.watchdog_timeout_seconds == 90
+    assert power_settings.watchdog_feed_interval_seconds == 30.0
+    assert power_settings.watchdog_i2c_address == 0x58
     assert settings.display.hardware == "whisplay"
     assert settings.display.whisplay_renderer == "lvgl"
     assert settings.display.lvgl_buffer_lines == 24
@@ -243,14 +280,18 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert settings.diagnostics.responsiveness_stall_threshold_seconds == 8.0
     assert settings.diagnostics.responsiveness_capture_dir == "/tmp/yoyopod-watchdog"
     assert "audio" not in config_dict
+    assert "power" not in config_dict
     assert config_dict["display"]["hardware"] == "whisplay"
     assert config_dict["display"]["whisplay_renderer"] == "lvgl"
     assert config_dict["display"]["lvgl_buffer_lines"] == 24
     assert media_dict["music"]["music_dir"] == "/srv/music"
     assert media_dict["music"]["mpv_socket"] == "/tmp/test-mpv.sock"
     assert media_dict["audio"]["alsa_device"] == "hw:Loopback,0"
+    assert power_dict["transport"] == "tcp"
+    assert power_dict["watchdog_i2c_address"] == 0x58
     assert runtime_dict["media"]["music"]["music_dir"] == "/srv/music"
     assert runtime_dict["media"]["audio"]["alsa_device"] == "hw:Loopback,0"
+    assert runtime_dict["power"]["transport"] == "tcp"
     assert "network" not in config_dict
     assert "voice" not in config_dict
     assert config_dict["logging"]["file"] == "/var/log/yoyopod.log"

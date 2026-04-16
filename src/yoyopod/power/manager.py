@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import shlex
 import subprocess
 from datetime import datetime
@@ -9,8 +10,9 @@ from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
 
+from yoyopod.config.models import PowerConfig
 from yoyopod.power.backend import PiSugarBackend, PowerBackend
-from yoyopod.power.models import PowerConfig, PowerSnapshot, RTCState
+from yoyopod.power.models import PowerSnapshot, RTCState
 from yoyopod.power.watchdog import PiSugarWatchdog, WatchdogCommandError
 
 if TYPE_CHECKING:
@@ -46,9 +48,9 @@ class PowerManager:
 
     @classmethod
     def from_config_manager(cls, config_manager: "ConfigManager") -> "PowerManager":
-        """Build a power manager from the typed app configuration."""
+        """Build a power manager from the typed power-domain configuration."""
 
-        return cls(PowerConfig.from_config_manager(config_manager))
+        return cls(replace(config_manager.get_power_settings()))
 
     def probe(self) -> bool:
         """Return True when the configured backend is reachable."""
@@ -179,4 +181,3 @@ class PowerManager:
         """Execute the real shutdown command via subprocess."""
         completed = subprocess.run(command, check=False)
         return completed.returncode
-

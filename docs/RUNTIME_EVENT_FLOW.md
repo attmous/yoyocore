@@ -60,7 +60,7 @@ This is where the app decides which backend signals become typed runtime events.
 Owns:
 - loop cadence
 - draining queued callbacks and typed events
-- calling recovery, power, shutdown, LVGL, and periodic screen refresh work in a stable order
+- calling recovery, power-runtime, shutdown, LVGL, and periodic screen refresh work in a stable order
 
 This service is the bridge between queued background work and deterministic main-thread handling.
 
@@ -119,9 +119,14 @@ It reacts to `ScreenChangedEvent`, `UserActivityEvent`, and low-battery events, 
 
 Owns:
 - backend recovery attempts
-- periodic power polling
-- watchdog feeding
 - publishing recovery completion events
+
+### `PowerRuntimeService`
+
+Owns:
+- periodic power polling
+- watchdog start/feed/disable cadence
+- queueing PiSugar I/O off the coordinator thread when needed
 
 ### `NetworkManager`
 
@@ -205,7 +210,7 @@ Ownership: playback truth comes from the music backend; playback interpretation 
 
 ### Power snapshot flow
 
-1. `RecoverySupervisor.poll_power_status()` fetches a snapshot from `PowerManager`.
+1. `PowerRuntimeService.poll_status()` fetches a snapshot from `PowerManager`.
 2. It calls `PowerCoordinator.publish_snapshot()` and, on availability transitions, `publish_availability_change()`.
 3. `PowerCoordinator.handle_snapshot_updated()`:
    - stores the snapshot in `CoordinatorRuntime`

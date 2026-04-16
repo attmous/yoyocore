@@ -41,9 +41,9 @@ def test_voice_device_persistence_does_not_flatten_env_overrides(
 
     cfg_dir = tmp_path / "config"
     cfg_dir.mkdir(parents=True, exist_ok=True)
-    config_file = cfg_dir / "device" / "hardware.yaml"
-    config_file.parent.mkdir(parents=True, exist_ok=True)
-    config_file.write_text(
+    power_file = cfg_dir / "power" / "backend.yaml"
+    power_file.parent.mkdir(parents=True, exist_ok=True)
+    power_file.write_text(
         yaml.safe_dump(
             {
                 "power": {
@@ -60,8 +60,13 @@ def test_voice_device_persistence_does_not_flatten_env_overrides(
 
     assert manager.set_voice_speaker_device_id("plughw:CARD=SE,DEV=0") is True
 
-    persisted = yaml.safe_load(config_file.read_text(encoding="utf-8"))
-    assert persisted["power"]["watchdog_i2c_bus"] == 7
+    assert yaml.safe_load(power_file.read_text(encoding="utf-8")) == {
+        "power": {
+            "watchdog_i2c_bus": 7,
+        }
+    }
+    voice_file = cfg_dir / "device" / "hardware.yaml"
+    persisted = yaml.safe_load(voice_file.read_text(encoding="utf-8"))
     assert persisted["voice_audio"]["speaker_device_id"] == "plughw:CARD=SE,DEV=0"
     assert "audio" not in persisted
 
@@ -74,7 +79,7 @@ def test_voice_device_persistence_only_updates_active_overlay(
 
     cfg_dir = tmp_path / "config"
     cfg_dir.mkdir(parents=True, exist_ok=True)
-    base_file = cfg_dir / "device" / "hardware.yaml"
+    base_file = cfg_dir / "power" / "backend.yaml"
     base_file.parent.mkdir(parents=True, exist_ok=True)
     base_file.write_text(
         yaml.safe_dump(

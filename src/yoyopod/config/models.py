@@ -239,8 +239,8 @@ class VoiceAudioConfig:
 
 
 @dataclass(slots=True)
-class AppPowerConfig:
-    """Power-management backend settings."""
+class PowerConfig:
+    """Power-domain backend, watchdog, and shutdown settings."""
 
     enabled: bool = config_value(default=True, env="YOYOPOD_POWER_ENABLED")
     backend: str = config_value(default="pisugar", env="YOYOPOD_POWER_BACKEND")
@@ -435,7 +435,6 @@ class YoyoPodConfig:
     app: AppMetadataConfig = config_value(default_factory=AppMetadataConfig)
     ui: AppUiConfig = config_value(default_factory=AppUiConfig)
     input: AppInputConfig = config_value(default_factory=AppInputConfig)
-    power: AppPowerConfig = config_value(default_factory=AppPowerConfig)
     display: AppDisplayConfig = config_value(default_factory=AppDisplayConfig)
     logging: AppLoggingConfig = config_value(default_factory=AppLoggingConfig)
     diagnostics: AppDiagnosticsConfig = config_value(default_factory=AppDiagnosticsConfig)
@@ -601,6 +600,7 @@ class YoyoPodRuntimeConfig:
 
     app: YoyoPodConfig = config_value(default_factory=YoyoPodConfig)
     media: MediaConfig = config_value(default_factory=MediaConfig)
+    power: PowerConfig = config_value(default_factory=PowerConfig)
     network: NetworkConfig = config_value(default_factory=NetworkConfig)
     voice: VoiceConfig = config_value(default_factory=VoiceConfig)
     communication: CommunicationConfig = config_value(default_factory=CommunicationConfig)

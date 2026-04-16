@@ -313,7 +313,7 @@ class RuntimeLoopService:
             )
             self._measure_blocking_span(
                 "power_poll",
-                lambda: self.app.recovery_service.poll_power_status(now=monotonic_now),
+                lambda: self.app.power_runtime.poll_status(now=monotonic_now),
             )
             self._measure_blocking_span(
                 "lvgl_pump",
@@ -321,7 +321,7 @@ class RuntimeLoopService:
             )
             self._measure_blocking_span(
                 "watchdog_feed",
-                lambda: self.app.recovery_service.feed_watchdog_if_due(monotonic_now),
+                lambda: self.app.power_runtime.feed_watchdog_if_due(monotonic_now),
             )
             self._measure_blocking_span(
                 "pending_shutdown",
@@ -449,7 +449,7 @@ class RuntimeLoopService:
         try:
             last_screen_update = time.time()
             screen_update_interval = 1.0
-            self.app.recovery_service.start_watchdog(now=time.monotonic())
+            self.app.power_runtime.start_watchdog(now=time.monotonic())
 
             if self.app.simulate:
                 logger.info("")

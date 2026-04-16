@@ -49,6 +49,7 @@ from yoyopod.power import (
     GracefulShutdownRequested,
     LowBatteryWarningRaised,
     PowerManager,
+    PowerRuntimeService,
 )
 from yoyopod.runtime import (
     PendingShutdown,
@@ -223,6 +224,7 @@ class YoyoPodApp:
         # Runtime services
         self.screen_power_service = ScreenPowerService(self)
         self.recovery_service = RecoverySupervisor(self)
+        self.power_runtime = PowerRuntimeService(self)
         self.shutdown_service = ShutdownLifecycleService(self)
         self.runtime_loop = RuntimeLoopService(self)
         self.boot_service = RuntimeBootService(self)
@@ -697,7 +699,7 @@ class YoyoPodApp:
         self.recovery_service.attempt_manager_recovery(now)
 
     def _poll_power_status(self, now: float | None = None, force: bool = False) -> None:
-        self.recovery_service.poll_power_status(now, force)
+        self.power_runtime.poll_status(now=now, force=force)
 
     def _set_power_alert(
         self,
@@ -727,16 +729,16 @@ class YoyoPodApp:
         self.shutdown_service.execute_pending_shutdown()
 
     def _start_watchdog(self, now: float | None = None) -> None:
-        self.recovery_service.start_watchdog(now)
+        self.power_runtime.start_watchdog(now=now)
 
     def _feed_watchdog_if_due(self, now: float) -> None:
-        self.recovery_service.feed_watchdog_if_due(now)
+        self.power_runtime.feed_watchdog_if_due(now)
 
     def _disable_watchdog(self) -> None:
-        self.recovery_service.disable_watchdog()
+        self.power_runtime.disable_watchdog()
 
     def _suppress_watchdog_feeding(self, reason: str) -> None:
-        self.recovery_service.suppress_watchdog_feeding(reason)
+        self.power_runtime.suppress_watchdog_feeding(reason)
 
     def _attempt_voip_recovery(self, recovery_now: float) -> None:
         self.recovery_service.attempt_voip_recovery(recovery_now)

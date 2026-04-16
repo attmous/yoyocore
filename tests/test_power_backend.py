@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from yoyopod.power import PowerConfig
 from yoyopod.power.backend import PiSugarBackend, PowerTransportError
-from yoyopod.power.models import PowerConfig
 
 
 class FakeTransport:
@@ -156,4 +156,3 @@ def test_pisugar_backend_issues_documented_rtc_control_commands() -> None:
         "rtc_alarm_set 2026-04-06T07:30:00+00:00 31",
         "rtc_alarm_disable",
     ]
-
