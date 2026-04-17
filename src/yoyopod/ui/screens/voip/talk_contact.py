@@ -228,7 +228,6 @@ class TalkContactScreen(Screen):
             logger.error("Cannot place Talk call: no VoIP manager")
             return
         if self.voip_manager.make_call(sip_address, contact_name=contact_name):
-            self.request_route("call_started")
             return
         logger.error("Failed to place Talk call to {}", contact_name)
 

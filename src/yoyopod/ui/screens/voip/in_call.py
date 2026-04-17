@@ -141,8 +141,8 @@ class InCallScreen(Screen):
         """End the current call."""
 
         logger.info("Ending call")
-        if self.voip_manager and self.voip_manager.hangup():
-            self.request_route("call_hangup")
+        if self.voip_manager:
+            self.voip_manager.hangup()
 
     def _toggle_mute(self) -> None:
         """Toggle microphone mute."""

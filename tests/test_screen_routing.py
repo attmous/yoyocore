@@ -452,7 +452,7 @@ def test_ask_screen_can_start_music_from_local_hook() -> None:
 
 
 def test_ask_screen_can_place_call_for_named_contact() -> None:
-    """Call commands should resolve child-facing labels and trigger VoIP dialing."""
+    """Call commands should resolve labels and let call-state events own navigation."""
 
     context = AppContext()
     voip_manager = _FakeVoipManager()
@@ -472,11 +472,12 @@ def test_ask_screen_can_place_call_for_named_contact() -> None:
 
     assert context.talk_contact_name == "Mama"
     assert voip_manager.make_calls == [("sip:mama@example.com", "Mama")]
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
+    assert screen.consume_navigation_request() is None
+    assert screen._auto_return_timer is None
 
 
 def test_ask_screen_can_place_call_for_parent_aliases() -> None:
-    """Parent aliases like mom and dad should resolve against kid-facing labels."""
+    """Parent aliases should not force a local navigation request for call start."""
 
     context = AppContext()
     voip_manager = _FakeVoipManager()
@@ -500,11 +501,13 @@ def test_ask_screen_can_place_call_for_parent_aliases() -> None:
 
     screen.on_voice_command({"transcript": "call mom"})
     assert voip_manager.make_calls == [("sip:mama@example.com", "Mama")]
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
+    assert screen.consume_navigation_request() is None
+    assert screen._auto_return_timer is None
 
     screen.on_voice_command({"transcript": "call dad"})
     assert voip_manager.make_calls[-1] == ("sip:dad@example.com", "Dad")
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
+    assert screen.consume_navigation_request() is None
+    assert screen._auto_return_timer is None
 
 
 def test_ask_screen_default_voice_settings_keep_saved_speaker_device() -> None:

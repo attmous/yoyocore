@@ -80,6 +80,7 @@ class VoIPManager:
         self.call_duration: int = 0
         self.call_start_time: Optional[float] = None
         self.is_muted = False
+        self._pending_terminal_action: str | None = None
         self._message_store = message_store or self._build_message_store()
         self._active_voice_note: VoiceNoteDraft | None = None
         self._playback_process: subprocess.Popen | None = None
@@ -149,16 +150,32 @@ class VoIPManager:
         self.caller_address = sip_address
         self.caller_name = contact_name or self._lookup_contact_name(sip_address)
         logger.info("Making call to: {} ({})", self.caller_name, sip_address)
-        return self.backend.make_call(sip_address)
+        if not self.backend.make_call(sip_address):
+            return False
+
+        self._pending_terminal_action = None
+        return True
 
     def answer_call(self) -> bool:
-        return self.backend.answer_call()
+        if not self.backend.answer_call():
+            return False
+
+        self._pending_terminal_action = None
+        return True
 
     def hangup(self) -> bool:
-        return self.backend.hangup()
+        if not self.backend.hangup():
+            return False
+
+        self._pending_terminal_action = "hangup"
+        return True
 
     def reject_call(self) -> bool:
-        return self.backend.reject_call()
+        if not self.backend.reject_call():
+            return False
+
+        self._pending_terminal_action = "reject"
+        return True
 
     def mute(self) -> bool:
         if self.is_muted:
@@ -402,6 +419,13 @@ class VoIPManager:
             return int(time.time() - self.call_start_time)
         return 0
 
+    def consume_pending_terminal_action(self) -> str | None:
+        """Return and clear the most recent local call teardown action."""
+
+        action = self._pending_terminal_action
+        self._pending_terminal_action = None
+        return action
+
     def get_caller_info(self) -> dict:
         if self.caller_address and not self.caller_name:
             self.caller_name = self._lookup_contact_name(self.caller_address)
@@ -633,7 +657,7 @@ class VoIPManager:
         self.call_state = state
         logger.info("Call state: {} -> {}", old_state.value, state.value)
 
-        if state == CallState.CONNECTED and self.call_start_time is None:
+        if state in (CallState.CONNECTED, CallState.STREAMS_RUNNING) and self.call_start_time is None:
             self._start_call_timer()
         elif state in (CallState.RELEASED, CallState.END, CallState.ERROR):
             self._clear_call_session()
@@ -690,6 +714,7 @@ class VoIPManager:
         if self.call_state not in (CallState.IDLE, CallState.RELEASED):
             self.call_state = CallState.RELEASED
         self._clear_call_session()
+        self._pending_terminal_action = None
         self.running = False
         self.registered = False
         self.registration_state = RegistrationState.NONE

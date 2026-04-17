@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+
 from yoyopod.app_context import AppContext
-from yoyopod.communication import RegistrationState
+from yoyopod.communication import CallHistoryStore, CallState, RegistrationState
 from yoyopod.coordinators.call import CallCoordinator
 from yoyopod.coordinators.runtime import CoordinatorRuntime
 from yoyopod.fsm import CallFSM, CallInterruptionPolicy, MusicFSM
@@ -17,6 +20,21 @@ class _ScreenCoordinatorStub:
 
     def refresh_call_screen_if_visible(self) -> None:
         self.refresh_calls += 1
+
+    def show_incoming_call(self, caller_address: str, caller_name: str) -> None:
+        return
+
+    def show_outgoing_call(self, callee_address: str, callee_name: str) -> None:
+        return
+
+    def show_in_call(self) -> None:
+        return
+
+    def pop_call_screens(self) -> None:
+        return
+
+    def refresh_now_playing_screen(self) -> None:
+        return
 
 
 class _ConfigManagerStub:
@@ -33,8 +51,47 @@ class _ConfigManagerStub:
         return self._sip_username
 
 
-def _build_runtime(*, config_manager: _ConfigManagerStub, context: AppContext) -> CoordinatorRuntime:
+class _VoipManagerStub:
+    """Tiny VoIP manager surface used for call-history classification tests."""
+
+    def __init__(self) -> None:
+        self._caller_info = {
+            "address": "sip:friend@example.com",
+            "name": "Friend",
+            "display_name": "Friend",
+        }
+        self._call_duration = 0
+        self._pending_terminal_action: str | None = None
+
+    def get_caller_info(self) -> dict[str, str]:
+        return dict(self._caller_info)
+
+    def get_call_duration(self) -> int:
+        return self._call_duration
+
+    def consume_pending_terminal_action(self) -> str | None:
+        action = self._pending_terminal_action
+        self._pending_terminal_action = None
+        return action
+
+
+@dataclass
+class _ScreenStub:
+    voip_manager: _VoipManagerStub
+
+
+def _build_runtime(
+    *,
+    config_manager: _ConfigManagerStub,
+    context: AppContext,
+    voip_manager: _VoipManagerStub | None = None,
+) -> CoordinatorRuntime:
     """Create the minimal coordinator runtime required by CallCoordinator."""
+
+    call_screen = _ScreenStub(voip_manager) if voip_manager is not None else None
+    incoming_call_screen = _ScreenStub(voip_manager) if voip_manager is not None else None
+    outgoing_call_screen = _ScreenStub(voip_manager) if voip_manager is not None else None
+    in_call_screen = _ScreenStub(voip_manager) if voip_manager is not None else None
 
     return CoordinatorRuntime(
         music_fsm=MusicFSM(),
@@ -44,11 +101,11 @@ def _build_runtime(*, config_manager: _ConfigManagerStub, context: AppContext) -
         music_backend=None,
         power_manager=None,
         now_playing_screen=None,
-        call_screen=None,
+        call_screen=call_screen,
         power_screen=None,
-        incoming_call_screen=None,
-        outgoing_call_screen=None,
-        in_call_screen=None,
+        incoming_call_screen=incoming_call_screen,
+        outgoing_call_screen=outgoing_call_screen,
+        in_call_screen=in_call_screen,
         config_manager=config_manager,
         context=context,
     )
@@ -75,3 +132,38 @@ def test_registration_change_uses_config_manager_for_voip_configured_status() ->
     assert context.voip.ready is True
     assert runtime.voip_ready is True
     assert screen_coordinator.refresh_calls == 1
+
+
+def test_terminal_call_states_record_rejected_and_failed_history(tmp_path: Path) -> None:
+    """Terminal backend states should classify rejected and failed calls explicitly."""
+
+    context = AppContext()
+    voip_manager = _VoipManagerStub()
+    runtime = _build_runtime(
+        config_manager=_ConfigManagerStub(sip_username="kid@example.com"),
+        context=context,
+        voip_manager=voip_manager,
+    )
+    coordinator = CallCoordinator(
+        runtime=runtime,
+        screen_coordinator=_ScreenCoordinatorStub(),
+        auto_resume_after_call=True,
+        call_history_store=CallHistoryStore(tmp_path / "call_history.json"),
+    )
+
+    coordinator.handle_incoming_call("sip:mama@example.com", "Mama")
+    coordinator.handle_call_state_change(CallState.INCOMING)
+    voip_manager._pending_terminal_action = "reject"
+    coordinator.handle_call_state_change(CallState.END)
+
+    voip_manager._caller_info = {
+        "address": "sip:dad@example.com",
+        "name": "Dad",
+        "display_name": "Dad",
+    }
+    coordinator.handle_call_state_change(CallState.OUTGOING)
+    coordinator.handle_call_state_change(CallState.ERROR)
+
+    recent = coordinator.call_history_store.list_recent(2)  # type: ignore[union-attr]
+    assert recent[0].outcome == "failed"
+    assert recent[1].outcome == "rejected"

@@ -111,14 +111,14 @@ class IncomingCallScreen(Screen):
     def _answer_call(self) -> None:
         """Answer the incoming call."""
         logger.info("Answering incoming call")
-        if self.voip_manager and self.voip_manager.answer_call():
-            self.request_route("call_answered")
+        if self.voip_manager:
+            self.voip_manager.answer_call()
 
     def _reject_call(self) -> None:
         """Reject the incoming call."""
         logger.info("Rejecting incoming call")
-        if self.voip_manager and self.voip_manager.reject_call():
-            self.request_route("call_rejected")
+        if self.voip_manager:
+            self.voip_manager.reject_call()
 
     def on_select(self, data=None) -> None:
         """Answer the incoming call."""

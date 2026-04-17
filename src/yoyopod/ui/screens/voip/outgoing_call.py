@@ -119,8 +119,8 @@ class OutgoingCallScreen(Screen):
     def _cancel_call(self) -> None:
         """Cancel the outgoing call."""
         logger.info("Canceling outgoing call")
-        if self.voip_manager and self.voip_manager.hangup():
-            self.request_route("call_hangup")
+        if self.voip_manager:
+            self.voip_manager.hangup()
 
     def on_back(self, data=None) -> None:
         """Cancel the outgoing call."""

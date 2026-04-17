@@ -71,7 +71,7 @@ class AskScreenVoiceMixin:
         if outcome.route_name is not None:
             self.request_route(outcome.route_name)
             navigated = self._apply_pending_navigation_request()
-        if not navigated:
+        if not navigated and outcome.auto_return:
             self._schedule_auto_return()
 
     def _voice_service(self) -> "VoiceService":

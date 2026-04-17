@@ -22,6 +22,7 @@ from yoyopod.events import (
     VoIPAvailabilityChangedEvent,
 )
 from yoyopod.communication import CallHistoryEntry, CallHistoryStore, CallState, RegistrationState
+from yoyopod.fsm import CallSessionState
 
 
 @dataclass(slots=True)
@@ -33,6 +34,8 @@ class _CallSessionDraft:
     sip_address: str
     started_at: float = field(default_factory=time.time)
     answered: bool = False
+    terminal_state: CallState | None = None
+    local_end_action: str | None = None
 
 
 class CallCoordinator:
@@ -51,11 +54,11 @@ class CallCoordinator:
         self.auto_resume_after_call = auto_resume_after_call
         self.call_history_store = call_history_store
         self.voip_registered = initial_voip_registered
-        self.handling_incoming_call = False
         self.ringing_process: Optional[subprocess.Popen] = None
         self._event_bus: Optional[EventBus] = None
         self._bound = False
         self._active_call_session: _CallSessionDraft | None = None
+        self._pending_incoming_call: tuple[str, str] | None = None
 
     def bind(self, event_bus: EventBus) -> None:
         """Bind typed event subscriptions once."""
@@ -85,8 +88,6 @@ class CallCoordinator:
             raise RuntimeError("CallCoordinator is not bound to an EventBus")
 
         self._event_bus.publish(CallStateChangedEvent(state=state))
-        if state == CallState.RELEASED:
-            self._event_bus.publish(CallEndedEvent())
 
     def publish_registration_change(self, state: RegistrationState) -> None:
         """Publish registration changes from the VoIP manager thread."""
@@ -159,7 +160,7 @@ class CallCoordinator:
         self.handle_call_state_change(event.state)
 
     def _on_call_ended_event(self, event: CallEndedEvent) -> None:
-        self.handle_call_ended()
+        self.handle_call_ended(reason=event.reason)
 
     def _on_registration_changed_event(self, event: RegistrationChangedEvent) -> None:
         self.handle_registration_change(event.state)
@@ -168,36 +169,15 @@ class CallCoordinator:
         self.handle_availability_change(event.available, event.reason)
 
     def handle_incoming_call(self, caller_address: str, caller_name: str) -> None:
-        """Coordinate music pause and UI transitions for an incoming call."""
-        if self.handling_incoming_call:
-            logger.debug(f"Already handling call from {caller_name}")
-            return
-
-        self.handling_incoming_call = True
-        logger.info(f"Incoming call: {caller_name} ({caller_address})")
+        """Capture incoming-call metadata for the active incoming phase."""
+        logger.info(f"Incoming call metadata: {caller_name} ({caller_address})")
+        self._pending_incoming_call = (caller_address, caller_name)
         self._active_call_session = _CallSessionDraft(
             direction="incoming",
             display_name=caller_name or "Unknown",
             sip_address=caller_address,
         )
-
-        playback_state = (
-            self.runtime.music_backend.get_playback_state()
-            if self.runtime.music_backend and self.runtime.music_backend.is_connected
-            else "stopped"
-        )
-
-        if playback_state == "playing":
-            logger.info("Auto-pausing music for incoming call")
-            self.runtime.call_interruption_policy.pause_for_call(self.runtime.music_fsm)
-            if self.runtime.music_backend:
-                self.runtime.music_backend.pause()
-
-        self.runtime.call_fsm.transition("incoming")
-        self.runtime.sync_app_state("incoming_call")
-
-        self.screen_coordinator.show_incoming_call(caller_address, caller_name)
-        self.start_ringing()
+        self._present_incoming_call_if_ready()
 
     def handle_call_state_change(self, state: CallState) -> None:
         """Coordinate high-level call state updates."""
@@ -212,11 +192,28 @@ class CallCoordinator:
             self._ensure_outgoing_call_session()
             self.runtime.call_fsm.transition("dial")
             self.runtime.sync_app_state("call_outgoing")
+            if self._active_call_session is not None:
+                caller_info = self._current_caller_info()
+                if caller_info:
+                    self._active_call_session.display_name = str(
+                        caller_info.get("display_name")
+                        or caller_info.get("name")
+                        or self._active_call_session.display_name
+                    )
+                    self._active_call_session.sip_address = str(
+                        caller_info.get("address") or self._active_call_session.sip_address
+                    )
+                self.screen_coordinator.show_outgoing_call(
+                    self._active_call_session.sip_address,
+                    self._active_call_session.display_name,
+                )
             return
 
         if state == CallState.INCOMING:
+            self._pause_music_for_incoming_call()
             self.runtime.call_fsm.transition("incoming")
             self.runtime.sync_app_state("call_incoming_state")
+            self._present_incoming_call_if_ready()
             return
 
         if state in (CallState.CONNECTED, CallState.STREAMS_RUNNING):
@@ -229,20 +226,49 @@ class CallCoordinator:
                 logger.info("In call (music paused in background)")
             self.screen_coordinator.show_in_call()
             self.stop_ringing()
+            return
 
-    def handle_call_ended(self) -> None:
+        if state in (CallState.RELEASED, CallState.END, CallState.ERROR):
+            if not self._has_live_call_state():
+                logger.debug("Ignoring duplicate terminal call state {}", state.value)
+                return
+
+            local_end_action = self._consume_pending_terminal_action()
+            if self._active_call_session is not None:
+                self._active_call_session.terminal_state = state
+                self._active_call_session.local_end_action = local_end_action
+            self.handle_call_ended(reason=state.value)
+            return
+
+        logger.debug("Call state {} does not change coordinator phase", state.value)
+
+    def handle_call_ended(self, *, reason: str = "released") -> None:
         """Coordinate call cleanup and possible music resume."""
-        logger.info("Call ended")
+        if not self.runtime.call_fsm.is_active and self._active_call_session is None:
+            logger.warning(
+                "Ignoring terminal call teardown without an active session (reason: {})",
+                reason,
+            )
+            self.stop_ringing()
+            self._pending_incoming_call = None
+            self.screen_coordinator.pop_call_screens()
+            self.runtime.sync_app_state(f"call_ended:{reason}")
+            return
+
+        logger.info("Call ended ({})", reason)
 
         self.stop_ringing()
-        self.handling_incoming_call = False
+        self._pending_incoming_call = None
         self._finalize_call_history()
         self.screen_coordinator.pop_call_screens()
 
         should_resume = self.runtime.call_interruption_policy.should_auto_resume(
             self.auto_resume_after_call
         )
-        self.runtime.call_fsm.transition("end")
+        if self.runtime.call_fsm.is_active:
+            self.runtime.call_fsm.transition("end")
+        else:
+            self.runtime.call_fsm.sync(CallSessionState.IDLE)
 
         if should_resume:
             logger.info("Auto-resuming music after call")
@@ -301,8 +327,8 @@ class CallCoordinator:
         self.stop_ringing()
         self.screen_coordinator.refresh_call_screen_if_visible()
 
-        if self.runtime.call_fsm.is_active:
-            self.handle_call_ended()
+        if self.runtime.call_fsm.is_active or self._active_call_session is not None:
+            self.handle_call_ended(reason=reason or "unavailable")
 
     def _is_voip_configured(self) -> bool:
         """Return whether the app has meaningful SIP identity data configured."""
@@ -328,17 +354,69 @@ class CallCoordinator:
             sip_address=str(caller_info.get("address") or ""),
         )
 
+    def _pause_music_for_incoming_call(self) -> None:
+        """Pause active playback once when a call enters the incoming phase."""
+
+        playback_state = (
+            self.runtime.music_backend.get_playback_state()
+            if self.runtime.music_backend and self.runtime.music_backend.is_connected
+            else "stopped"
+        )
+        if playback_state != "playing":
+            return
+
+        logger.info("Auto-pausing music for incoming call")
+        self.runtime.call_interruption_policy.pause_for_call(self.runtime.music_fsm)
+        if self.runtime.music_backend:
+            self.runtime.music_backend.pause()
+
+    def _present_incoming_call_if_ready(self) -> None:
+        """Show the incoming-call screen once state and caller metadata are both known."""
+
+        if self.runtime.call_fsm.state != CallSessionState.INCOMING:
+            return
+        if self._pending_incoming_call is None:
+            logger.debug("Incoming call phase entered before caller metadata arrived")
+            return
+
+        caller_address, caller_name = self._pending_incoming_call
+        self.screen_coordinator.show_incoming_call(caller_address, caller_name)
+        self.start_ringing()
+
+    def _has_live_call_state(self) -> bool:
+        """Return whether the coordinator still has a live call to tear down."""
+
+        return self.runtime.call_fsm.is_active or self._active_call_session is not None
+
+    def _consume_pending_terminal_action(self) -> str | None:
+        """Return any locally initiated teardown action awaiting terminal backend state."""
+
+        voip_manager = self._current_voip_manager()
+        consume_action = getattr(voip_manager, "consume_pending_terminal_action", None)
+        if callable(consume_action):
+            return consume_action()
+        return None
+
+    def _current_voip_manager(self) -> object | None:
+        """Return the shared VoIP manager from any registered call screen."""
+
+        for screen in (
+            self.runtime.call_screen,
+            self.runtime.outgoing_call_screen,
+            self.runtime.incoming_call_screen,
+            self.runtime.in_call_screen,
+        ):
+            voip_manager = getattr(screen, "voip_manager", None)
+            if voip_manager is not None:
+                return voip_manager
+        return None
+
     def _current_caller_info(self) -> dict[str, str]:
         """Return the current caller/callee metadata from the VoIP manager."""
 
-        call_voip_manager = getattr(self.runtime.call_screen, "voip_manager", None)
-        if call_voip_manager is not None:
-            return dict(call_voip_manager.get_caller_info())
-
-        in_call_voip_manager = getattr(self.runtime.in_call_screen, "voip_manager", None)
-        if in_call_voip_manager is not None:
-            return dict(in_call_voip_manager.get_caller_info())
-
+        voip_manager = self._current_voip_manager()
+        if voip_manager is not None:
+            return dict(voip_manager.get_caller_info())
         return {}
 
     def _finalize_call_history(self) -> None:
@@ -358,10 +436,14 @@ class CallCoordinator:
         if call_voip_manager is not None:
             call_duration = int(call_voip_manager.get_call_duration())
 
-        if draft.direction == "incoming" and not draft.answered:
-            outcome = "missed"
-        elif draft.answered:
+        if draft.answered:
             outcome = "completed"
+        elif draft.direction == "incoming" and draft.local_end_action == "reject":
+            outcome = "rejected"
+        elif draft.terminal_state == CallState.ERROR:
+            outcome = "failed"
+        elif draft.direction == "incoming":
+            outcome = "missed"
         else:
             outcome = "cancelled"
 

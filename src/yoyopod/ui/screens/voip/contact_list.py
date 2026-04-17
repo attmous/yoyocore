@@ -266,9 +266,7 @@ class ContactListScreen(Screen):
 
         contact = self.contacts[self.selected_index]
         logger.info(f"Calling contact: {contact.display_name} at {contact.sip_address}")
-        if self.voip_manager.make_call(contact.sip_address, contact_name=contact.display_name):
-            self.request_route("call_started")
-        else:
+        if not self.voip_manager.make_call(contact.sip_address, contact_name=contact.display_name):
             logger.error(f"Failed to initiate call to {contact.display_name}")
 
     def choose_voice_note_recipient(self) -> None:
