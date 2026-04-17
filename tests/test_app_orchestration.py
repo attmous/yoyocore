@@ -1509,6 +1509,120 @@ def test_runtime_loop_service_refreshes_visible_power_screen() -> None:
     assert app.power_screen.render_calls > render_calls_before
 
 
+def test_runtime_loop_relaxes_idle_cadence_and_exposes_snapshot() -> None:
+    """Idle coordinator state should publish the relaxed cadence instead of the fast loop."""
+
+    app, _, _ = _build_app_with_power(
+        FakePowerManager([_power_snapshot(available=True, battery_percent=55.0)])
+    )
+    app.voip_manager = FakeRuntimeLoopVoIPManager()
+    app._voip_iterate_interval_seconds = 0.02
+
+    sleep_seconds = app.runtime_loop.next_sleep_interval_seconds(
+        monotonic_now=1.0,
+        current_time=1.0,
+        last_screen_update=1.0,
+        screen_update_interval=1.0,
+    )
+
+    status = app.get_status()
+    assert sleep_seconds == pytest.approx(0.05)
+    assert status["runtime_cadence_mode"] == "idle_awake"
+    assert status["runtime_cadence_reason"] == "screen_awake_idle"
+    assert status["runtime_target_sleep_seconds"] == pytest.approx(0.05)
+    assert status["runtime_requested_sleep_seconds"] == pytest.approx(0.05)
+    assert status["voip_iterate_interval_seconds"] == pytest.approx(0.02)
+    assert status["voip_effective_iterate_interval_seconds"] == pytest.approx(0.05)
+    assert status["runtime_cadence_age_seconds"] is not None
+
+
+def test_runtime_loop_uses_slower_screen_off_idle_cadence() -> None:
+    """Screen-off idle should stretch both the loop sleep and the VoIP deadline."""
+
+    app, _, _ = _build_app_with_power(
+        FakePowerManager([_power_snapshot(available=True, battery_percent=55.0)])
+    )
+    app.voip_manager = FakeRuntimeLoopVoIPManager()
+    app._voip_iterate_interval_seconds = 0.02
+    app._screen_awake = False
+    app._next_voip_iterate_at = 1.05
+
+    sleep_seconds = app.runtime_loop.next_sleep_interval_seconds(
+        monotonic_now=1.0,
+        current_time=1.0,
+        last_screen_update=1.0,
+        screen_update_interval=1.0,
+    )
+
+    status = app.get_status()
+    assert sleep_seconds == pytest.approx(0.1)
+    assert app._next_voip_iterate_at == pytest.approx(1.1)
+    assert status["runtime_cadence_mode"] == "idle_sleeping"
+    assert status["runtime_cadence_reason"] == "screen_sleeping"
+    assert status["runtime_target_sleep_seconds"] == pytest.approx(0.1)
+    assert status["runtime_requested_sleep_seconds"] == pytest.approx(0.1)
+    assert status["voip_effective_iterate_interval_seconds"] == pytest.approx(0.1)
+
+
+def test_runtime_loop_restores_fast_cadence_for_recent_input() -> None:
+    """Fresh input should immediately pull the runtime loop back to the fast cadence."""
+
+    app, _, _ = _build_app_with_power(
+        FakePowerManager([_power_snapshot(available=True, battery_percent=55.0)])
+    )
+    app.voip_manager = FakeRuntimeLoopVoIPManager()
+    app._voip_iterate_interval_seconds = 0.02
+
+    idle_sleep_seconds = app.runtime_loop.next_sleep_interval_seconds(
+        monotonic_now=1.0,
+        current_time=1.0,
+        last_screen_update=1.0,
+        screen_update_interval=1.0,
+    )
+    assert idle_sleep_seconds == pytest.approx(0.05)
+
+    app._next_voip_iterate_at = 1.05
+    app._last_input_activity_at = 0.9
+    fast_sleep_seconds = app.runtime_loop.next_sleep_interval_seconds(
+        monotonic_now=1.0,
+        current_time=1.0,
+        last_screen_update=1.0,
+        screen_update_interval=1.0,
+    )
+
+    status = app.get_status()
+    assert fast_sleep_seconds == pytest.approx(0.02)
+    assert app._next_voip_iterate_at == pytest.approx(1.02)
+    assert status["runtime_cadence_mode"] == "latency_sensitive"
+    assert status["runtime_cadence_reason"] == "recent_input"
+    assert status["voip_effective_iterate_interval_seconds"] == pytest.approx(0.02)
+
+
+def test_runtime_loop_keeps_fast_cadence_during_call_states() -> None:
+    """Call-active coordinator states should not relax the runtime cadence."""
+
+    harness = OrchestrationHarness.build(
+        power_manager=FakePowerManager([_power_snapshot(available=True, battery_percent=55.0)])
+    )
+    harness.app.voip_manager = FakeRuntimeLoopVoIPManager()
+    harness.app._voip_iterate_interval_seconds = 0.02
+    harness.sync_runtime(call_state=CallSessionState.ACTIVE, trigger="call_active")
+
+    sleep_seconds = harness.app.runtime_loop.next_sleep_interval_seconds(
+        monotonic_now=1.0,
+        current_time=1.0,
+        last_screen_update=1.0,
+        screen_update_interval=1.0,
+    )
+
+    status = harness.app.get_status()
+    assert sleep_seconds == pytest.approx(0.02)
+    assert status["state"] == AppRuntimeState.CALL_ACTIVE.value
+    assert status["runtime_cadence_mode"] == "latency_sensitive"
+    assert status["runtime_cadence_reason"] == "call_or_connecting_state"
+    assert status["voip_effective_iterate_interval_seconds"] == pytest.approx(0.02)
+
+
 def test_runtime_loop_logs_voip_timing_drift_and_exposes_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
