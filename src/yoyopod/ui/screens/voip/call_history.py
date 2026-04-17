@@ -244,8 +244,11 @@ class CallHistoryScreen(Screen):
             return
 
         logger.info(f"Redialing recent contact: {selected.title} ({selected.sip_address})")
-        if self.voip_manager.make_call(selected.sip_address, contact_name=selected.display_name):
-            self.request_route("call_started")
+        if not self.voip_manager.make_call(
+            selected.sip_address,
+            contact_name=selected.display_name,
+        ):
+            logger.error(f"Failed to redial recent contact: {selected.title}")
 
     def on_back(self, data=None) -> None:
         """Return to the previous screen."""

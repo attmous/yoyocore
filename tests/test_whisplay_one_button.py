@@ -557,25 +557,25 @@ def test_incoming_call_select_answers_and_back_rejects(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """Incoming calls should answer on SELECT and reject on BACK."""
+    """Incoming-call actions should defer navigation to coordinator call-state events."""
     voip_manager = FakeVoIPManager()
     screen = IncomingCallScreen(display, one_button_context, voip_manager=voip_manager)
 
     screen.on_advance()
     screen.on_select()
     assert voip_manager.answer_calls == 1
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_answered")
+    assert screen.consume_navigation_request() is None
 
     screen.on_back()
     assert voip_manager.reject_calls == 1
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_rejected")
+    assert screen.consume_navigation_request() is None
 
 
 def test_outgoing_call_back_cancels_call(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """Outgoing calls should cancel on BACK in one-button mode."""
+    """Outgoing-call cancel should wait for backend teardown before navigation."""
     voip_manager = FakeVoIPManager()
     screen = OutgoingCallScreen(display, one_button_context, voip_manager=voip_manager)
 
@@ -584,14 +584,14 @@ def test_outgoing_call_back_cancels_call(
     screen.on_back()
 
     assert voip_manager.hangup_calls == 1
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_hangup")
+    assert screen.consume_navigation_request() is None
 
 
 def test_in_call_advance_toggles_mute_and_back_hangs_up(
     display: Display,
     one_button_context: AppContext,
 ) -> None:
-    """In-call view should use ADVANCE for mute and BACK for hangup."""
+    """In-call actions should leave teardown navigation to the coordinator."""
     voip_manager = FakeVoIPManager()
     screen = InCallScreen(display, one_button_context, voip_manager=voip_manager)
 
@@ -600,4 +600,4 @@ def test_in_call_advance_toggles_mute_and_back_hangs_up(
 
     assert voip_manager.toggle_mute_calls == 1
     assert voip_manager.hangup_calls == 1
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_hangup")
+    assert screen.consume_navigation_request() is None

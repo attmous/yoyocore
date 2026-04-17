@@ -33,6 +33,7 @@ class VoiceCommandOutcome:
     body: str
     should_speak: bool = True
     route_name: str | None = None
+    auto_return: bool = True
 
 
 class VoiceSettingsResolver:
@@ -285,7 +286,7 @@ class VoiceCommandExecutor:
             return VoiceCommandOutcome(
                 "Calling",
                 f"Calling {display_name}.",
-                route_name="call_started",
+                auto_return=False,
             )
 
         return VoiceCommandOutcome("Call Failed", f"I could not call {display_name}.")

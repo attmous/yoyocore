@@ -101,3 +101,13 @@ class ScreenCoordinator:
         if self.runtime.screen_manager.current_screen != self.runtime.in_call_screen:
             self.runtime.screen_manager.push_screen("in_call")
             logger.info("  → Pushed in-call screen")
+
+    def show_outgoing_call(self, callee_address: str, callee_name: str) -> None:
+        """Update and show the outgoing-call screen."""
+        self.runtime.outgoing_call_screen.callee_address = callee_address
+        self.runtime.outgoing_call_screen.callee_name = callee_name or "Unknown"
+        self.runtime.outgoing_call_screen.ring_animation_frame = 0
+
+        if self.runtime.screen_manager.current_screen != self.runtime.outgoing_call_screen:
+            self.runtime.screen_manager.push_screen("outgoing_call")
+            logger.info("  → Pushed outgoing call screen")

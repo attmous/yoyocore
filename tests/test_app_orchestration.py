@@ -567,12 +567,11 @@ def test_incoming_call_pauses_playing_music_once() -> None:
     harness = OrchestrationHarness.build(playback_state="playing")
     harness.sync_runtime(music_state=MusicState.PLAYING, trigger="playback_playing")
 
-    harness.publish(
-        IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"),
-    )
+    harness.publish(CallStateChangedEvent(state=CallState.INCOMING))
+    harness.publish(IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"))
 
     assert harness.music_backend.pause_calls == 0
-    assert harness.drain_events() == 1
+    assert harness.drain_events() == 2
     assert harness.music_backend.pause_calls == 1
     assert harness.music_fsm.state == MusicState.PAUSED
     assert harness.call_fsm.state == CallSessionState.INCOMING
@@ -587,6 +586,26 @@ def test_incoming_call_pauses_playing_music_once() -> None:
     assert harness.drain_events() == 1
     assert harness.music_backend.pause_calls == 1
     assert len(harness.screen_manager.screen_stack) == 2
+
+
+def test_incoming_call_metadata_waits_for_incoming_state_before_mutating_runtime() -> None:
+    """Caller metadata alone should not move the runtime into an active incoming phase."""
+    harness = OrchestrationHarness.build(playback_state="playing")
+    harness.sync_runtime(music_state=MusicState.PLAYING, trigger="playback_playing")
+
+    harness.publish(IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"))
+
+    assert harness.drain_events() == 1
+    assert harness.music_backend.pause_calls == 0
+    assert harness.call_fsm.state == CallSessionState.IDLE
+    assert harness.screen_manager.current_screen is harness.screens.menu
+
+    harness.publish(CallStateChangedEvent(state=CallState.INCOMING))
+
+    assert harness.drain_events() == 1
+    assert harness.music_backend.pause_calls == 1
+    assert harness.call_fsm.state == CallSessionState.INCOMING
+    assert harness.screen_manager.current_screen is harness.screens.incoming_call
 
 
 def test_call_end_auto_resumes_only_when_enabled() -> None:
@@ -642,7 +661,7 @@ def test_outgoing_call_does_not_change_idle_or_paused_music(
     playback_state: str,
 ) -> None:
     """Outgoing call state changes should not mutate paused or idle music state."""
-    app, _, _ = _build_app(playback_state=playback_state)
+    app, _, screen_manager = _build_app(playback_state=playback_state)
     app.music_fsm.sync(music_state)
     app.coordinator_runtime.sync_app_state("test_setup")
 
@@ -651,6 +670,46 @@ def test_outgoing_call_does_not_change_idle_or_paused_music(
     assert app.event_bus.drain() == 1
     assert app.call_fsm.state == CallSessionState.OUTGOING
     assert app.music_fsm.state == music_state
+    assert screen_manager.current_screen is app.outgoing_call_screen
+
+
+def test_terminal_error_state_ends_incoming_call_without_waiting_for_released() -> None:
+    """Terminal backend errors should unwind the incoming-call flow immediately."""
+
+    harness = OrchestrationHarness.build(playback_state="playing", auto_resume=True)
+    harness.sync_runtime(music_state=MusicState.PLAYING, trigger="playback_playing")
+
+    harness.publish(
+        IncomingCallEvent(caller_address="sip:alice@example.com", caller_name="Alice"),
+    )
+    assert harness.drain_events() == 1
+
+    harness.publish(CallStateChangedEvent(state=CallState.INCOMING))
+    assert harness.drain_events() == 1
+
+    harness.publish(CallStateChangedEvent(state=CallState.ERROR))
+
+    assert harness.drain_events() == 1
+    assert harness.call_fsm.state == CallSessionState.IDLE
+    assert harness.music_fsm.state == MusicState.PLAYING
+    assert harness.music_backend.play_calls == 1
+    assert harness.screen_manager.current_screen is harness.screens.menu
+
+
+def test_terminal_end_state_clears_outgoing_call_without_waiting_for_released() -> None:
+    """Cancelled or rejected call terminals should clear the outgoing phase directly."""
+
+    harness = OrchestrationHarness.build(playback_state="stopped")
+
+    harness.publish(CallStateChangedEvent(state=CallState.OUTGOING))
+    assert harness.drain_events() == 1
+    assert harness.screen_manager.current_screen is harness.screens.outgoing_call
+
+    harness.publish(CallStateChangedEvent(state=CallState.END))
+
+    assert harness.drain_events() == 1
+    assert harness.call_fsm.state == CallSessionState.IDLE
+    assert harness.screen_manager.current_screen is harness.screens.menu
 
 
 def test_background_events_wait_for_drain_before_mutating_state() -> None:
@@ -712,6 +771,29 @@ def test_voip_unavailable_event_ends_call_and_restores_music() -> None:
     harness.publish(
         VoIPAvailabilityChangedEvent(available=False, reason="backend_stopped"),
     )
+
+    assert harness.drain_events() == 1
+    assert harness.call_fsm.state == CallSessionState.IDLE
+    assert harness.music_fsm.state == MusicState.PLAYING
+    assert harness.music_backend.play_calls == 1
+    assert harness.screen_manager.current_screen is harness.screens.menu
+
+
+@pytest.mark.parametrize(
+    "terminal_state",
+    [CallState.RELEASED, CallState.END, CallState.ERROR],
+)
+def test_terminal_call_states_end_call_and_restore_music(terminal_state: CallState) -> None:
+    """Every terminal backend call state should follow the same teardown path."""
+    harness = OrchestrationHarness.build(playback_state="paused", auto_resume=True)
+    harness.sync_runtime(
+        music_state=MusicState.PAUSED,
+        call_state=CallSessionState.ACTIVE,
+        music_interrupted_by_call=True,
+    )
+    harness.push_screens("in_call")
+
+    harness.publish(CallStateChangedEvent(state=terminal_state))
 
     assert harness.drain_events() == 1
     assert harness.call_fsm.state == CallSessionState.IDLE

@@ -355,16 +355,35 @@ def test_voip_manager_applies_backend_events_and_resolves_contact_names() -> Non
 
 
 def test_voip_manager_delegates_outgoing_commands_to_backend() -> None:
-    """Outgoing call commands should be delegated through the backend boundary."""
+    """Outgoing commands should not invent local call phases before backend events arrive."""
 
     backend = MockVoIPBackend()
     manager = VoIPManager(build_config(), backend=backend)
+    call_states: list[CallState] = []
 
     backend.emit(RegistrationStateChanged(state=RegistrationState.OK))
+    manager.on_call_state_change(call_states.append)
 
     assert manager.make_call("sip:bob@example.com", contact_name="Bob")
     assert backend.commands == ["call sip:bob@example.com"]
+    assert call_states == []
+    assert manager.call_state == CallState.IDLE
     assert manager.get_caller_info()["display_name"] == "Bob"
+
+
+def test_voip_manager_starts_timer_on_streams_running_without_connected() -> None:
+    """Streams-running callbacks should start live duration tracking on their own."""
+
+    backend = MockVoIPBackend()
+    manager = VoIPManager(build_config(), backend=backend)
+    started: list[bool] = []
+    manager._start_call_timer = lambda: started.append(True)  # type: ignore[method-assign]
+
+    assert manager.start()
+
+    backend.emit(CallStateChanged(state=CallState.STREAMS_RUNNING))
+
+    assert started == [True]
 
 
 def test_voip_manager_tracks_voice_note_send_and_delivery() -> None:

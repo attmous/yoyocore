@@ -155,7 +155,7 @@ def test_call_screen_select_opens_selected_contact(display: Display) -> None:
 
 
 def test_talk_contact_screen_calls_selected_person(display: Display) -> None:
-    """The contact action screen should call the selected person when Call is chosen."""
+    """The contact action screen should delegate dialing without owning navigation."""
 
     context = AppContext()
     context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
@@ -166,7 +166,7 @@ def test_talk_contact_screen_calls_selected_person(display: Display) -> None:
     screen.on_select()
 
     assert voip_manager.make_calls == [("sip:alice@example.com", "Mama")]
-    assert screen.consume_navigation_request() == NavigationRequest.route("call_started")
+    assert screen.consume_navigation_request() is None
 
 
 def test_talk_contact_screen_routes_to_voice_note(display: Display) -> None:

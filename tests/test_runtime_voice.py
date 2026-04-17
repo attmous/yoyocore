@@ -175,7 +175,7 @@ def test_voice_command_executor_routes_call_and_updates_context() -> None:
     assert outcome == VoiceCommandOutcome(
         "Calling",
         "Calling Mama.",
-        route_name="call_started",
+        auto_return=False,
     )
     assert context.talk_contact_name == "Mama"
     assert voip_manager.make_calls == [("sip:mama@example.com", "Mama")]
