@@ -1229,6 +1229,9 @@ int yoyopod_lvgl_hub_sync(
         yoyopod_set_error("hub scene must be built before sync");
         return -1;
     }
+    if(yoyopod_require_scene_screen(g_hub_scene.screen, "hub scene screen is unavailable during sync") != 0) {
+        return -1;
+    }
 
     const lv_color_t background = yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB);
     const lv_color_t footer_fill = yoyopod_color_u24(YOYOPOD_THEME_FOOTER_RGB);
@@ -1387,6 +1390,9 @@ int yoyopod_lvgl_talk_sync(
 ) {
     if(!g_talk_scene.built) {
         yoyopod_set_error("talk scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(g_talk_scene.screen, "talk scene screen is unavailable during sync") != 0) {
         return -1;
     }
 
@@ -1575,6 +1581,12 @@ int yoyopod_lvgl_talk_actions_sync(
 ) {
     if(!g_talk_actions_scene.built) {
         yoyopod_set_error("talk-actions scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(
+        g_talk_actions_scene.screen,
+        "talk-actions scene screen is unavailable during sync"
+    ) != 0) {
         return -1;
     }
 
@@ -1851,6 +1863,9 @@ int yoyopod_lvgl_listen_sync(
 ) {
     if(!g_listen_scene.built) {
         yoyopod_set_error("listen scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(g_listen_scene.screen, "listen scene screen is unavailable during sync") != 0) {
         return -1;
     }
 
@@ -2144,6 +2159,12 @@ int yoyopod_lvgl_playlist_sync(
         yoyopod_set_error("playlist scene must be built before sync");
         return -1;
     }
+    if(yoyopod_require_scene_screen(
+        g_playlist_scene.screen,
+        "playlist scene screen is unavailable during sync"
+    ) != 0) {
+        return -1;
+    }
 
     const lv_color_t background = yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB);
     const lv_color_t surface = yoyopod_color_u24(YOYOPOD_THEME_SURFACE_RGB);
@@ -2433,6 +2454,12 @@ int yoyopod_lvgl_now_playing_sync(
         yoyopod_set_error("now-playing scene must be built before sync");
         return -1;
     }
+    if(yoyopod_require_scene_screen(
+        g_now_playing_scene.screen,
+        "now-playing scene screen is unavailable during sync"
+    ) != 0) {
+        return -1;
+    }
 
     const lv_color_t background = yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB);
     const lv_color_t ink = yoyopod_color_u24(YOYOPOD_THEME_INK_RGB);
@@ -2626,6 +2653,12 @@ int yoyopod_lvgl_incoming_call_sync(
         yoyopod_set_error("incoming-call scene must be built before sync");
         return -1;
     }
+    if(yoyopod_require_scene_screen(
+        g_incoming_call_scene.screen,
+        "incoming-call scene screen is unavailable during sync"
+    ) != 0) {
+        return -1;
+    }
 
     (void)caller_address;
     const lv_color_t background = yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB);
@@ -2767,6 +2800,12 @@ int yoyopod_lvgl_outgoing_call_sync(
 ) {
     if(!g_outgoing_call_scene.built) {
         yoyopod_set_error("outgoing-call scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(
+        g_outgoing_call_scene.screen,
+        "outgoing-call scene screen is unavailable during sync"
+    ) != 0) {
         return -1;
     }
 
@@ -2929,6 +2968,9 @@ int yoyopod_lvgl_in_call_sync(
         yoyopod_set_error("in-call scene must be built before sync");
         return -1;
     }
+    if(yoyopod_require_scene_screen(g_in_call_scene.screen, "in-call scene screen is unavailable during sync") != 0) {
+        return -1;
+    }
 
     const lv_color_t background = yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB);
     const lv_color_t ink = yoyopod_color_u24(YOYOPOD_THEME_INK_RGB);
@@ -3082,6 +3124,9 @@ int yoyopod_lvgl_ask_sync(
 ) {
     if(!g_ask_scene.built) {
         yoyopod_set_error("ask scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(g_ask_scene.screen, "ask scene screen is unavailable during sync") != 0) {
         return -1;
     }
 
@@ -3288,6 +3333,9 @@ int yoyopod_lvgl_power_sync(
 ) {
     if(!g_power_scene.built) {
         yoyopod_set_error("power scene must be built before sync");
+        return -1;
+    }
+    if(yoyopod_require_scene_screen(g_power_scene.screen, "power scene screen is unavailable during sync") != 0) {
         return -1;
     }
 
