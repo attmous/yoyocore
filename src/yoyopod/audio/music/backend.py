@@ -214,7 +214,7 @@ class MpvBackend:
                     self._last_time_position_stale_log_at = now
                     should_log_stale = True
         if last_update is None:
-            return 0
+            return _coerce_time_position_ms(self._get_property("time-pos"))
         if is_stale:
             # Returning 0 keeps a stuck playback clock visible instead of
             # showing a frozen progress bar that still looks healthy.

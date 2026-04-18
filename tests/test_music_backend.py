@@ -670,6 +670,31 @@ def test_mpv_backend_get_time_position_returns_zero_for_non_numeric_observed_val
     assert backend.get_time_position() == 0
 
 
+def test_mpv_backend_get_time_position_falls_back_to_sync_read_until_cached() -> None:
+    class FakeIpc:
+        connected = True
+
+        def __init__(self) -> None:
+            self.time_pos_reads = [12.5, 13.0]
+
+        def send_command(self, args: list[object]) -> dict[str, object]:
+            assert args == ["get_property", "time-pos"]
+            return {"error": "success", "data": self.time_pos_reads.pop(0)}
+
+    class FakeProcess:
+        def is_alive(self) -> bool:
+            return True
+
+    backend = MpvBackend(MusicConfig())
+    backend._connected = True
+    backend._ipc = FakeIpc()
+    backend._process = FakeProcess()
+
+    assert backend.get_time_position() == 12500
+    assert backend.get_time_position() == 13000
+    assert backend._last_time_position_cache_update is None
+
+
 def test_mpv_backend_get_time_position_returns_zero_when_disconnected() -> None:
     class FakeIpc:
         connected = False
