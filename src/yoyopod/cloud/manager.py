@@ -488,7 +488,11 @@ class CloudManager:
 
         assert payload is not None
         config_version = int(payload.get("config_version") or 0)
-        unapplied_keys = self.config_manager.apply_cloud_overrides(payload)
+        self._apply_cloud_contacts(payload)
+        runtime_payload = {
+            key: value for key, value in payload.items() if key != "contacts"
+        }
+        unapplied_keys = self.config_manager.apply_cloud_overrides(runtime_payload)
         self._apply_runtime_side_effects(payload)
         self.status.backend_reachable = True
         self.status.cloud_state = "ready"
@@ -616,6 +620,23 @@ class CloudManager:
 
         self._sync_context_state()
 
+    def _apply_cloud_contacts(self, payload: dict[str, Any]) -> None:
+        """Merge cloud-managed contacts into the mutable people directory."""
+
+        contacts_payload = payload.get("contacts", {})
+        if not isinstance(contacts_payload, dict):
+            return
+
+        entries = contacts_payload.get("entries", [])
+        if not isinstance(entries, list):
+            return
+
+        if self.app.people_directory is None:
+            logger.warning("Skipping cloud contacts sync because no people directory is loaded")
+            return
+
+        self.app.people_directory.merge_cloud_contacts(entries)
+
     def _load_cached_config(self) -> None:
         cache_path = self._cache_path()
         if not cache_path.exists():
@@ -646,7 +667,11 @@ class CloudManager:
             logger.warning("Ignoring malformed cloud config cache payload {}", cache_path)
             return
 
-        unapplied_keys = self.config_manager.apply_cloud_overrides(raw_payload)
+        self._apply_cloud_contacts(raw_payload)
+        runtime_payload = {
+            key: value for key, value in raw_payload.items() if key != "contacts"
+        }
+        unapplied_keys = self.config_manager.apply_cloud_overrides(runtime_payload)
         self._apply_runtime_side_effects(raw_payload)
         self.status.config_source = "cache"
         self.status.config_version = int(payload.get("config_version") or 0)

@@ -7,6 +7,7 @@ from pathlib import Path
 from loguru import logger
 
 from yoyopod.config.storage import atomic_write_yaml, load_yaml_mapping
+from yoyopod.people.cloud_sync import build_cloud_contact
 from yoyopod.people.models import Contact, contacts_from_mapping, contacts_to_mapping
 
 
@@ -91,6 +92,13 @@ class PeopleDirectory:
             return [contact for contact in self.contacts if contact.favorite]
         return list(self.contacts)
 
+    def get_callable_contacts(self, *, gsm_enabled: bool = False) -> list[Contact]:
+        """Return contacts that can be called on the currently enabled transports."""
+
+        return [
+            contact for contact in self.contacts if contact.is_callable(gsm_enabled=gsm_enabled)
+        ]
+
     def get_contact_by_name(self, name: str) -> Contact | None:
         """Return one contact matched by source name."""
 
@@ -160,6 +168,49 @@ class PeopleDirectory:
 
         self.speed_dial[number] = sip_address
         self.save()
+
+    def merge_cloud_contacts(self, entries: list[dict[str, object]]) -> bool:
+        """Replace the cloud-managed contact subset while preserving local contacts."""
+
+        existing_cloud_addresses = {
+            contact.sip_address.strip()
+            for contact in self.contacts
+            if contact.sync_origin == "cloud" and contact.sip_address.strip()
+        }
+        local_contacts = [
+            contact for contact in self.contacts if contact.sync_origin != "cloud"
+        ]
+
+        merged_cloud_contacts: list[Contact] = []
+        updated_speed_dial = {
+            int(slot): address
+            for slot, address in self.speed_dial.items()
+            if address not in existing_cloud_addresses
+        }
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            contact = build_cloud_contact(entry)
+            if contact is None:
+                continue
+            merged_cloud_contacts.append(contact)
+
+            quick_dial = entry.get("quick_dial")
+            if isinstance(quick_dial, int) and 1 <= quick_dial <= 9:
+                route, address = contact.preferred_call_target(gsm_enabled=False)
+                if route == "sip" and address:
+                    updated_speed_dial[quick_dial] = address
+
+        self.contacts = local_contacts + merged_cloud_contacts
+        self.speed_dial = dict(sorted(updated_speed_dial.items()))
+        logger.info(
+            "Merged {} cloud contacts into {} (preserved {} local contacts)",
+            len(merged_cloud_contacts),
+            self.contacts_file,
+            len(local_contacts),
+        )
+        return self.save()
 
     def reload(self) -> bool:
         """Reload mutable people data from disk."""
