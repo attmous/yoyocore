@@ -102,9 +102,6 @@ class AskScreen(AskScreenVoiceMixin, AskScreenRenderingMixin, Screen):
         self.voice_runtime.cancel()
         self._cancel_auto_return()
         self._quick_command = False
-        if self._lvgl_view is not None:
-            self._lvgl_view.destroy()
-            self._lvgl_view = None
         super().exit()
 
     def set_screen_manager(self, manager) -> None:

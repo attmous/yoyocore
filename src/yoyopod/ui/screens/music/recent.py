@@ -49,10 +49,7 @@ class RecentTracksScreen(Screen):
         self.refresh_tracks()
 
     def exit(self) -> None:
-        """Tear down any active LVGL view when leaving recents."""
-        if self._lvgl_view is not None:
-            self._lvgl_view.destroy()
-            self._lvgl_view = None
+        """Leave the retained LVGL recent-tracks view alive across transitions."""
         super().exit()
 
     def _ensure_lvgl_view(self) -> "ScreenView | None":

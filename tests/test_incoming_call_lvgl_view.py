@@ -45,8 +45,8 @@ class FakeLvglDisplay:
         return self._ui_backend
 
 
-def test_incoming_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """IncomingCallScreen should delegate lifecycle and caller state to LVGL."""
+def test_incoming_call_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
+    """IncomingCallScreen should retain its LVGL view across transitions."""
 
     binding = FakeLvglBinding()
     display = FakeLvglDisplay(binding)
@@ -78,7 +78,13 @@ def test_incoming_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert payload["footer"] == "Tap = Answer | Hold = Decline"
 
     screen.exit()
-    assert binding.incoming_call_destroy_calls == 1
+    assert binding.incoming_call_destroy_calls == 0
+
+    screen.enter()
+    screen.render()
+
+    assert binding.incoming_call_build_calls == 1
+    assert len(binding.incoming_call_sync_payloads) == 2
 
 
 def test_incoming_call_screen_uses_safe_unknown_defaults_through_lvgl() -> None:

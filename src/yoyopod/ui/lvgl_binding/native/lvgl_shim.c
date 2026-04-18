@@ -340,6 +340,8 @@ static void yoyopod_reset_power_scene_refs(void) {
 
 static void yoyopod_reset_scene_refs(void) {
     yoyopod_reset_hub_scene_refs();
+    yoyopod_reset_talk_scene_refs();
+    yoyopod_reset_talk_actions_scene_refs();
     yoyopod_reset_listen_scene_refs();
     yoyopod_reset_playlist_scene_refs();
     yoyopod_reset_now_playing_scene_refs();
@@ -424,6 +426,19 @@ static void yoyopod_prepare_active_screen(void) {
     lv_obj_clean(screen);
     yoyopod_clear_group();
     yoyopod_reset_scene_refs();
+}
+
+static void yoyopod_release_scene_screen(lv_obj_t * screen) {
+    if(screen == NULL) {
+        return;
+    }
+
+    if(lv_screen_active() == screen) {
+        lv_obj_clean(screen);
+        return;
+    }
+
+    lv_obj_delete(screen);
 }
 
 static lv_obj_t * yoyopod_create_card(lv_obj_t * screen, const char * title, const char * subtitle, lv_color_t accent) {
@@ -1084,9 +1099,11 @@ int yoyopod_lvgl_hub_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_hub_scene.screen = lv_screen_active();
+    g_hub_scene.screen = lv_obj_create(NULL);
+    if(g_hub_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for hub scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_hub_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_hub_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_hub_scene.screen, &g_hub_scene.status_bar, 1);
@@ -1231,6 +1248,11 @@ int yoyopod_lvgl_hub_sync(
         yoyopod_hub_style_dot(g_hub_scene.dots[index], ink, selected);
     }
 
+    if(g_hub_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_hub_scene.screen);
+    }
+
     return 0;
 }
 
@@ -1239,9 +1261,7 @@ void yoyopod_lvgl_hub_destroy(void) {
         return;
     }
 
-    if(g_hub_scene.screen != NULL) {
-        lv_obj_clean(g_hub_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_hub_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_hub_scene_refs();
 }
@@ -1256,9 +1276,11 @@ int yoyopod_lvgl_talk_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_talk_scene.screen = lv_screen_active();
+    g_talk_scene.screen = lv_obj_create(NULL);
+    if(g_talk_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for talk scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_talk_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_talk_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_talk_scene.screen, &g_talk_scene.status_bar, 1);
@@ -1390,6 +1412,12 @@ int yoyopod_lvgl_talk_sync(
     }
 
     yoyopod_apply_footer_label(g_talk_scene.footer_label, footer, muted_dim);
+
+    if(g_talk_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_talk_scene.screen);
+    }
+
     return 0;
 }
 
@@ -1398,9 +1426,7 @@ void yoyopod_lvgl_talk_destroy(void) {
         return;
     }
 
-    if(g_talk_scene.screen != NULL) {
-        lv_obj_clean(g_talk_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_talk_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_talk_scene_refs();
 }
@@ -1415,9 +1441,11 @@ int yoyopod_lvgl_talk_actions_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_talk_actions_scene.screen = lv_screen_active();
+    g_talk_actions_scene.screen = lv_obj_create(NULL);
+    if(g_talk_actions_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for talk actions scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_talk_actions_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_talk_actions_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_talk_actions_scene.screen, &g_talk_actions_scene.status_bar, 1);
@@ -1633,6 +1661,12 @@ int yoyopod_lvgl_talk_actions_sync(
     }
 
     yoyopod_apply_footer_label(g_talk_actions_scene.footer_label, footer, muted_dim);
+
+    if(g_talk_actions_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_talk_actions_scene.screen);
+    }
+
     return 0;
 }
 
@@ -1641,9 +1675,7 @@ void yoyopod_lvgl_talk_actions_destroy(void) {
         return;
     }
 
-    if(g_talk_actions_scene.screen != NULL) {
-        lv_obj_clean(g_talk_actions_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_talk_actions_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_talk_actions_scene_refs();
 }
@@ -1658,9 +1690,11 @@ int yoyopod_lvgl_listen_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_listen_scene.screen = lv_screen_active();
+    g_listen_scene.screen = lv_obj_create(NULL);
+    if(g_listen_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for listen scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_listen_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_listen_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_listen_scene.screen, &g_listen_scene.status_bar, 0);
@@ -1885,6 +1919,11 @@ int yoyopod_lvgl_listen_sync(
 
     yoyopod_apply_footer_label(g_listen_scene.footer_label, footer, accent_dim);
 
+    if(g_listen_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_listen_scene.screen);
+    }
+
     return 0;
 }
 
@@ -1893,9 +1932,7 @@ void yoyopod_lvgl_listen_destroy(void) {
         return;
     }
 
-    if(g_listen_scene.screen != NULL) {
-        lv_obj_clean(g_listen_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_listen_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_listen_scene_refs();
 }
@@ -1910,9 +1947,11 @@ int yoyopod_lvgl_playlist_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_playlist_scene.screen = lv_screen_active();
+    g_playlist_scene.screen = lv_obj_create(NULL);
+    if(g_playlist_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for playlist scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_playlist_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_playlist_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_playlist_scene.screen, &g_playlist_scene.status_bar, 0);
@@ -2222,6 +2261,11 @@ int yoyopod_lvgl_playlist_sync(
 
     yoyopod_apply_footer_label(g_playlist_scene.footer_label, footer, muted_dim);
 
+    if(g_playlist_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_playlist_scene.screen);
+    }
+
     return 0;
 }
 
@@ -2230,9 +2274,7 @@ void yoyopod_lvgl_playlist_destroy(void) {
         return;
     }
 
-    if(g_playlist_scene.screen != NULL) {
-        lv_obj_clean(g_playlist_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_playlist_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_playlist_scene_refs();
 }
@@ -2247,9 +2289,11 @@ int yoyopod_lvgl_now_playing_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_now_playing_scene.screen = lv_screen_active();
+    g_now_playing_scene.screen = lv_obj_create(NULL);
+    if(g_now_playing_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for now-playing scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_now_playing_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_now_playing_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_now_playing_scene.screen, &g_now_playing_scene.status_bar, 0);
@@ -2444,6 +2488,11 @@ int yoyopod_lvgl_now_playing_sync(
 
     yoyopod_apply_footer_label(g_now_playing_scene.footer_label, footer, footer_text);
 
+    if(g_now_playing_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_now_playing_scene.screen);
+    }
+
     return 0;
 }
 
@@ -2452,9 +2501,7 @@ void yoyopod_lvgl_now_playing_destroy(void) {
         return;
     }
 
-    if(g_now_playing_scene.screen != NULL) {
-        lv_obj_clean(g_now_playing_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_now_playing_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_now_playing_scene_refs();
 }
@@ -2469,9 +2516,11 @@ int yoyopod_lvgl_incoming_call_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_incoming_call_scene.screen = lv_screen_active();
+    g_incoming_call_scene.screen = lv_obj_create(NULL);
+    if(g_incoming_call_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for incoming-call scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_incoming_call_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_incoming_call_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_incoming_call_scene.screen, &g_incoming_call_scene.status_bar, 1);
@@ -2584,6 +2633,11 @@ int yoyopod_lvgl_incoming_call_sync(
 
     yoyopod_apply_footer_label(g_incoming_call_scene.footer_label, footer, muted_dim);
 
+    if(g_incoming_call_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_incoming_call_scene.screen);
+    }
+
     return 0;
 }
 
@@ -2592,9 +2646,7 @@ void yoyopod_lvgl_incoming_call_destroy(void) {
         return;
     }
 
-    if(g_incoming_call_scene.screen != NULL) {
-        lv_obj_clean(g_incoming_call_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_incoming_call_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_incoming_call_scene_refs();
 }
@@ -2609,9 +2661,11 @@ int yoyopod_lvgl_outgoing_call_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_outgoing_call_scene.screen = lv_screen_active();
+    g_outgoing_call_scene.screen = lv_obj_create(NULL);
+    if(g_outgoing_call_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for outgoing-call scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_outgoing_call_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_outgoing_call_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_outgoing_call_scene.screen, &g_outgoing_call_scene.status_bar, 1);
@@ -2724,6 +2778,11 @@ int yoyopod_lvgl_outgoing_call_sync(
 
     yoyopod_apply_footer_label(g_outgoing_call_scene.footer_label, footer, muted_dim);
 
+    if(g_outgoing_call_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_outgoing_call_scene.screen);
+    }
+
     return 0;
 }
 
@@ -2732,9 +2791,7 @@ void yoyopod_lvgl_outgoing_call_destroy(void) {
         return;
     }
 
-    if(g_outgoing_call_scene.screen != NULL) {
-        lv_obj_clean(g_outgoing_call_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_outgoing_call_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_outgoing_call_scene_refs();
 }
@@ -2749,9 +2806,11 @@ int yoyopod_lvgl_in_call_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_in_call_scene.screen = lv_screen_active();
+    g_in_call_scene.screen = lv_obj_create(NULL);
+    if(g_in_call_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for in-call scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_in_call_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_in_call_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_in_call_scene.screen, &g_in_call_scene.status_bar, 1);
@@ -2892,6 +2951,11 @@ int yoyopod_lvgl_in_call_sync(
 
     yoyopod_apply_footer_label(g_in_call_scene.footer_label, footer, muted_dim);
 
+    if(g_in_call_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_in_call_scene.screen);
+    }
+
     return 0;
 }
 
@@ -2900,9 +2964,7 @@ void yoyopod_lvgl_in_call_destroy(void) {
         return;
     }
 
-    if(g_in_call_scene.screen != NULL) {
-        lv_obj_clean(g_in_call_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_in_call_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_in_call_scene_refs();
 }
@@ -2917,9 +2979,11 @@ int yoyopod_lvgl_ask_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_ask_scene.screen = lv_screen_active();
+    g_ask_scene.screen = lv_obj_create(NULL);
+    if(g_ask_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for ask scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_ask_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_ask_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_ask_scene.screen, &g_ask_scene.status_bar, 1);
@@ -3074,6 +3138,12 @@ int yoyopod_lvgl_ask_sync(
     }
 
     yoyopod_apply_footer_label(g_ask_scene.footer_label, footer, muted_dim);
+
+    if(g_ask_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_ask_scene.screen);
+    }
+
     return 0;
 }
 
@@ -3082,9 +3152,7 @@ void yoyopod_lvgl_ask_destroy(void) {
         return;
     }
 
-    if(g_ask_scene.screen != NULL) {
-        lv_obj_clean(g_ask_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_ask_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_ask_scene_refs();
 }
@@ -3099,9 +3167,11 @@ int yoyopod_lvgl_power_build(void) {
         return 0;
     }
 
-    yoyopod_prepare_active_screen();
-
-    g_power_scene.screen = lv_screen_active();
+    g_power_scene.screen = lv_obj_create(NULL);
+    if(g_power_scene.screen == NULL) {
+        yoyopod_set_error("lv_obj_create(NULL) failed for power scene");
+        return -1;
+    }
     lv_obj_set_style_bg_color(g_power_scene.screen, yoyopod_color_u24(YOYOPOD_THEME_BACKGROUND_RGB), 0);
     lv_obj_set_style_bg_opa(g_power_scene.screen, LV_OPA_COVER, 0);
     yoyopod_status_bar_build(g_power_scene.screen, &g_power_scene.status_bar, 0);
@@ -3259,6 +3329,11 @@ int yoyopod_lvgl_power_sync(
 
     yoyopod_apply_footer_label(g_power_scene.footer_label, footer, accent_dim);
 
+    if(g_power_scene.screen != lv_screen_active()) {
+        yoyopod_clear_group();
+        lv_screen_load(g_power_scene.screen);
+    }
+
     return 0;
 }
 
@@ -3267,9 +3342,7 @@ void yoyopod_lvgl_power_destroy(void) {
         return;
     }
 
-    if(g_power_scene.screen != NULL) {
-        lv_obj_clean(g_power_scene.screen);
-    }
+    yoyopod_release_scene_screen(g_power_scene.screen);
     yoyopod_clear_group();
     yoyopod_reset_power_scene_refs();
 }
@@ -3444,6 +3517,18 @@ void yoyopod_lvgl_clear_screen(void) {
     if(!g_initialized || g_display == NULL) {
         return;
     }
+
+    yoyopod_release_scene_screen(g_hub_scene.screen);
+    yoyopod_release_scene_screen(g_talk_scene.screen);
+    yoyopod_release_scene_screen(g_talk_actions_scene.screen);
+    yoyopod_release_scene_screen(g_listen_scene.screen);
+    yoyopod_release_scene_screen(g_playlist_scene.screen);
+    yoyopod_release_scene_screen(g_now_playing_scene.screen);
+    yoyopod_release_scene_screen(g_incoming_call_scene.screen);
+    yoyopod_release_scene_screen(g_outgoing_call_scene.screen);
+    yoyopod_release_scene_screen(g_in_call_scene.screen);
+    yoyopod_release_scene_screen(g_ask_scene.screen);
+    yoyopod_release_scene_screen(g_power_scene.screen);
 
     lv_obj_t * screen = lv_screen_active();
     lv_obj_clean(screen);

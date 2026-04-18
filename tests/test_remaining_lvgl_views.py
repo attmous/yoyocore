@@ -228,8 +228,8 @@ def make_one_button_context() -> AppContext:
     return context
 
 
-def test_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """CallScreen should delegate the Talk contact deck through LVGL."""
+def test_call_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
+    """CallScreen should retain the Talk scene across transitions."""
 
     binding = FakeLvglBinding()
     screen = CallScreen(
@@ -263,10 +263,10 @@ def test_call_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert payload["selected_index"] == 1
 
     screen.exit()
-    assert binding.talk_destroy_calls == 1
+    assert binding.talk_destroy_calls == 0
 
 
-def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
+def test_call_screen_can_reenter_lvgl_view_without_rebuilding() -> None:
     """Talk should survive repeated enter/render/exit cycles on the LVGL path."""
 
     binding = FakeLvglBinding()
@@ -291,8 +291,8 @@ def test_call_screen_can_reenter_lvgl_view_without_lifecycle_errors() -> None:
         assert payload["title_text"] == expected_title
         screen.exit()
 
-    assert binding.talk_build_calls == 2
-    assert binding.talk_destroy_calls == 2
+    assert binding.talk_build_calls == 1
+    assert binding.talk_destroy_calls == 0
 
 
 def test_hub_view_syncs_network_status_bar_state_through_lvgl() -> None:
@@ -348,7 +348,7 @@ def test_talk_contact_screen_syncs_actions_through_lvgl() -> None:
     assert payload["footer"] == "Tap Next | 2x Select | Hold Back"
 
     screen.exit()
-    assert binding.talk_actions_destroy_calls == 1
+    assert binding.talk_actions_destroy_calls == 0
 
 
 def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
@@ -382,7 +382,7 @@ def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
     assert payload["footer"] == "Tap Next | 2x Open | Hold Back"
 
     screen.exit()
-    assert binding.playlist_destroy_calls == 1
+    assert binding.playlist_destroy_calls == 0
 
 
 def test_outgoing_call_screen_syncs_current_callee_through_lvgl() -> None:
@@ -410,7 +410,7 @@ def test_outgoing_call_screen_syncs_current_callee_through_lvgl() -> None:
     assert payload["footer"] == "Hold = Cancel"
 
     screen.exit()
-    assert binding.outgoing_call_destroy_calls == 1
+    assert binding.outgoing_call_destroy_calls == 0
 
 
 def test_in_call_screen_syncs_duration_and_mute_state_through_lvgl() -> None:
@@ -439,11 +439,11 @@ def test_in_call_screen_syncs_duration_and_mute_state_through_lvgl() -> None:
     assert payload["footer"] == "Tap = Unmute | Hold = End"
 
     screen.exit()
-    assert binding.in_call_destroy_calls == 1
+    assert binding.in_call_destroy_calls == 0
 
 
-def test_ask_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """AskScreen should delegate its voice-command shell through LVGL."""
+def test_ask_screen_keeps_its_retained_lvgl_view_on_exit() -> None:
+    """AskScreen should keep its retained voice-command scene on exit."""
 
     from yoyopod.ui.screens.navigation.ask import AskScreen as _AskScreen
 
@@ -463,7 +463,7 @@ def test_ask_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert payload["icon_key"] == "ask"
 
     screen.exit()
-    assert binding.ask_destroy_calls == 1
+    assert binding.ask_destroy_calls == 0
 
 
 def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> None:
@@ -497,7 +497,7 @@ def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> No
     assert payload["icon_keys"] == ["voice_note"]
 
     screen.exit()
-    assert binding.talk_actions_destroy_calls == 1
+    assert binding.talk_actions_destroy_calls == 0
 
 
 def test_power_screen_cycles_four_lvgl_pages() -> None:
@@ -597,7 +597,7 @@ def test_power_screen_cycles_four_lvgl_pages() -> None:
     assert any("Speaker:" in item for item in payload["items"])
 
     screen.exit()
-    assert binding.power_destroy_calls == 1
+    assert binding.power_destroy_calls == 0
 
 
 def test_power_screen_one_button_voice_page_wraps_immediately() -> None:

@@ -71,10 +71,7 @@ class ContactListScreen(Screen):
         self._ensure_lvgl_view()
 
     def exit(self) -> None:
-        """Tear down any active LVGL view when leaving contacts."""
-        if self._lvgl_view is not None:
-            self._lvgl_view.destroy()
-            self._lvgl_view = None
+        """Leave the retained LVGL contacts view alive across transitions."""
         super().exit()
 
     def _ensure_lvgl_view(self) -> "ScreenView | None":

@@ -50,8 +50,8 @@ class FakeLvglDisplay:
         return self._ui_backend
 
 
-def test_now_playing_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """NowPlayingScreen should delegate lifecycle and playback state to LVGL."""
+def test_now_playing_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
+    """NowPlayingScreen should retain its LVGL view across transitions."""
 
     binding = FakeLvglBinding()
     display = FakeLvglDisplay(binding)
@@ -95,7 +95,13 @@ def test_now_playing_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert payload["power_available"] is True
 
     screen.exit()
-    assert binding.now_playing_destroy_calls == 1
+    assert binding.now_playing_destroy_calls == 0
+
+    screen.enter()
+    screen.render()
+
+    assert binding.now_playing_build_calls == 1
+    assert len(binding.now_playing_sync_payloads) == 2
 
 
 def test_now_playing_screen_syncs_offline_state_through_lvgl() -> None:

@@ -46,8 +46,8 @@ class FakeLvglDisplay:
         return self._ui_backend
 
 
-def test_listen_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """ListenScreen should delegate its lifecycle to an LVGL view when available."""
+def test_listen_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
+    """ListenScreen should retain its LVGL view across transitions."""
 
     binding = FakeLvglBinding()
     display = FakeLvglDisplay(binding)
@@ -87,4 +87,10 @@ def test_listen_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert second_payload["selected_index"] == 1
 
     screen.exit()
-    assert binding.listen_destroy_calls == 1
+    assert binding.listen_destroy_calls == 0
+
+    screen.enter()
+    screen.render()
+
+    assert binding.listen_build_calls == 1
+    assert len(binding.listen_sync_payloads) == 3

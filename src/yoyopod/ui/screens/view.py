@@ -9,10 +9,10 @@ class ScreenView(Protocol):
     """Lifecycle shared by backend-specific screen view implementations."""
 
     def build(self) -> None:
-        """Create widget/object state once when a screen becomes active."""
+        """Create widget/object state once for a retained backend view."""
 
     def sync(self) -> None:
-        """Update an already-built view from the current controller state."""
+        """Update and present an already-built view from controller state."""
 
     def destroy(self) -> None:
-        """Tear down widgets, callbacks, and timers when leaving the screen."""
+        """Tear down widgets only when the retained view is permanently released."""

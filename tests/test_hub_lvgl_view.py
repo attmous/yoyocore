@@ -45,8 +45,8 @@ class FakeLvglDisplay:
         return self._ui_backend
 
 
-def test_hub_screen_builds_syncs_and_destroys_lvgl_view() -> None:
-    """HubScreen should delegate its lifecycle to an LVGL view when available."""
+def test_hub_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
+    """HubScreen should retain its LVGL view across transitions."""
 
     binding = FakeLvglBinding()
     display = FakeLvglDisplay(binding)
@@ -82,7 +82,13 @@ def test_hub_screen_builds_syncs_and_destroys_lvgl_view() -> None:
     assert second_payload["selected_index"] == 1
 
     screen.exit()
-    assert binding.hub_destroy_calls == 1
+    assert binding.hub_destroy_calls == 0
+
+    screen.enter()
+    screen.render()
+
+    assert binding.hub_build_calls == 1
+    assert len(binding.hub_sync_payloads) == 3
 
 
 def test_hub_screen_falls_back_cleanly_when_lvgl_backend_is_unavailable() -> None:

@@ -56,8 +56,8 @@ def _write_playlist(path: Path, track_count: int) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def test_playlist_screen_builds_syncs_and_destroys_lvgl_view(tmp_path: Path) -> None:
-    """PlaylistScreen should delegate lifecycle and visible-window state to LVGL."""
+def test_playlist_screen_reuses_retained_lvgl_view_across_exit_and_reentry(tmp_path: Path) -> None:
+    """PlaylistScreen should retain its LVGL view across transitions."""
 
     music_dir = tmp_path / "Music"
     music_dir.mkdir()
@@ -106,7 +106,12 @@ def test_playlist_screen_builds_syncs_and_destroys_lvgl_view(tmp_path: Path) -> 
     assert scrolled_payload["selected_visible_index"] == 2
 
     screen.exit()
-    assert binding.playlist_destroy_calls == 1
+    assert binding.playlist_destroy_calls == 0
+
+    screen.enter()
+
+    assert binding.playlist_build_calls == 1
+    assert len(binding.playlist_sync_payloads) >= 4
 
 
 def test_playlist_screen_syncs_error_state_through_lvgl(tmp_path: Path) -> None:
