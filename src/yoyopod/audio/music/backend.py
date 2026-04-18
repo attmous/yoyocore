@@ -82,6 +82,7 @@ class MpvBackend:
         self._cached_media_title: str | None = None
         self._cached_time_position_ms = 0
         self._last_time_position_cache_update: float | None = None
+        self._last_time_position_stale_log_at: float | None = None
 
         self._track_change_callbacks: list[Callable[[Track | None], None]] = []
         self._playback_state_callbacks: list[Callable[[str], None]] = []
@@ -187,18 +188,38 @@ class MpvBackend:
             return self._playback_state
 
     def get_time_position(self) -> int:
-        if not self.is_connected:
+        if not (self._connected and self._ipc.connected):
             return 0
+
+        now = time.monotonic()
+        should_log_stale = False
         with self._state_lock:
             last_update = self._last_time_position_cache_update
             playback_state = self._playback_state
             cached_time_position_ms = self._cached_time_position_ms
+            if (
+                playback_state == "playing"
+                and last_update is not None
+                and now - last_update > self._TIME_POSITION_STALE_SECONDS
+            ):
+                if (
+                    self._last_time_position_stale_log_at is None
+                    or now - self._last_time_position_stale_log_at
+                    > self._TIME_POSITION_STALE_SECONDS
+                ):
+                    self._last_time_position_stale_log_at = now
+                    should_log_stale = True
         if last_update is None:
             return 0
         if (
             playback_state == "playing"
-            and time.monotonic() - last_update > self._TIME_POSITION_STALE_SECONDS
+            and now - last_update > self._TIME_POSITION_STALE_SECONDS
         ):
+            if should_log_stale:
+                logger.warning(
+                    "mpv time-pos cache went stale during playback; "
+                    "returning 0 progress"
+                )
             return 0
         return cached_time_position_ms
 
@@ -257,7 +278,7 @@ class MpvBackend:
             with self._state_lock:
                 needs_track_prime = self._cached_path is None
             if needs_track_prime:
-                self._prime_track_cache_from_ipc()
+                self._prime_track_cache_from_ipc(reason="file_loaded_fallback")
             self._sync_track_from_cache()
             self._update_playback_state("playing")
         elif event_name in ("pause", "unpause"):
@@ -331,10 +352,13 @@ class MpvBackend:
             self._cached_metadata = {}
             self._cached_duration = None
             self._cached_media_title = None
+            self._last_time_position_stale_log_at = None
         self._update_time_position_cache(0, force=True)
 
-    def _prime_track_cache_from_ipc(self) -> None:
+    def _prime_track_cache_from_ipc(self, *, reason: str = "startup") -> None:
         """Seed track cache when current mpv properties beat observed events."""
+        if reason != "startup":
+            logger.debug("Priming mpv track cache via synchronous IPC ({})", reason)
         path = self._get_property("path")
         metadata = self._get_property("metadata")
         duration = self._get_property("duration")
@@ -356,8 +380,8 @@ class MpvBackend:
         position_ms = _coerce_time_position_ms(value)
         now = time.monotonic()
 
-        # Best-effort unlocked hint: the locked check below re-validates before
-        # mutating shared state, so this only skips obviously throttled updates.
+        # Best-effort unlocked hint: mpv time-pos is monotonic between seeks,
+        # and the locked check below re-validates before mutating shared state.
         last_update_hint = self._last_time_position_cache_update
         cached_position_hint = self._cached_time_position_ms
         if (
@@ -380,6 +404,7 @@ class MpvBackend:
             ):
                 self._cached_time_position_ms = position_ms
                 self._last_time_position_cache_update = now
+                self._last_time_position_stale_log_at = None
 
     def _update_track(self, track: Track | None) -> None:
         with self._state_lock:
