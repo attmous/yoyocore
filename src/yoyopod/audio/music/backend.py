@@ -197,11 +197,12 @@ class MpvBackend:
             last_update = self._last_time_position_cache_update
             playback_state = self._playback_state
             cached_time_position_ms = self._cached_time_position_ms
-            if (
+            is_stale = (
                 playback_state == "playing"
                 and last_update is not None
                 and now - last_update > self._TIME_POSITION_STALE_SECONDS
-            ):
+            )
+            if is_stale:
                 if (
                     self._last_time_position_stale_log_at is None
                     or now - self._last_time_position_stale_log_at
@@ -211,10 +212,9 @@ class MpvBackend:
                     should_log_stale = True
         if last_update is None:
             return 0
-        if (
-            playback_state == "playing"
-            and now - last_update > self._TIME_POSITION_STALE_SECONDS
-        ):
+        if is_stale:
+            # Returning 0 keeps a stuck playback clock visible instead of
+            # showing a frozen progress bar that still looks healthy.
             if should_log_stale:
                 logger.warning(
                     "mpv time-pos cache went stale during playback; "
@@ -278,6 +278,9 @@ class MpvBackend:
             with self._state_lock:
                 needs_track_prime = self._cached_path is None
             if needs_track_prime:
+                # Rare correctness fallback: path/metadata observers usually win
+                # this race, but synchronous priming preserves track details if
+                # file-loaded arrives first and correctness matters more here.
                 self._prime_track_cache_from_ipc(reason="file_loaded_fallback")
             self._sync_track_from_cache()
             self._update_playback_state("playing")
@@ -383,20 +386,6 @@ class MpvBackend:
         """Throttle time-pos updates to match the coarse visible progress UI."""
         position_ms = _coerce_time_position_ms(value)
         now = time.monotonic()
-
-        # Best-effort unlocked hint: mpv time-pos is monotonic between seeks,
-        # and CPython/GIL attribute loads are atomic enough for this hint.
-        # The locked check below still re-validates before mutating shared state.
-        last_update_hint = self._last_time_position_cache_update
-        cached_position_hint = self._cached_time_position_ms
-        if (
-            not force
-            and last_update_hint is not None
-            and position_ms >= cached_position_hint
-            and abs(position_ms - cached_position_hint) < 1000
-            and now - last_update_hint < self._TIME_POSITION_CACHE_MIN_INTERVAL_SECONDS
-        ):
-            return
 
         with self._state_lock:
             if (
