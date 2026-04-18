@@ -187,7 +187,9 @@ class CloudManager:
         self._next_refresh_at = 0.0
         self._next_config_poll_at = 0.0
         self._network_retry_index = 0
-        self._start_mqtt()
+        if self._mqtt is not None:
+            self._mqtt.stop()
+            self._mqtt = None
 
         if self.config_manager.cloud_secrets_error:
             self.status.provisioning_state = "invalid_provisioning"
@@ -223,6 +225,7 @@ class CloudManager:
 
         self.status.provisioning_state = "provisioned"
         self.status.cloud_state = "offline"
+        self._start_mqtt()
         if device_id != previous_device_id:
             self.status.config_source = "none"
             self.status.unapplied_keys = []
@@ -599,7 +602,9 @@ class CloudManager:
                 self.app.context.set_volume(max_volume)
 
         if "default_volume" in audio:
-            self.app.set_output_volume(self.config_manager.get_default_output_volume())
+            max_volume = self.config_manager.get_max_output_volume()
+            default_volume = min(self.config_manager.get_default_output_volume(), max_volume)
+            self.app.set_output_volume(default_volume)
 
         if self.app.voip_manager is not None:
             self.app.voip_manager.config.voice_note_max_duration_seconds = (

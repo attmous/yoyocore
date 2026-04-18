@@ -146,8 +146,6 @@ class DeviceMqttClient:
                     break
 
                 client.connect(self._broker_host, self._port, keepalive=_KEEPALIVE_SECONDS)
-                cmd_topic = f"yoyopod/{self._device_id}/cmd"
-                client.subscribe(cmd_topic, qos=1)
                 client.loop_forever()
 
             except OSError as exc:
@@ -171,6 +169,7 @@ class DeviceMqttClient:
         if rc == 0:
             with self._lock:
                 self._connected = True
+            client.subscribe(f"yoyopod/{self._device_id}/cmd", qos=1)
             logger.info(
                 "MQTT connected to {}:{} (device={})", self._broker_host, self._port, self._device_id
             )
