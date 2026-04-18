@@ -127,9 +127,12 @@ class MpvBackend:
             self._ipc.observe_property("duration", 5)
             self._ipc.observe_property("path", 6)
             self._ipc.observe_property("time-pos", 7)
-            self._prime_track_cache_from_ipc()
         except Exception as exc:
             logger.warning("Failed to observe mpv properties: {}", exc)
+        try:
+            self._prime_track_cache_from_ipc()
+        except Exception as exc:
+            logger.warning("Failed to prime mpv track cache: {}", exc)
 
         self._connected = True
         self._fire_connection_change(True, "connected")

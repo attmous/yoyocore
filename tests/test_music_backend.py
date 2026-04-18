@@ -279,6 +279,66 @@ def test_mpv_backend_primes_track_cache_from_ipc_before_property_events(
     assert track.length == 9000
 
 
+def test_mpv_backend_primes_track_cache_even_if_property_observe_fails(
+    monkeypatch,
+) -> None:
+    class FakeProcess:
+        def spawn(self) -> bool:
+            return True
+
+        def kill(self) -> None:
+            return None
+
+        def is_alive(self) -> bool:
+            return True
+
+    class FakeIpc:
+        def __init__(self) -> None:
+            self.connected = False
+            self.responses = {
+                "path": "/music/degraded-startup.ogg",
+                "metadata": {"artist": "Composer"},
+                "duration": 7.0,
+                "media-title": "Recovered",
+            }
+
+        def connect(self) -> bool:
+            self.connected = True
+            return True
+
+        def on_event(self, callback) -> None:
+            self._callback = callback
+
+        def start_reader(self) -> None:
+            return None
+
+        def observe_property(self, name: str, observe_id: int) -> None:
+            if name == "time-pos":
+                raise RuntimeError("transient observe timeout")
+
+        def send_command(self, args: list[object]) -> dict[str, object]:
+            if args[0] == "get_property":
+                return {"error": "success", "data": self.responses.get(str(args[1]))}
+            return {"error": "success"}
+
+        def disconnect(self) -> None:
+            self.connected = False
+
+    backend = MpvBackend(MusicConfig())
+    backend._process = FakeProcess()
+    backend._ipc = FakeIpc()
+    monkeypatch.setattr("yoyopod.audio.music.backend.time.sleep", lambda _: None)
+
+    assert backend.start() is True
+
+    track = backend.get_current_track()
+
+    assert track is not None
+    assert track.name == "Recovered"
+    assert track.artists == ["Composer"]
+    assert track.length == 7000
+
+
 def test_mpv_backend_builds_track_from_property_events() -> None:
     backend = MpvBackend(MusicConfig())
 
