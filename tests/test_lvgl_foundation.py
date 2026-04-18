@@ -156,6 +156,7 @@ def test_lvgl_backend_reset_clears_the_active_scene() -> None:
     backend.reset()
 
     assert binding.clear_calls == 1
+    assert backend.scene_generation == 1
 
 
 def test_lvgl_backend_force_refresh_delegates_to_native_binding() -> None:
@@ -183,6 +184,7 @@ def test_lvgl_backend_cleanup_shuts_down_the_native_binding() -> None:
 
     assert binding.shutdown_calls == 1
     assert backend.initialized is False
+    assert backend.scene_generation == 1
 
 
 def test_lvgl_input_bridge_ignores_queued_actions_until_backend_is_ready() -> None:

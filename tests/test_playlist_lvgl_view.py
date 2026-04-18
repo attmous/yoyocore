@@ -34,6 +34,7 @@ class FakeLvglBackend:
     def __init__(self, binding: FakeLvglBinding) -> None:
         self.binding = binding
         self.initialized = True
+        self.scene_generation = 0
 
 
 class FakeLvglDisplay:
@@ -112,6 +113,33 @@ def test_playlist_screen_reuses_retained_lvgl_view_across_exit_and_reentry(tmp_p
 
     assert binding.playlist_build_calls == 1
     assert len(binding.playlist_sync_payloads) >= 4
+
+
+def test_playlist_screen_rebuilds_retained_lvgl_view_after_backend_reset(tmp_path: Path) -> None:
+    """PlaylistScreen should rebuild after a backend clear releases the native scene."""
+
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    _write_playlist(music_dir / "Alpha.m3u", 12)
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+    backend = MockMusicBackend()
+    backend.start()
+    screen = PlaylistScreen(
+        display,
+        AppContext(interaction_profile=InteractionProfile.ONE_BUTTON),
+        music_service=LocalMusicService(backend, music_dir=music_dir),
+    )
+
+    screen.enter()
+
+    assert binding.playlist_build_calls == 1
+
+    display.get_ui_backend().scene_generation += 1
+    screen.enter()
+
+    assert binding.playlist_build_calls == 2
 
 
 def test_playlist_screen_syncs_error_state_through_lvgl(tmp_path: Path) -> None:

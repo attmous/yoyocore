@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from yoyopod.ui.lvgl_binding import LvglDisplayBackend
+from yoyopod.ui.screens.lvgl_lifecycle import (
+    ensure_retained_view_built,
+    mark_retained_view_built,
+    mark_retained_view_destroyed,
+    should_build_retained_view,
+)
 from yoyopod.ui.screens.lvgl_status import sync_network_status
 from yoyopod.ui.screens.theme import LISTEN
 
@@ -21,19 +27,20 @@ class LvglPlaylistView:
     screen: "PlaylistScreen"
     backend: LvglDisplayBackend
     _built: bool = False
+    _build_generation: int = -1
 
     def build(self) -> None:
         """Create the native playlist scene once."""
 
-        if self._built or self.backend.binding is None:
+        if not should_build_retained_view(self):
             return
         self.backend.binding.playlist_build()
-        self._built = True
+        mark_retained_view_built(self)
 
     def sync(self) -> None:
         """Push the current playlist controller state into the native scene."""
 
-        if not self._built or self.backend.binding is None:
+        if not ensure_retained_view_built(self):
             return
 
         title_text = self.screen.get_title_text() if hasattr(self.screen, "get_title_text") else "Playlists"
@@ -82,7 +89,7 @@ class LvglPlaylistView:
         if not self._built or self.backend.binding is None:
             return
         self.backend.binding.playlist_destroy()
-        self._built = False
+        mark_retained_view_destroyed(self)
 
     def _empty_state_copy(self) -> tuple[str, str]:
         if hasattr(self.screen, "get_empty_state_copy"):

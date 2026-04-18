@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from yoyopod.ui.lvgl_binding import LvglDisplayBackend
+from yoyopod.ui.screens.lvgl_lifecycle import (
+    ensure_retained_view_built,
+    mark_retained_view_built,
+    mark_retained_view_destroyed,
+    should_build_retained_view,
+)
 from yoyopod.ui.screens.lvgl_status import sync_network_status
 from yoyopod.ui.screens.theme import TALK
 
@@ -21,19 +27,20 @@ class LvglIncomingCallView:
     screen: "IncomingCallScreen"
     backend: LvglDisplayBackend
     _built: bool = False
+    _build_generation: int = -1
 
     def build(self) -> None:
         """Create the native incoming-call scene once."""
 
-        if self._built or self.backend.binding is None:
+        if not should_build_retained_view(self):
             return
         self.backend.binding.incoming_call_build()
-        self._built = True
+        mark_retained_view_built(self)
 
     def sync(self) -> None:
         """Push the current caller state into the native scene."""
 
-        if not self._built or self.backend.binding is None:
+        if not ensure_retained_view_built(self):
             return
 
         footer = "Tap = Answer | Hold = Decline" if self.screen.is_one_button_mode() else "A answer | B reject"
@@ -57,7 +64,7 @@ class LvglIncomingCallView:
         if not self._built or self.backend.binding is None:
             return
         self.backend.binding.incoming_call_destroy()
-        self._built = False
+        mark_retained_view_destroyed(self)
 
     @staticmethod
     def _battery_percent(context: "AppContext | None") -> int:

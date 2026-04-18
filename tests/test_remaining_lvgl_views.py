@@ -140,6 +140,7 @@ class FakeLvglBackend:
     def __init__(self, binding: FakeLvglBinding) -> None:
         self.binding = binding
         self.initialized = True
+        self.scene_generation = 0
 
 
 class FakeLvglDisplay:
@@ -293,6 +294,36 @@ def test_call_screen_can_reenter_lvgl_view_without_rebuilding() -> None:
 
     assert binding.talk_build_calls == 1
     assert binding.talk_destroy_calls == 0
+
+
+def test_call_screen_rebuilds_retained_lvgl_view_after_backend_reset() -> None:
+    """Talk should rebuild its retained LVGL scene after a backend reset clears it."""
+
+    display = FakeLvglDisplay(FakeLvglBinding())
+    binding = display.get_ui_backend().binding
+    screen = CallScreen(
+        display,
+        make_one_button_context(),
+        voip_manager=FakeVoipManager(),
+        people_directory=FakeConfigManager(
+            [
+                FakeContact("Hagar", "sip:hagar@example.com", True),
+                FakeContact("Mama", "sip:mama@example.com", True),
+            ]
+        ),
+    )
+
+    screen.enter()
+    screen.render()
+
+    assert binding.talk_build_calls == 1
+
+    display.get_ui_backend().scene_generation += 1
+    screen.enter()
+    screen.render()
+
+    assert binding.talk_build_calls == 2
+    assert len(binding.talk_sync_payloads) == 2
 
 
 def test_hub_view_syncs_network_status_bar_state_through_lvgl() -> None:

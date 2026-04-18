@@ -6,6 +6,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from yoyopod.ui.lvgl_binding import LvglDisplayBackend
+from yoyopod.ui.screens.lvgl_lifecycle import (
+    ensure_retained_view_built,
+    mark_retained_view_built,
+    mark_retained_view_destroyed,
+    should_build_retained_view,
+)
 from yoyopod.ui.screens.lvgl_status import sync_network_status
 from yoyopod.ui.screens.theme import TALK
 
@@ -21,15 +27,16 @@ class LvglOutgoingCallView:
     screen: "OutgoingCallScreen"
     backend: LvglDisplayBackend
     _built: bool = False
+    _build_generation: int = -1
 
     def build(self) -> None:
-        if self._built or self.backend.binding is None:
+        if not should_build_retained_view(self):
             return
         self.backend.binding.outgoing_call_build()
-        self._built = True
+        mark_retained_view_built(self)
 
     def sync(self) -> None:
-        if not self._built or self.backend.binding is None:
+        if not ensure_retained_view_built(self):
             return
 
         callee_name = self.screen.callee_name or "Unknown"
@@ -58,7 +65,7 @@ class LvglOutgoingCallView:
         if not self._built or self.backend.binding is None:
             return
         self.backend.binding.outgoing_call_destroy()
-        self._built = False
+        mark_retained_view_destroyed(self)
 
     @staticmethod
     def _battery_percent(context: "AppContext | None") -> int:

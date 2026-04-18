@@ -35,6 +35,7 @@ class LvglDisplayBackend:
     buffer_lines: int = 40
     binding: LvglBinding | None = None
     initialized: bool = field(init=False, default=False)
+    scene_generation: int = field(init=False, default=0)
     width: int = field(init=False, default=0)
     height: int = field(init=False, default=0)
 
@@ -130,6 +131,7 @@ class LvglDisplayBackend:
     def clear(self) -> None:
         if self.initialized and self.binding is not None:
             self.binding.clear_screen()
+            self.scene_generation += 1
 
     def force_refresh(self) -> None:
         """Invalidate and redraw the active LVGL scene immediately."""
@@ -145,5 +147,6 @@ class LvglDisplayBackend:
     def cleanup(self) -> None:
         if not self.initialized or self.binding is None:
             return
+        self.scene_generation += 1
         self.binding.shutdown()
         self.initialized = False

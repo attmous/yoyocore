@@ -31,6 +31,7 @@ class FakeLvglBackend:
     def __init__(self, binding: FakeLvglBinding) -> None:
         self.binding = binding
         self.initialized = True
+        self.scene_generation = 0
 
 
 class FakeLvglDisplay:
@@ -89,6 +90,26 @@ def test_hub_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
 
     assert binding.hub_build_calls == 1
     assert len(binding.hub_sync_payloads) == 3
+
+
+def test_hub_screen_rebuilds_retained_lvgl_view_after_backend_reset() -> None:
+    """HubScreen should rebuild a retained view after the backend clears native scenes."""
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+    screen = HubScreen(display, AppContext(interaction_profile=InteractionProfile.ONE_BUTTON))
+
+    screen.enter()
+    screen.render()
+
+    assert binding.hub_build_calls == 1
+
+    display.get_ui_backend().scene_generation += 1
+    screen.enter()
+    screen.render()
+
+    assert binding.hub_build_calls == 2
+    assert len(binding.hub_sync_payloads) == 2
 
 
 def test_hub_screen_falls_back_cleanly_when_lvgl_backend_is_unavailable() -> None:
