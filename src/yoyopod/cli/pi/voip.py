@@ -362,6 +362,7 @@ def _wait_for_call_connection(
     deadline = started_at + timeout
     interval = _iterate_interval_seconds(manager)
     terminal_states = {
+        CallState.IDLE.value,
         CallState.RELEASED.value,
         CallState.END.value,
         CallState.ERROR.value,
@@ -843,7 +844,9 @@ def reconnect_drill(
                 timeout=drop_detect_timeout,
             )
         else:
-            drop_wait_seconds = first_drop_wait_seconds or 0.0
+            drop_wait_seconds = (
+                first_drop_wait_seconds if first_drop_wait_seconds is not None else 0.0
+            )
 
         if not drop_observed:
             result = recorder.finalize(

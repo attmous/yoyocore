@@ -152,9 +152,21 @@ def _patch_clock(monkeypatch: pytest.MonkeyPatch, clock: FakeClock) -> None:
     monkeypatch.setattr(voip_cli.time, "sleep", clock.sleep)
 
 
+def _run_dir(artifacts_dir: Path) -> Path:
+    return next(artifacts_dir.iterdir())
+
+
 def _load_summary(artifacts_dir: Path) -> dict[str, object]:
-    run_dir = next(artifacts_dir.iterdir())
+    run_dir = _run_dir(artifacts_dir)
     return json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+
+
+def _load_timeline(artifacts_dir: Path) -> list[dict[str, object]]:
+    run_dir = _run_dir(artifacts_dir)
+    return [
+        json.loads(line)
+        for line in (run_dir / "timeline.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
 
 
 def test_registration_stability_writes_pass_artifacts(
@@ -398,6 +410,126 @@ def test_reconnect_drill_recovers_after_temporary_drop(
     assert summary["extras"]["drop_wait_seconds"] == pytest.approx(0.1)
     assert summary["registration_states"] == ["ok", "failed", "ok"]
 
+    timeline = _load_timeline(tmp_path)
+    assert any(event["kind"] == "command" and event["phase"] == "drop" for event in timeline)
+    assert any(event["kind"] == "command" and event["phase"] == "restore" for event in timeline)
+    assert any(
+        event["kind"] == "checkpoint" and event.get("name") == "registration_dropped"
+        for event in timeline
+    )
+    assert any(event["kind"] == "registration" and event.get("state") == "failed" for event in timeline)
+
+
+def test_reconnect_drill_without_hooks_exercises_manual_operator_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The reconnect drill should still pass when an operator drops/restores connectivity manually."""
+
+    clock = FakeClock()
+    manager = FakeVoIPManager(clock)
+    manager.schedule_registration(0.1, RegistrationState.OK)
+    manager.schedule_registration(0.3, RegistrationState.FAILED)
+    manager.schedule_registration(0.6, RegistrationState.OK)
+    _patch_clock(monkeypatch, clock)
+    monkeypatch.setattr(voip_cli, "_build_voip_manager", lambda _config_dir: manager)
+
+    result = runner.invoke(
+        voip_cli.voip_app,
+        [
+            "reconnect-drill",
+            "--registration-timeout",
+            "1",
+            "--disconnect-seconds",
+            "0.4",
+            "--drop-detect-timeout",
+            "0.5",
+            "--recovery-timeout",
+            "1",
+            "--artifacts-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0
+    summary = _load_summary(tmp_path)
+    assert summary["status"] == "pass"
+    assert summary["extras"]["drop_state"] == "failed"
+    timeline = _load_timeline(tmp_path)
+    notes = [event["message"] for event in timeline if event["kind"] == "note"]
+    assert any("Drop network connectivity now" in message for message in notes)
+
+
+@pytest.mark.parametrize(
+    ("phase", "option"),
+    [
+        ("drop", "--drop-command"),
+        ("restore", "--restore-command"),
+    ],
+)
+def test_reconnect_drill_fails_when_hook_command_returns_non_zero(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    phase: str,
+    option: str,
+) -> None:
+    """The reconnect drill should fail honestly when an outage hook exits non-zero."""
+
+    clock = FakeClock()
+    manager = FakeVoIPManager(clock)
+    manager.schedule_registration(0.1, RegistrationState.OK)
+    _patch_clock(monkeypatch, clock)
+    monkeypatch.setattr(voip_cli, "_build_voip_manager", lambda _config_dir: manager)
+    phase_under_test = phase
+
+    def fake_hook(*, recorder, phase: str, command: str) -> bool:
+        returncode = 23 if phase == phase_under_test else 0
+        recorder.record_command(
+            phase=phase,
+            command=command,
+            returncode=returncode,
+            stdout="",
+            stderr="boom" if returncode else "",
+        )
+        return returncode == 0
+
+    monkeypatch.setattr(voip_cli, "_run_shell_hook", fake_hook)
+
+    args = [
+        "reconnect-drill",
+        "--registration-timeout",
+        "1",
+        "--disconnect-seconds",
+        "0.4",
+        "--drop-detect-timeout",
+        "0.5",
+        "--recovery-timeout",
+        "1",
+        option,
+        f"{phase}-net",
+        "--artifacts-dir",
+        str(tmp_path),
+    ]
+    if phase == "restore":
+        args[args.index("--artifacts-dir"):args.index("--artifacts-dir")] = [
+            "--drop-command",
+            "drop-net",
+        ]
+
+    result = runner.invoke(voip_cli.voip_app, args)
+
+    assert result.exit_code == 1
+    summary = _load_summary(tmp_path)
+    assert summary["status"] == "fail"
+    assert summary["reason"] == f"The configured network {phase} command failed"
+    timeline = _load_timeline(tmp_path)
+    assert any(
+        event["kind"] == "command"
+        and event["phase"] == phase
+        and event["returncode"] == 23
+        for event in timeline
+    )
+
 
 @pytest.mark.parametrize(
     ("schedule_failure", "expected_reason"),
@@ -527,6 +659,112 @@ def test_call_soak_fails_when_call_never_reaches_connected_media(
     assert summary["status"] == "fail"
     assert summary["reason"] == "Call never reached a connected state (last_state=end)"
     assert summary["extras"]["last_call_state"] == "end"
+
+
+def test_call_soak_fails_fast_when_call_returns_to_idle(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The connect wait should treat a rejected/unanswered call returning to IDLE as terminal."""
+
+    clock = FakeClock()
+    manager = FakeVoIPManager(clock)
+    manager.schedule_registration(0.1, RegistrationState.OK)
+    _patch_clock(monkeypatch, clock)
+    monkeypatch.setattr(voip_cli, "_build_voip_manager", lambda _config_dir: manager)
+
+    def fake_make_call(sip_address: str, contact_name: str | None = None) -> bool:
+        manager._set_call_state(CallState.OUTGOING_RINGING)
+        manager.schedule_call_state(0.2, CallState.IDLE)
+        return True
+
+    monkeypatch.setattr(manager, "make_call", fake_make_call)
+
+    result = runner.invoke(
+        voip_cli.voip_app,
+        [
+            "call-soak",
+            "--target",
+            "sip:echo@example.com",
+            "--registration-timeout",
+            "1",
+            "--connect-timeout",
+            "5",
+            "--soak-seconds",
+            "1",
+            "--hangup-timeout",
+            "0.5",
+            "--artifacts-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    summary = _load_summary(tmp_path)
+    assert summary["status"] == "fail"
+    assert summary["extras"]["last_call_state"] == "idle"
+    assert summary["extras"]["connect_wait_seconds"] < 1.0
+
+
+def test_call_soak_fails_when_manager_start_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The call soak should fail honestly when the VoIP manager cannot start."""
+
+    clock = FakeClock()
+    manager = FakeVoIPManager(clock)
+    manager.start_result = False
+    _patch_clock(monkeypatch, clock)
+    monkeypatch.setattr(voip_cli, "_build_voip_manager", lambda _config_dir: manager)
+
+    result = runner.invoke(
+        voip_cli.voip_app,
+        [
+            "call-soak",
+            "--target",
+            "sip:echo@example.com",
+            "--artifacts-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    summary = _load_summary(tmp_path)
+    assert summary["status"] == "fail"
+    assert summary["reason"] == "VoIP manager failed to start"
+
+
+def test_call_soak_fails_when_call_cannot_be_initiated(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The call soak should fail honestly when make_call returns False."""
+
+    clock = FakeClock()
+    manager = FakeVoIPManager(clock)
+    manager.schedule_registration(0.1, RegistrationState.OK)
+    manager.make_call_result = False
+    _patch_clock(monkeypatch, clock)
+    monkeypatch.setattr(voip_cli, "_build_voip_manager", lambda _config_dir: manager)
+
+    result = runner.invoke(
+        voip_cli.voip_app,
+        [
+            "call-soak",
+            "--target",
+            "sip:echo@example.com",
+            "--registration-timeout",
+            "1",
+            "--artifacts-dir",
+            str(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 1
+    summary = _load_summary(tmp_path)
+    assert summary["status"] == "fail"
+    assert summary["reason"] == "Failed to initiate call to sip:echo@example.com"
 
 
 def test_check_uses_custom_config_dir(
