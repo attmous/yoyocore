@@ -281,9 +281,12 @@ class MpvBackend:
                 self._prime_track_cache_from_ipc(reason="file_loaded_fallback")
             self._sync_track_from_cache()
             self._update_playback_state("playing")
+        elif event_name == "playback-restart":
+            self._touch_time_position_cache()
         elif event_name in ("pause", "unpause"):
             paused = event_name == "pause"
             self._update_playback_state("paused" if paused else "playing")
+            self._touch_time_position_cache()
         elif event_name == "end-file":
             reason = event.get("reason", "")
             if reason == "eof":
@@ -320,6 +323,7 @@ class MpvBackend:
             elif prop_name == "pause":
                 paused = event.get("data", False)
                 self._update_playback_state("paused" if paused else "playing")
+                self._touch_time_position_cache()
             elif prop_name == "idle-active":
                 if event.get("data"):
                     self._update_playback_state("stopped")
@@ -381,7 +385,8 @@ class MpvBackend:
         now = time.monotonic()
 
         # Best-effort unlocked hint: mpv time-pos is monotonic between seeks,
-        # and the locked check below re-validates before mutating shared state.
+        # and CPython/GIL attribute loads are atomic enough for this hint.
+        # The locked check below still re-validates before mutating shared state.
         last_update_hint = self._last_time_position_cache_update
         cached_position_hint = self._cached_time_position_ms
         if (
@@ -405,6 +410,14 @@ class MpvBackend:
                 self._cached_time_position_ms = position_ms
                 self._last_time_position_cache_update = now
                 self._last_time_position_stale_log_at = None
+
+    def _touch_time_position_cache(self) -> None:
+        """Extend the stale deadline after state changes without a new sample."""
+        with self._state_lock:
+            if self._last_time_position_cache_update is None:
+                return
+            self._last_time_position_cache_update = time.monotonic()
+            self._last_time_position_stale_log_at = None
 
     def _update_track(self, track: Track | None) -> None:
         with self._state_lock:

@@ -713,6 +713,78 @@ def test_mpv_backend_get_time_position_logs_stale_playback_once(monkeypatch) -> 
     assert len(warnings) == 1
 
 
+def test_mpv_backend_unpause_refreshes_time_position_staleness(monkeypatch) -> None:
+    class FakeIpc:
+        connected = True
+
+    class FakeProcess:
+        def is_alive(self) -> bool:
+            return True
+
+    warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    backend = MpvBackend(MusicConfig())
+    backend._connected = True
+    backend._ipc = FakeIpc()
+    backend._process = FakeProcess()
+    backend._playback_state = "paused"
+    backend._cached_time_position_ms = 12500
+    backend._last_time_position_cache_update = 100.0
+    monkeypatch.setattr(
+        "yoyopod.audio.music.backend.time.monotonic",
+        _monotonic_stub(
+            100.0 + backend._TIME_POSITION_STALE_SECONDS + 1.0,
+            100.0 + backend._TIME_POSITION_STALE_SECONDS + 1.1,
+        ),
+    )
+    monkeypatch.setattr(
+        "yoyopod.audio.music.backend.logger.warning",
+        lambda *args, **kwargs: warnings.append((args, kwargs)),
+    )
+
+    backend._handle_mpv_event({"event": "unpause"})
+
+    assert backend.get_time_position() == 12500
+    assert warnings == []
+
+
+def test_mpv_backend_playback_restart_refreshes_time_position_staleness(
+    monkeypatch,
+) -> None:
+    class FakeIpc:
+        connected = True
+
+    class FakeProcess:
+        def is_alive(self) -> bool:
+            return True
+
+    warnings: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    backend = MpvBackend(MusicConfig())
+    backend._connected = True
+    backend._ipc = FakeIpc()
+    backend._process = FakeProcess()
+    backend._playback_state = "playing"
+    backend._cached_time_position_ms = 12500
+    backend._last_time_position_cache_update = 100.0
+    monkeypatch.setattr(
+        "yoyopod.audio.music.backend.time.monotonic",
+        _monotonic_stub(
+            100.0 + backend._TIME_POSITION_STALE_SECONDS + 1.0,
+            100.0 + backend._TIME_POSITION_STALE_SECONDS + 1.1,
+        ),
+    )
+    monkeypatch.setattr(
+        "yoyopod.audio.music.backend.logger.warning",
+        lambda *args, **kwargs: warnings.append((args, kwargs)),
+    )
+
+    backend._handle_mpv_event({"event": "playback-restart"})
+
+    assert backend.get_time_position() == 12500
+    assert warnings == []
+
+
 def test_mpv_backend_get_time_position_keeps_cached_value_when_paused_and_stale(
     monkeypatch,
 ) -> None:
