@@ -591,6 +591,43 @@ def test_contact_list_screen_syncs_sorted_contacts_through_lvgl() -> None:
     assert binding.playlist_destroy_calls == 0
 
 
+def test_list_family_screens_replace_stale_owner_after_shared_scene_reclaim() -> None:
+    """Shared list-scene screens should replace stale wrappers on re-entry."""
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+
+    contacts = ContactListScreen(
+        display,
+        make_one_button_context(),
+        voip_manager=FakeVoipManager(),
+        people_directory=FakeConfigManager(
+            [FakeContact("Amy", "sip:amy@example.com", True, notes="Mama")]
+        ),
+    )
+    recents = CallHistoryScreen(
+        display,
+        make_one_button_context(),
+        voip_manager=FakeVoipManager(),
+    )
+
+    contacts.enter()
+    contacts.render()
+    first_contacts_view = contacts._lvgl_view
+    assert first_contacts_view is not None
+    assert binding.playlist_build_calls == 1
+
+    recents.enter()
+    recents.render()
+    assert binding.playlist_build_calls == 2
+
+    contacts.enter()
+    contacts.render()
+
+    assert contacts._lvgl_view is not first_contacts_view
+    assert binding.playlist_build_calls == 3
+
+
 def test_outgoing_call_screen_syncs_current_callee_through_lvgl() -> None:
     """OutgoingCallScreen should send callee and footer state through LVGL."""
 
@@ -704,6 +741,39 @@ def test_voice_note_screen_uses_talk_actions_scene_for_voice_note_states() -> No
 
     screen.exit()
     assert binding.talk_actions_destroy_calls == 0
+
+
+def test_talk_action_screens_replace_stale_owner_after_shared_scene_reclaim() -> None:
+    """Shared Talk action screens should replace stale wrappers on re-entry."""
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+
+    contact_actions = TalkContactScreen(
+        display,
+        make_talk_contact_context(),
+        voip_manager=FakeVoipManager(),
+    )
+    voice_note = VoiceNoteScreen(
+        display,
+        make_voice_note_context(),
+    )
+
+    contact_actions.enter()
+    contact_actions.render()
+    first_contact_view = contact_actions._lvgl_view
+    assert first_contact_view is not None
+    assert binding.talk_actions_build_calls == 1
+
+    voice_note.enter()
+    voice_note.render()
+    assert binding.talk_actions_build_calls == 2
+
+    contact_actions.enter()
+    contact_actions.render()
+
+    assert contact_actions._lvgl_view is not first_contact_view
+    assert binding.talk_actions_build_calls == 3
 
 
 def test_power_screen_cycles_four_lvgl_pages() -> None:

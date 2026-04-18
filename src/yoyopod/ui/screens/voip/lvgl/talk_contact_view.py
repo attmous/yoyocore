@@ -12,6 +12,7 @@ from yoyopod.ui.screens.lvgl_lifecycle import (
     mark_retained_view_destroyed,
     should_build_retained_view,
 )
+from yoyopod.ui.screens.lvgl_scene_keys import TALK_ACTIONS_SCENE_KEY
 from yoyopod.ui.screens.lvgl_status import sync_network_status
 from yoyopod.ui.screens.theme import TALK
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 class LvglTalkContactView:
     """Own the LVGL object lifecycle for TalkContactScreen."""
 
-    scene_key: ClassVar[str] = "talk_actions"
+    scene_key: ClassVar[str] = TALK_ACTIONS_SCENE_KEY
     screen: "TalkContactScreen"
     backend: LvglDisplayBackend
     _built: bool = False

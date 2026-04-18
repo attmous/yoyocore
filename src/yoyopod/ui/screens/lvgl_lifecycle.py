@@ -97,7 +97,7 @@ def ensure_retained_view_built(view: RetainedLvglView) -> bool:
 
 
 def mark_retained_view_built(view: RetainedLvglView) -> None:
-    """Record that the retained view matches the current backend scene generation."""
+    """Record that this view is the current owner of its pooled retained scene."""
 
     view._built = True
     view._build_generation = current_scene_generation(view.backend)
