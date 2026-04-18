@@ -8,9 +8,10 @@ backend:
   claim_retry_seconds: 60
   cache_file: "data/cloud/config_cache.json"
   status_file: "data/cloud/status.json"
-  mqtt_broker_host: "yoyopod.moraouf.net"
-  mqtt_broker_port: 1883
-  mqtt_use_tls: false
+  mqtt_broker_host: "mqtt-yoyopod.moraouf.net"
+  mqtt_broker_port: 443
+  mqtt_use_tls: true
+  mqtt_transport: "websockets"
   mqtt_username: ""
   mqtt_password: ""
   battery_report_interval_seconds: 60

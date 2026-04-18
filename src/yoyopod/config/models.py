@@ -639,6 +639,10 @@ class CloudBackendConfig:
         default="",
         env="YOYOPOD_CLOUD_MQTT_PASSWORD",
     )
+    mqtt_transport: str = config_value(
+        default="tcp",
+        env="YOYOPOD_CLOUD_MQTT_TRANSPORT",
+    )
     battery_report_interval_seconds: int = config_value(
         default=60,
         env="YOYOPOD_CLOUD_BATTERY_REPORT_INTERVAL_SECONDS",

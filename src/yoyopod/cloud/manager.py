@@ -721,6 +721,7 @@ class CloudManager:
             username=backend.mqtt_username or None,
             password=backend.mqtt_password or None,
             use_tls=backend.mqtt_use_tls,
+            transport=backend.mqtt_transport,
             command_callback=self._handle_mqtt_command,
         )
         self._mqtt.start()

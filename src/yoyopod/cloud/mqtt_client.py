@@ -31,6 +31,7 @@ class DeviceMqttClient:
         username: str | None = None,
         password: str | None = None,
         use_tls: bool = False,
+        transport: str = "tcp",
         command_callback: Any | None = None,
     ) -> None:
         self._broker_host = broker_host
@@ -39,6 +40,7 @@ class DeviceMqttClient:
         self._username = username
         self._password = password
         self._use_tls = use_tls
+        self._transport = transport
         self._command_callback = command_callback
 
         self._client: Any = None
@@ -61,7 +63,7 @@ class DeviceMqttClient:
             )
             return
 
-        client = mqtt.Client(client_id=f"yoyopod-{self._device_id}", clean_session=True)
+        client = mqtt.Client(client_id=f"yoyopod-{self._device_id}", clean_session=True, transport=self._transport)
 
         if self._username:
             client.username_pw_set(self._username, self._password)
