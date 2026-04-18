@@ -333,6 +333,10 @@ class GpiodButtonAdapter(InputHAL):
                 self._polling_loop()
                 return
 
+            # Some buttons may have new edges while others only need their existing
+            # debounce or long-press deadlines advanced. Reusing one monotonic
+            # timestamp keeps every button in this wake cycle ordered against the
+            # same "now", so unready buttons can safely advance without a fresh read.
             observed_at = time.monotonic()
             for fd in ready:
                 button = fd_to_button.get(fd)
@@ -345,11 +349,10 @@ class GpiodButtonAdapter(InputHAL):
                     read_edge_events(line)
                 except Exception as exc:
                     logger.debug(
-                        "Failed to drain GPIO edge events for button {}: {}",
+                        "Failed to drain GPIO edge events for button {}; sampling level directly: {}",
                         button.value,
                         exc,
                     )
-                    continue
 
                 self._observe_raw_state(button, self._read_button(button), observed_at)
 

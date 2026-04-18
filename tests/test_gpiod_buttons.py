@@ -122,3 +122,72 @@ def test_edge_wait_loop_blocks_between_events(monkeypatch: pytest.MonkeyPatch) -
     adapter._poll_loop()
 
     assert timeouts == [gpiod_buttons._EDGE_IDLE_WAIT_TIMEOUT]
+
+
+def test_edge_wait_loop_samples_level_when_event_drain_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from yoyopod.ui.input.adapters import gpiod_buttons
+    from yoyopod.ui.input.adapters.gpiod_buttons import Button
+
+    class FakeLine:
+        def __init__(self, fd: int, value: int) -> None:
+            self.fd = fd
+            self.value = value
+
+        def get_value(self) -> int:
+            return self.value
+
+        def release(self) -> None:
+            return None
+
+    class FakeChip:
+        def close(self) -> None:
+            return None
+
+    line = FakeLine(101, 1)
+    clock = iter((10.0, 10.0))
+
+    def fake_select(reads, _writes, _errors, timeout):
+        assert reads == [101]
+        assert timeout > 0.0
+        adapter._stop_event.set()
+        return ([101], [], [])
+
+    monkeypatch.setattr(gpiod_buttons, "HAS_GPIOD", True)
+    monkeypatch.setattr(gpiod_buttons, "open_chip", lambda _name: FakeChip())
+    monkeypatch.setattr(
+        gpiod_buttons,
+        "request_input_events",
+        lambda _chip, _line_offset, _consumer: line,
+    )
+    monkeypatch.setattr(gpiod_buttons, "get_event_fd", lambda requested_line: requested_line.fd)
+    monkeypatch.setattr(
+        gpiod_buttons,
+        "read_edge_events",
+        lambda _line: (_ for _ in ()).throw(RuntimeError("drain failed")),
+    )
+    monkeypatch.setattr(gpiod_buttons.select, "select", fake_select)
+    monkeypatch.setattr(gpiod_buttons.time, "monotonic", lambda: next(clock))
+
+    adapter = gpiod_buttons.GpiodButtonAdapter(
+        pin_config={"button_a": {"chip": "gpiochip0", "line": 10}},
+        simulate=False,
+    )
+    received: list[tuple[str, dict[str, str]]] = []
+    adapter.on_action(
+        InputAction.SELECT,
+        lambda data: received.append(("select", data)),
+    )
+    adapter._raw_button_states[Button.A] = True
+    adapter._button_states[Button.A] = True
+    adapter._press_times[Button.A] = 9.95
+
+    adapter._event_wait_loop()
+
+    transition_started_at = adapter._transition_times[Button.A]
+    assert transition_started_at == 10.0
+
+    adapter._advance_button_state(Button.A, transition_started_at + 0.06)
+
+    assert received == [("select", {"button": "A"})]

@@ -175,6 +175,29 @@ def test_idle_poll_loop_waits_on_stop_event_between_samples() -> None:
     assert waits == [adapter.poll_rate]
 
 
+def test_next_wait_timeout_falls_back_to_poll_rate_after_navigation_hold_fires() -> None:
+    """Held navigation presses should return to the idle cadence after BACK has fired."""
+
+    adapter = PTTInputAdapter(simulate=True, enable_navigation=True)
+    adapter.button_pressed = True
+    adapter.press_start_time = 0.0
+    adapter._hold_back_fired = True
+
+    assert adapter._next_wait_timeout(adapter.long_press_time + 0.1) == adapter.poll_rate
+
+
+def test_next_wait_timeout_falls_back_to_poll_rate_after_raw_hold_starts() -> None:
+    """Raw passthrough holds should not keep scheduling zero-time wakeups."""
+
+    adapter = PTTInputAdapter(simulate=True, enable_navigation=True)
+    adapter.set_raw_ptt_passthrough(True)
+    adapter.button_pressed = True
+    adapter.press_start_time = 0.0
+    adapter.raw_hold_started = True
+
+    assert adapter._next_wait_timeout(adapter.long_press_time + 0.1) == adapter.poll_rate
+
+
 def test_raw_ptt_passthrough_emits_hold_press_and_release_without_back() -> None:
     """Voice-note passthrough should surface raw hold events and suppress BACK."""
 

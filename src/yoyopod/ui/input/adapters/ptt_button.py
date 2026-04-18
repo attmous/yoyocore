@@ -393,6 +393,16 @@ class PTTInputAdapter(InputHAL):
         else:
             self._handle_button_release(transition_started_at)
 
+    def _hold_deadline_pending(self) -> bool:
+        """Return True while a held button still has threshold-driven work pending."""
+        if not self.button_pressed or self.press_start_time is None:
+            return False
+        if self.raw_ptt_passthrough:
+            return not self.raw_hold_started
+        if not self.enable_navigation:
+            return False
+        return not self._hold_back_fired
+
     def _next_wait_timeout(self, current_time: float) -> float:
         """Return the next deadline for polling, debounce, hold, or single-tap resolution."""
         deadlines = [self.poll_rate]
@@ -402,10 +412,10 @@ class PTTInputAdapter(InputHAL):
                 max(0.0, self.debounce_time - (current_time - self._button_transition_time))
             )
 
-        if self.button_pressed and self.press_start_time is not None:
-            deadlines.append(
-                max(0.0, self.long_press_time - (current_time - self.press_start_time))
-            )
+        if self._hold_deadline_pending() and self.press_start_time is not None:
+            hold_remaining = self.long_press_time - (current_time - self.press_start_time)
+            if hold_remaining > 0.0:
+                deadlines.append(hold_remaining)
 
         if (
             self.enable_navigation
