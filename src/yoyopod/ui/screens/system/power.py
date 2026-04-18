@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Optional
 
@@ -47,7 +47,7 @@ class PowerScreenState:
     """Prepared power/setup state consumed by the Setup screen."""
 
     snapshot: "PowerSnapshot | None" = None
-    status: tuple[tuple[str, object], ...] = ()
+    status: dict[str, object] = field(default_factory=dict)
     network_enabled: bool = False
     network_rows: tuple[tuple[str, str], ...] = ()
     gps_rows: tuple[tuple[str, str], ...] = ()
@@ -91,25 +91,6 @@ _VOICE_PAGE_SIGNATURE_FIELDS = (
     "mic_muted",
     "output_volume",
 )
-_VOICE_STATE_FIELD_NAMES = (
-    "commands_enabled",
-    "ai_requests_enabled",
-    "screen_read_enabled",
-    "stt_enabled",
-    "tts_enabled",
-    "mic_muted",
-    "speaker_device_id",
-    "capture_device_id",
-    "stt_available",
-    "tts_available",
-    "last_transcript",
-    "last_spoken_text",
-    "last_mode",
-    "output_volume",
-    "interaction",
-)
-
-
 def _build_network_rows_from_manager(network_manager: object | None) -> list[tuple[str, str]]:
     """Build the cellular network status rows from a backend-facing manager."""
 
@@ -213,7 +194,7 @@ def build_power_screen_state_provider(
 
         return PowerScreenState(
             snapshot=snapshot,
-            status=tuple(sorted(status.items())),
+            status=status,
             network_enabled=bool(
                 network_manager is not None and getattr(network_manager.config, "enabled", False)
             ),
@@ -292,7 +273,7 @@ class PowerScreen(Screen):
         self._gps_refresh_interval_seconds = 2.0
         self._prepared_state: PowerScreenState | None = None
         self._cached_pages: list[PowerPage] | None = None
-        self._cached_pages_state: PowerScreenState | None = None
+        self._cached_pages_signature: tuple[object, ...] | None = None
         self._cached_pages_voice_signature: tuple[object, ...] | None = None
         self._cached_pages_one_button_mode: bool | None = None
 
@@ -789,10 +770,10 @@ class PowerScreen(Screen):
         return bool(coord)
 
     def _get_state(self) -> PowerScreenState:
-        """Return cached prepared state without hydrating from render-adjacent paths."""
+        """Return cached prepared state, hydrating it for explicit non-render callers."""
 
         if self._prepared_state is None:
-            return PowerScreenState()
+            return self.refresh_prepared_state(force=True)
         return self._prepared_state
 
     def refresh_prepared_state(
@@ -828,19 +809,24 @@ class PowerScreen(Screen):
     ) -> list[PowerPage]:
         """Return cached page models until prepared state or voice inputs change."""
 
-        resolved_state = state or self._get_state()
+        resolved_state = state or self._prepared_state or PowerScreenState()
         voice_signature = self._voice_page_signature()
         one_button_mode = self.is_one_button_mode()
+        cache_signature = self._page_cache_signature(
+            state=resolved_state,
+            voice_signature=voice_signature,
+            one_button_mode=one_button_mode,
+        )
         if (
             self._cached_pages is not None
-            and self._cached_pages_state == resolved_state
+            and self._cached_pages_signature == cache_signature
             and self._cached_pages_voice_signature == voice_signature
             and self._cached_pages_one_button_mode == one_button_mode
         ):
             return self._cached_pages
 
         self._cached_pages = self.build_pages(state=resolved_state)
-        self._cached_pages_state = resolved_state
+        self._cached_pages_signature = cache_signature
         self._cached_pages_voice_signature = voice_signature
         self._cached_pages_one_button_mode = one_button_mode
         return self._cached_pages
@@ -849,7 +835,7 @@ class PowerScreen(Screen):
         """Drop cached page models after local UI state mutations."""
 
         self._cached_pages = None
-        self._cached_pages_state = None
+        self._cached_pages_signature = None
         self._cached_pages_voice_signature = None
         self._cached_pages_one_button_mode = None
 
@@ -860,11 +846,28 @@ class PowerScreen(Screen):
             return None
 
         voice = self.context.voice
-        voice_field_names = tuple(field_info.name for field_info in fields(type(voice)))
-        assert voice_field_names == _VOICE_STATE_FIELD_NAMES, (
-            "VoiceState field list changed; revisit PowerScreen voice cache signature."
-        )
         return tuple(getattr(voice, field_name) for field_name in _VOICE_PAGE_SIGNATURE_FIELDS)
+
+    @staticmethod
+    def _page_cache_signature(
+        *,
+        state: PowerScreenState,
+        voice_signature: tuple[object, ...] | None,
+        one_button_mode: bool,
+    ) -> tuple[object, ...]:
+        """Return the stable inputs used to reuse prepared page models."""
+
+        return (
+            state.snapshot,
+            tuple(sorted(state.status.items())),
+            state.network_enabled,
+            state.network_rows,
+            state.gps_rows,
+            state.playback_devices,
+            state.capture_devices,
+            voice_signature,
+            one_button_mode,
+        )
 
     def _current_page_title(self) -> str | None:
         """Return the currently selected Setup page title from prepared pages."""

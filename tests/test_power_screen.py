@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import fields
 from datetime import datetime
 
 from yoyopod.app_context import AppContext
 from yoyopod.power import BatteryState, PowerDeviceInfo, PowerSnapshot, RTCState, ShutdownState
+from yoyopod.runtime_state import VoiceState
 from yoyopod.ui.display import Display
 from yoyopod.ui.input import InteractionProfile
 from yoyopod.ui.screens.system.power import (
@@ -337,8 +339,30 @@ def test_power_screen_reuses_prepared_pages_until_explicit_refresh() -> None:
         display.cleanup()
 
 
-def test_power_screen_lazy_state_path_returns_default_without_provider_call() -> None:
-    """Cache misses should not hydrate prepared state from render-adjacent getters."""
+def test_power_screen_voice_state_schema_changes_require_signature_review() -> None:
+    """VoiceState schema drift should be caught in tests, not via runtime assertions."""
+
+    assert tuple(field_info.name for field_info in fields(VoiceState)) == (
+        "commands_enabled",
+        "ai_requests_enabled",
+        "screen_read_enabled",
+        "stt_enabled",
+        "tts_enabled",
+        "mic_muted",
+        "speaker_device_id",
+        "capture_device_id",
+        "stt_available",
+        "tts_available",
+        "last_transcript",
+        "last_spoken_text",
+        "last_mode",
+        "output_volume",
+        "interaction",
+    )
+
+
+def test_power_screen_render_path_uses_default_state_without_provider_call() -> None:
+    """Render-adjacent page preparation should not hydrate the provider on cache miss."""
 
     class CountingStateProvider:
         def __init__(self) -> None:
@@ -353,9 +377,9 @@ def test_power_screen_lazy_state_path_returns_default_without_provider_call() ->
         provider = CountingStateProvider()
         screen = PowerScreen(display, AppContext(), state_provider=provider)
 
-        state = screen._get_state()
+        payload = screen.lvgl_payload()
 
-        assert state == PowerScreenState()
+        assert payload.total_pages == 4
         assert provider.calls == 0
     finally:
         display.cleanup()
