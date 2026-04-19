@@ -47,33 +47,34 @@ class _RequestedLineHandle:
         getter = getattr(self._request, "get_value", None)
         if callable(getter):
             try:
-                return getter(self._line_offset)
+                return _normalize_input_value(getter(self._line_offset))
             except TypeError:
-                return getter()
+                return _normalize_input_value(getter())
 
         getter = getattr(self._request, "get_values", None)
         if callable(getter):
             values = getter([self._line_offset])
-            return list(values)[0]
+            return _normalize_input_value(list(values)[0])
 
         raise RuntimeError("Requested line does not expose get_value()")
 
     def set_value(self, value: Any) -> None:
+        coerced_value = _coerce_output_value(value)
         setter = getattr(self._request, "set_value", None)
         if callable(setter):
             try:
-                setter(self._line_offset, value)
+                setter(self._line_offset, coerced_value)
                 return
             except TypeError:
-                setter(value)
+                setter(coerced_value)
                 return
 
         setter = getattr(self._request, "set_values", None)
         if callable(setter):
             try:
-                setter({self._line_offset: value})
+                setter({self._line_offset: coerced_value})
             except TypeError:
-                setter([value])
+                setter([coerced_value])
             return
 
         raise RuntimeError("Requested line does not expose set_value()")
@@ -261,6 +262,39 @@ def _resolve_output_value(raw_value: int) -> Any:
     if raw_value:
         return _resolve_gpiod_attr("line.Value.ACTIVE", "Value.ACTIVE") or raw_value
     return _resolve_gpiod_attr("line.Value.INACTIVE", "Value.INACTIVE") or raw_value
+
+
+def _coerce_output_value(value: Any) -> Any:
+    """Convert integer writes into the runtime's output-value representation."""
+    if isinstance(value, bool):
+        return _resolve_output_value(int(value))
+    if isinstance(value, int):
+        return _resolve_output_value(value)
+    return value
+
+
+def _normalize_input_value(value: Any) -> Any:
+    """Convert libgpiod v2 input enums back to numeric active-low levels."""
+    inactive = _resolve_gpiod_attr("line.Value.INACTIVE", "Value.INACTIVE")
+    active = _resolve_gpiod_attr("line.Value.ACTIVE", "Value.ACTIVE")
+
+    if inactive is not None and value == inactive:
+        return 0
+    if active is not None and value == active:
+        return 1
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+
+    normalized = str(getattr(value, "name", value)).rsplit(".", 1)[-1].lower()
+    if normalized in {"inactive", "low"}:
+        return 0
+    if normalized in {"active", "high"}:
+        return 1
+
+    return value
 
 
 def open_chip(name: str) -> Any:

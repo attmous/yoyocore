@@ -273,6 +273,8 @@ def test_request_input_events_supports_official_gpiod_v2_request_lines(
     from yoyopod.ui import gpiod_compat
 
     request_calls: list[tuple[str, dict[int, object]]] = []
+    inactive_token = object()
+    active_token = object()
 
     class FakeLineSettings:
         def __init__(self, **kwargs) -> None:
@@ -284,9 +286,9 @@ def test_request_input_events_supports_official_gpiod_v2_request_lines(
 
     class FakeRequest:
         def __init__(self) -> None:
-            self.values = {7: 0}
+            self.values = {7: inactive_token}
 
-        def get_value(self, offset: int) -> int:
+        def get_value(self, offset: int) -> object:
             return self.values[offset]
 
         def read_edge_events(self) -> list[FakeEvent]:
@@ -313,7 +315,7 @@ def test_request_input_events_supports_official_gpiod_v2_request_lines(
             Direction=SimpleNamespace(INPUT="input", OUTPUT="output"),
             Bias=SimpleNamespace(DISABLED="bias-disabled"),
             Edge=SimpleNamespace(BOTH="both-edges"),
-            Value=SimpleNamespace(ACTIVE="active", INACTIVE="inactive"),
+            Value=SimpleNamespace(ACTIVE=active_token, INACTIVE=inactive_token),
         ),
     )
 
@@ -342,6 +344,8 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
     from yoyopod.ui import gpiod_compat
 
     set_calls: list[tuple[int, object]] = []
+    inactive_token = object()
+    active_token = object()
 
     class FakeLineSettings:
         def __init__(self, **kwargs) -> None:
@@ -359,7 +363,7 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
             assert consumer == "pimoroni-led-r"
             assert config[12].kwargs == {
                 "direction": "output",
-                "output_value": "active",
+                "output_value": active_token,
             }
             return FakeRequest()
 
@@ -373,7 +377,7 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
             Direction=SimpleNamespace(INPUT="input", OUTPUT="output"),
             Bias=SimpleNamespace(DISABLED="bias-disabled"),
             Edge=SimpleNamespace(BOTH="both-edges"),
-            Value=SimpleNamespace(ACTIVE="active", INACTIVE="inactive"),
+            Value=SimpleNamespace(ACTIVE=active_token, INACTIVE=inactive_token),
         ),
     )
 
@@ -382,9 +386,9 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
 
     chip = gpiod_compat.open_chip("gpiochip0")
     line = gpiod_compat.request_output(chip, 12, "pimoroni-led-r", default_val=1)
-    line.set_value("manual")
+    line.set_value(0)
 
-    assert set_calls == [(12, "manual")]
+    assert set_calls == [(12, inactive_token)]
 
 
 def test_request_input_events_does_not_mask_internal_type_error(
