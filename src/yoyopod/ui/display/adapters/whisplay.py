@@ -23,7 +23,7 @@ from importlib import import_module
 from pathlib import Path
 import time
 from types import ModuleType
-from typing import Any, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from loguru import logger
 
@@ -33,6 +33,10 @@ from yoyopod.ui.display.contracts import (
 )
 from yoyopod.ui.display.adapters.whisplay_paths import ensure_whisplay_driver_on_path
 from yoyopod.ui.display.hal import DisplayHAL
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PillowImage
+    from PIL.ImageDraw import ImageDraw as PillowImageDraw
 
 DRIVER_PATH = ensure_whisplay_driver_on_path()
 DEFAULT_FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
@@ -212,8 +216,8 @@ class WhisplayDisplayAdapter(DisplayHAL):
             )
 
         self.simulate = requested_simulation or not HAS_HARDWARE
-        self.buffer: Any | None = None
-        self.draw: Any | None = None
+        self.buffer: PillowImage | None = None
+        self.draw: PillowImageDraw | None = None
         self.device = None
         self.lvgl_buffer_lines = max(1, int(lvgl_buffer_lines))
         self.ui_backend = None
@@ -366,7 +370,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         return font
 
     @staticmethod
-    def _rgb565_to_image(width: int, height: int, pixel_data: bytes) -> Any:
+    def _rgb565_to_image(width: int, height: int, pixel_data: bytes) -> PillowImage:
         """Decode big-endian RGB565 bytes into a PIL image."""
 
         image_module, _, _, _ = _load_pillow_modules()
