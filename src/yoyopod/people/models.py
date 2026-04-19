@@ -82,20 +82,27 @@ def contacts_to_mapping(
 ) -> dict[str, Any]:
     """Serialize contacts and speed dial into a YAML-friendly mapping."""
 
+    serialized_contacts: list[dict[str, Any]] = []
+    for contact in contacts:
+        entry = {
+            "name": contact.name,
+            "sip_address": contact.sip_address,
+            "favorite": contact.favorite,
+            "notes": contact.notes,
+        }
+        if contact.phone_number:
+            entry["phone_number"] = contact.phone_number
+        if contact.contact_id:
+            entry["contact_id"] = contact.contact_id
+        if contact.sync_origin != "local":
+            entry["sync_origin"] = contact.sync_origin
+        if not contact.can_call:
+            entry["can_call"] = contact.can_call
+        if not contact.can_receive:
+            entry["can_receive"] = contact.can_receive
+        serialized_contacts.append(entry)
+
     return {
-        "contacts": [
-            {
-                "name": contact.name,
-                "sip_address": contact.sip_address,
-                "phone_number": contact.phone_number,
-                "favorite": contact.favorite,
-                "notes": contact.notes,
-                "contact_id": contact.contact_id,
-                "sync_origin": contact.sync_origin,
-                "can_call": contact.can_call,
-                "can_receive": contact.can_receive,
-            }
-            for contact in contacts
-        ],
+        "contacts": serialized_contacts,
         "speed_dial": speed_dial,
     }

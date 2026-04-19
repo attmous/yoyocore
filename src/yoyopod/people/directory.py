@@ -99,6 +99,11 @@ class PeopleDirectory:
             contact for contact in self.contacts if contact.is_callable(gsm_enabled=gsm_enabled)
         ]
 
+    def get_local_contacts(self) -> list[Contact]:
+        """Return contacts that are not managed by cloud sync."""
+
+        return [contact for contact in self.contacts if contact.sync_origin != "cloud"]
+
     def get_contact_by_name(self, name: str) -> Contact | None:
         """Return one contact matched by source name."""
 
