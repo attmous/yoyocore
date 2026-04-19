@@ -8,6 +8,31 @@ from queue import Empty
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
 from loguru import logger
+from yoyopod.runtime.blocking_monitor import (
+    _measure_blocking_span as _measure_blocking_span_impl,
+    _runtime_blocking_span_warning_seconds as _runtime_blocking_span_warning_seconds_impl,
+    _runtime_iteration_warning_seconds as _runtime_iteration_warning_seconds_impl,
+    _runtime_loop_gap_warning_seconds as _runtime_loop_gap_warning_seconds_impl,
+    _record_blocking_span as _record_blocking_span_impl,
+    _voip_iterate_warning_seconds as _voip_iterate_warning_seconds_impl,
+    _voip_schedule_delay_warning_seconds as _voip_schedule_delay_warning_seconds_impl,
+    _warn_if_slow as _warn_if_slow_impl,
+)
+from yoyopod.runtime.loop_cadence import (
+    _LoopCadenceDecision,
+    _apply_loop_cadence as _apply_loop_cadence_impl,
+    _effective_voip_iterate_interval_seconds as _effective_voip_iterate_interval_seconds_impl,
+    _next_voip_due_at_for_cadence as _next_voip_due_at_for_cadence_impl,
+    _select_loop_cadence as _select_loop_cadence_impl,
+)
+from yoyopod.runtime.voip_timing import (
+    _VoipIterateMetrics,
+    _VoipTimingWindow,
+    _latest_voip_iterate_metrics as _latest_voip_iterate_metrics_impl,
+    _maybe_log_voip_timing_summary as _maybe_log_voip_timing_summary_impl,
+    _record_voip_timing_sample as _record_voip_timing_sample_impl,
+    _sync_background_voip_timing_sample as _sync_background_voip_timing_sample_impl,
+)
 
 from yoyopod.utils.logger import get_subsystem_logger
 
@@ -18,44 +43,6 @@ if TYPE_CHECKING:
 coord_logger = get_subsystem_logger("coord")
 voip_logger = get_subsystem_logger("voip")
 _T = TypeVar("_T")
-
-
-@dataclass(slots=True)
-class _VoipTimingWindow:
-    """Rolling aggregate used for low-noise VoIP timing summaries."""
-
-    started_at: float = 0.0
-    samples: int = 0
-    total_schedule_delay_seconds: float = 0.0
-    max_schedule_delay_seconds: float = 0.0
-    delayed_samples: int = 0
-    total_iterate_duration_seconds: float = 0.0
-    max_iterate_duration_seconds: float = 0.0
-    max_native_iterate_duration_seconds: float = 0.0
-    max_event_drain_duration_seconds: float = 0.0
-    max_drained_events: int = 0
-    slow_samples: int = 0
-    max_loop_gap_seconds: float = 0.0
-    max_blocking_span_name: str | None = None
-    max_blocking_span_seconds: float = 0.0
-
-
-@dataclass(frozen=True, slots=True)
-class _VoipIterateMetrics:
-    """Normalized keep-alive sub-span timings surfaced from the VoIP backend."""
-
-    native_duration_seconds: float = 0.0
-    event_drain_duration_seconds: float = 0.0
-
-
-@dataclass(frozen=True, slots=True)
-class _LoopCadenceDecision:
-    """Normalized runtime cadence decision for the next coordinator wake."""
-
-    mode: str
-    reason: str
-    loop_sleep_seconds: float
-    voip_iterate_interval_seconds: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,25 +174,7 @@ class RuntimeLoopService:
     def _record_blocking_span(self, span_name: str, duration_seconds: float) -> None:
         """Persist and log one named coordinator-thread blocking span."""
 
-        self._last_runtime_blocking_span_name = span_name
-        self._last_runtime_blocking_span_seconds = duration_seconds
-        self._last_runtime_blocking_span_recorded_at = time.monotonic()
-        if (
-            self._voip_timing_window.started_at > 0.0
-            and duration_seconds >= self._voip_timing_window.max_blocking_span_seconds
-        ):
-            self._voip_timing_window.max_blocking_span_name = span_name
-            self._voip_timing_window.max_blocking_span_seconds = duration_seconds
-        coord_logger.warning(
-            "Coordinator blocking span: "
-            "span={} duration_ms={:.1f} pending_callbacks={} pending_events={} screen={} state={}",
-            span_name,
-            duration_seconds * 1000.0,
-            self.app._pending_main_thread_callback_count(),
-            self.app.event_bus.pending_count(),
-            self._current_screen_name(),
-            self._runtime_state_name(),
-        )
+        _record_blocking_span_impl(self, span_name=span_name, duration_seconds=duration_seconds)
 
     def _measure_blocking_span(
         self,
@@ -214,38 +183,12 @@ class RuntimeLoopService:
     ) -> _T:
         """Run one coordinator step and surface unusually long blocking spans."""
 
-        started_at = time.monotonic()
-        try:
-            return callback()
-        finally:
-            duration_seconds = max(0.0, time.monotonic() - started_at)
-            if duration_seconds >= self._runtime_blocking_span_warning_seconds():
-                self._record_blocking_span(span_name, duration_seconds)
+        return _measure_blocking_span_impl(self, span_name, callback)
 
     def _latest_voip_iterate_metrics(self) -> _VoipIterateMetrics | None:
         """Return the latest backend-native keep-alive sub-span timings when available."""
 
-        if self.app.voip_manager is None:
-            return None
-
-        get_metrics = getattr(self.app.voip_manager, "get_iterate_metrics", None)
-        if not callable(get_metrics):
-            return None
-
-        metrics = get_metrics()
-        if metrics is None:
-            return None
-
-        return _VoipIterateMetrics(
-            native_duration_seconds=max(
-                0.0,
-                float(getattr(metrics, "native_duration_seconds", 0.0) or 0.0),
-            ),
-            event_drain_duration_seconds=max(
-                0.0,
-                float(getattr(metrics, "event_drain_duration_seconds", 0.0) or 0.0),
-            ),
-        )
+        return _latest_voip_iterate_metrics_impl(self)
 
     def _voip_background_iterate_enabled(self) -> bool:
         """Return whether the active VoIP manager owns a dedicated iterate worker."""
@@ -258,84 +201,7 @@ class RuntimeLoopService:
     def _sync_background_voip_timing_sample(self) -> None:
         """Pull the latest background iterate sample into runtime timing snapshots."""
 
-        if self.app.voip_manager is None:
-            return
-
-        get_snapshot = getattr(self.app.voip_manager, "get_iterate_timing_snapshot", None)
-        if not callable(get_snapshot):
-            return
-
-        snapshot = get_snapshot()
-        if snapshot is None:
-            return
-
-        last_started_at = max(0.0, float(getattr(snapshot, "last_started_at", 0.0) or 0.0))
-        if last_started_at > 0.0:
-            self._last_voip_iterate_started_at = last_started_at
-
-        sample_id = max(0, int(getattr(snapshot, "sample_id", 0) or 0))
-        if sample_id <= 0 or sample_id == self._last_voip_timing_sample_id:
-            return
-
-        self._last_voip_timing_sample_id = sample_id
-        self._last_voip_schedule_delay_seconds = max(
-            0.0,
-            float(getattr(snapshot, "schedule_delay_seconds", 0.0) or 0.0),
-        )
-        self._last_voip_iterate_duration_seconds = max(
-            0.0,
-            float(getattr(snapshot, "total_duration_seconds", 0.0) or 0.0),
-        )
-        self._last_voip_native_events = max(0, int(getattr(snapshot, "drained_events", 0) or 0))
-        self._last_voip_native_iterate_duration_seconds = max(
-            0.0,
-            float(getattr(snapshot, "native_duration_seconds", 0.0) or 0.0),
-        )
-        self._last_voip_event_drain_duration_seconds = max(
-            0.0,
-            float(getattr(snapshot, "event_drain_duration_seconds", 0.0) or 0.0),
-        )
-
-        delayed = (
-            self._last_voip_schedule_delay_seconds >= self._voip_schedule_delay_warning_seconds()
-        )
-        slow = self._last_voip_iterate_duration_seconds >= self._voip_iterate_warning_seconds()
-        self._record_voip_timing_sample(
-            monotonic_now=max(
-                last_started_at,
-                float(getattr(snapshot, "last_completed_at", last_started_at) or last_started_at),
-            ),
-            schedule_delay_seconds=self._last_voip_schedule_delay_seconds,
-            iterate_duration_seconds=self._last_voip_iterate_duration_seconds,
-            native_iterate_duration_seconds=self._last_voip_native_iterate_duration_seconds,
-            event_drain_duration_seconds=self._last_voip_event_drain_duration_seconds,
-            drained_events=self._last_voip_native_events,
-            delayed=delayed,
-            slow=slow,
-        )
-
-        if delayed or slow:
-            voip_logger.warning(
-                "VoIP iterate timing drift: "
-                "schedule_delay_ms={:.1f} iterate_ms={:.1f} "
-                "interval_ms={:.1f} configured_interval_ms={:.1f} "
-                "native_iterate_ms={:.1f} event_drain_ms={:.1f} "
-                "native_events={} cadence_mode={} cadence_reason={} "
-                "pending_callbacks={} pending_events={} screen={} state={}",
-                self._last_voip_schedule_delay_seconds * 1000.0,
-                self._last_voip_iterate_duration_seconds * 1000.0,
-                self._effective_voip_iterate_interval_seconds() * 1000.0,
-                self.app._voip_iterate_interval_seconds * 1000.0,
-                self._last_voip_native_iterate_duration_seconds * 1000.0,
-                self._last_voip_event_drain_duration_seconds * 1000.0,
-                self._last_voip_native_events,
-                self._current_cadence_mode,
-                self._current_cadence_reason,
-                self.app._pending_main_thread_callback_count(),
-                self.app.event_bus.pending_count(),
-                self._current_screen_name(),
-                self._runtime_state_name(),
-            )
+        _sync_background_voip_timing_sample_impl(self)
 
     def process_pending_main_thread_actions(self, limit: Optional[int] = None) -> int:
         """Drain queued typed events scheduled by worker threads."""
@@ -1012,76 +878,7 @@ class RuntimeLoopService:
     def _select_loop_cadence(self, *, monotonic_now: float) -> _LoopCadenceDecision:
         """Choose the next runtime cadence from current state and queued work."""
 
-        configured_voip_interval_seconds = max(
-            0.01,
-            float(self.app._voip_iterate_interval_seconds),
-        )
-        fast_loop_sleep_seconds = min(
-            self._RELAXED_IDLE_INTERVAL_SECONDS,
-            configured_voip_interval_seconds,
-        )
-        pending_callbacks = max(0, self.app._pending_main_thread_callback_count() or 0)
-        pending_events = max(0, self.app.event_bus.pending_count())
-        if pending_callbacks > 0 or pending_events > 0:
-            return _LoopCadenceDecision(
-                mode="latency_sensitive",
-                reason="pending_work",
-                loop_sleep_seconds=self._pending_work_loop_sleep_seconds(),
-                voip_iterate_interval_seconds=configured_voip_interval_seconds,
-            )
-
-        if self.app._pending_shutdown is not None or self.app._power_alert is not None:
-            return _LoopCadenceDecision(
-                mode="latency_sensitive",
-                reason="safety_transition",
-                loop_sleep_seconds=fast_loop_sleep_seconds,
-                voip_iterate_interval_seconds=configured_voip_interval_seconds,
-            )
-
-        if self._runtime_state_name() in self._LATENCY_SENSITIVE_STATES:
-            return _LoopCadenceDecision(
-                mode="latency_sensitive",
-                reason="call_or_connecting_state",
-                loop_sleep_seconds=fast_loop_sleep_seconds,
-                voip_iterate_interval_seconds=configured_voip_interval_seconds,
-            )
-
-        recent_input_age_seconds = (
-            max(0.0, monotonic_now - self.app._last_input_activity_at)
-            if self.app._last_input_activity_at > 0.0
-            else None
-        )
-        if (
-            recent_input_age_seconds is not None
-            and recent_input_age_seconds <= self._RECENT_INPUT_WINDOW_SECONDS
-        ):
-            return _LoopCadenceDecision(
-                mode="latency_sensitive",
-                reason="recent_input",
-                loop_sleep_seconds=fast_loop_sleep_seconds,
-                voip_iterate_interval_seconds=configured_voip_interval_seconds,
-            )
-
-        if not self.app._screen_awake:
-            return _LoopCadenceDecision(
-                mode="idle_sleeping",
-                reason="screen_sleeping",
-                loop_sleep_seconds=self._SCREEN_SLEEP_IDLE_INTERVAL_SECONDS,
-                voip_iterate_interval_seconds=max(
-                    configured_voip_interval_seconds,
-                    self._SCREEN_SLEEP_IDLE_INTERVAL_SECONDS,
-                ),
-            )
-
-        return _LoopCadenceDecision(
-            mode="idle_awake",
-            reason="screen_awake_idle",
-            loop_sleep_seconds=self._RELAXED_IDLE_INTERVAL_SECONDS,
-            voip_iterate_interval_seconds=max(
-                configured_voip_interval_seconds,
-                self._RELAXED_IDLE_INTERVAL_SECONDS,
-            ),
-        )
+        return _select_loop_cadence_impl(self, monotonic_now=monotonic_now)
 
     def _apply_loop_cadence(
         self,
@@ -1091,65 +888,12 @@ class RuntimeLoopService:
     ) -> None:
         """Store one cadence decision and accelerate due work when responsiveness tightens."""
 
-        previous_voip_interval_seconds = self._current_voip_iterate_interval_seconds
-        changed = (
-            self._current_cadence_mode != decision.mode
-            or self._current_cadence_reason != decision.reason
-            or abs(self._current_loop_sleep_seconds - decision.loop_sleep_seconds) > 1e-9
-            or abs(previous_voip_interval_seconds - decision.voip_iterate_interval_seconds) > 1e-9
-        )
-        self._current_cadence_mode = decision.mode
-        self._current_cadence_reason = decision.reason
-        self._current_loop_sleep_seconds = decision.loop_sleep_seconds
-        self._current_voip_iterate_interval_seconds = decision.voip_iterate_interval_seconds
-        self._last_cadence_selected_at = monotonic_now
-
-        if (
-            self.app.voip_manager is not None
-            and self.app.voip_manager.running
-        ):
-            if self._voip_background_iterate_enabled():
-                ensure_running = getattr(
-                    self.app.voip_manager,
-                    "ensure_background_iterate_running",
-                    None,
-                )
-                if callable(ensure_running):
-                    ensure_running()
-                set_interval = getattr(
-                    self.app.voip_manager,
-                    "set_iterate_interval_seconds",
-                    None,
-                )
-                if callable(set_interval):
-                    set_interval(decision.voip_iterate_interval_seconds)
-                self.app._next_voip_iterate_at = 0.0
-            else:
-                self.app._next_voip_iterate_at = self._next_voip_due_at_for_cadence(
-                    monotonic_now=monotonic_now,
-                    iterate_interval_seconds=decision.voip_iterate_interval_seconds,
-                )
-
-        if not changed:
-            return
-
-        coord_logger.info(
-            "Runtime cadence: "
-            "mode={} reason={} sleep_ms={:.1f} voip_interval_ms={:.1f} "
-            "configured_voip_interval_ms={:.1f} screen={} state={}",
-            decision.mode,
-            decision.reason,
-            decision.loop_sleep_seconds * 1000.0,
-            decision.voip_iterate_interval_seconds * 1000.0,
-            self.app._voip_iterate_interval_seconds * 1000.0,
-            self._current_screen_name(),
-            self._runtime_state_name(),
-        )
+        _apply_loop_cadence_impl(self, decision, monotonic_now=monotonic_now)
 
     def _effective_voip_iterate_interval_seconds(self) -> float:
         """Return the currently selected VoIP iterate cadence."""
 
-        return max(0.01, self._current_voip_iterate_interval_seconds)
+        return _effective_voip_iterate_interval_seconds_impl(self)
 
     def _next_voip_due_at_for_cadence(
         self,
@@ -1159,12 +903,10 @@ class RuntimeLoopService:
     ) -> float:
         """Return the next VoIP iterate deadline aligned to the current cadence."""
 
-        effective_interval_seconds = max(0.01, iterate_interval_seconds)
-        if self._last_voip_iterate_started_at <= 0.0:
-            return monotonic_now + effective_interval_seconds
-        return max(
-            monotonic_now,
-            self._last_voip_iterate_started_at + effective_interval_seconds,
+        return _next_voip_due_at_for_cadence_impl(
+            self,
+            monotonic_now=monotonic_now,
+            iterate_interval_seconds=iterate_interval_seconds,
         )
 
     def _observe_loop_gap(self, *, monotonic_now: float) -> None:
@@ -1214,128 +956,47 @@ class RuntimeLoopService:
     ) -> None:
         """Accumulate one VoIP iterate sample for the next summary window."""
 
-        if self._voip_timing_window.started_at <= 0.0:
-            self._voip_timing_window.started_at = monotonic_now
-
-        self._voip_timing_window.samples += 1
-        self._voip_timing_window.total_schedule_delay_seconds += schedule_delay_seconds
-        self._voip_timing_window.max_schedule_delay_seconds = max(
-            self._voip_timing_window.max_schedule_delay_seconds,
-            schedule_delay_seconds,
+        _record_voip_timing_sample_impl(
+            self,
+            monotonic_now=monotonic_now,
+            schedule_delay_seconds=schedule_delay_seconds,
+            iterate_duration_seconds=iterate_duration_seconds,
+            native_iterate_duration_seconds=native_iterate_duration_seconds,
+            event_drain_duration_seconds=event_drain_duration_seconds,
+            drained_events=drained_events,
+            delayed=delayed,
+            slow=slow,
         )
-        self._voip_timing_window.total_iterate_duration_seconds += iterate_duration_seconds
-        self._voip_timing_window.max_iterate_duration_seconds = max(
-            self._voip_timing_window.max_iterate_duration_seconds,
-            iterate_duration_seconds,
-        )
-        self._voip_timing_window.max_native_iterate_duration_seconds = max(
-            self._voip_timing_window.max_native_iterate_duration_seconds,
-            native_iterate_duration_seconds,
-        )
-        self._voip_timing_window.max_event_drain_duration_seconds = max(
-            self._voip_timing_window.max_event_drain_duration_seconds,
-            event_drain_duration_seconds,
-        )
-        self._voip_timing_window.max_drained_events = max(
-            self._voip_timing_window.max_drained_events,
-            drained_events,
-        )
-        self._voip_timing_window.max_loop_gap_seconds = max(
-            self._voip_timing_window.max_loop_gap_seconds,
-            self._last_runtime_loop_gap_seconds,
-        )
-        if delayed:
-            self._voip_timing_window.delayed_samples += 1
-        if slow:
-            self._voip_timing_window.slow_samples += 1
 
     def _maybe_log_voip_timing_summary(self, *, monotonic_now: float) -> None:
         """Emit a low-frequency summary of keep-alive timing behavior."""
 
-        window = self._voip_timing_window
-        if window.started_at <= 0.0 or window.samples <= 0:
-            return
-
-        if (
-            self._VOIP_TIMING_SUMMARY_INTERVAL_SECONDS > 0.0
-            and (monotonic_now - window.started_at) < self._VOIP_TIMING_SUMMARY_INTERVAL_SECONDS
-        ):
-            return
-
-        average_schedule_delay_ms = (window.total_schedule_delay_seconds / window.samples) * 1000.0
-        average_iterate_duration_ms = (
-            window.total_iterate_duration_seconds / window.samples
-        ) * 1000.0
-        voip_logger.info(
-            "VoIP timing window: "
-            "samples={} avg_schedule_delay_ms={:.1f} max_schedule_delay_ms={:.1f} "
-            "avg_iterate_ms={:.1f} max_iterate_ms={:.1f} max_loop_gap_ms={:.1f} "
-            "delayed_samples={} slow_samples={} max_native_iterate_ms={:.1f} "
-            "max_event_drain_ms={:.1f} max_native_events={} "
-            "max_blocking_span={} max_blocking_span_ms={:.1f} "
-            "interval_ms={:.1f} configured_interval_ms={:.1f} "
-            "cadence_mode={} cadence_reason={} screen={} state={}",
-            window.samples,
-            average_schedule_delay_ms,
-            window.max_schedule_delay_seconds * 1000.0,
-            average_iterate_duration_ms,
-            window.max_iterate_duration_seconds * 1000.0,
-            window.max_loop_gap_seconds * 1000.0,
-            window.delayed_samples,
-            window.slow_samples,
-            window.max_native_iterate_duration_seconds * 1000.0,
-            window.max_event_drain_duration_seconds * 1000.0,
-            window.max_drained_events,
-            window.max_blocking_span_name or "none",
-            window.max_blocking_span_seconds * 1000.0,
-            self._effective_voip_iterate_interval_seconds() * 1000.0,
-            self.app._voip_iterate_interval_seconds * 1000.0,
-            self._current_cadence_mode,
-            self._current_cadence_reason,
-            self._current_screen_name(),
-            self._runtime_state_name(),
-        )
-        self._voip_timing_window = _VoipTimingWindow(started_at=monotonic_now)
+        _maybe_log_voip_timing_summary_impl(self, monotonic_now=monotonic_now)
 
     def _runtime_loop_gap_warning_seconds(self) -> float:
         """Return the loop-gap threshold that is worth surfacing on hardware."""
 
-        return max(
-            self._MIN_RUNTIME_LOOP_GAP_WARNING_SECONDS,
-            self._effective_voip_iterate_interval_seconds() * 6.0,
-        )
+        return _runtime_loop_gap_warning_seconds_impl(self)
 
     def _runtime_iteration_warning_seconds(self) -> float:
         """Return the total iteration duration threshold for broad blocking work."""
 
-        return max(
-            self._MIN_RUNTIME_ITERATION_WARNING_SECONDS,
-            self._effective_voip_iterate_interval_seconds() * 6.0,
-        )
+        return _runtime_iteration_warning_seconds_impl(self)
 
     def _runtime_blocking_span_warning_seconds(self) -> float:
         """Return the per-step blocking threshold for coordinator runtime spans."""
 
-        return max(
-            self._MIN_RUNTIME_BLOCKING_SPAN_WARNING_SECONDS,
-            self._effective_voip_iterate_interval_seconds() * 6.0,
-        )
+        return _runtime_blocking_span_warning_seconds_impl(self)
 
     def _voip_schedule_delay_warning_seconds(self) -> float:
         """Return the schedule-drift threshold for VoIP iterate warnings."""
 
-        return max(
-            self._MIN_VOIP_SCHEDULE_DELAY_WARNING_SECONDS,
-            self._effective_voip_iterate_interval_seconds() * 4.0,
-        )
+        return _voip_schedule_delay_warning_seconds_impl(self)
 
     def _voip_iterate_warning_seconds(self) -> float:
         """Return the per-iterate duration threshold for VoIP keep-alive warnings."""
 
-        return max(
-            self._MIN_VOIP_ITERATE_WARNING_SECONDS,
-            self._effective_voip_iterate_interval_seconds() * 4.0,
-        )
+        return _voip_iterate_warning_seconds_impl(self)
 
     def _current_screen_name(self) -> str:
         """Return the active route name for diagnostic log context."""
@@ -1364,13 +1025,10 @@ class RuntimeLoopService:
     ) -> None:
         """Emit a targeted warning when one coordinator-loop phase runs unusually long."""
 
-        elapsed_seconds = time.monotonic() - started_at
-        if elapsed_seconds < threshold_seconds:
-            return
-
-        logger.warning(
-            "Slow runtime phase: {} took {:.1f} ms ({})",
+        _warn_if_slow_impl(
+            self,
             phase,
-            elapsed_seconds * 1000.0,
-            detail or "no extra detail",
+            started_at=started_at,
+            threshold_seconds=threshold_seconds,
+            detail=detail,
         )
