@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from importlib import import_module
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -56,11 +55,6 @@ class RuntimeBootService:
 
     def __init__(self, app: "YoyoPodApp") -> None:
         self.app = app
-
-    @staticmethod
-    def _import_runtime_object(module_name: str, object_name: str) -> object:
-        """Resolve screen classes/functions on demand without module-level imports."""
-        return getattr(import_module(module_name), object_name)
 
     def setup(self) -> bool:
         """Initialize all components and register callbacks."""
@@ -429,83 +423,39 @@ class RuntimeBootService:
             assert self.app.display is not None
             assert self.app.context is not None
             assert self.app.screen_manager is not None
+            from yoyopod.ui.screens.music.now_playing import (
+                NowPlayingScreen,
+                build_now_playing_actions,
+                build_now_playing_state_provider,
+            )
+            from yoyopod.ui.screens.music.playlist import PlaylistScreen
+            from yoyopod.ui.screens.music.recent import RecentTracksScreen
+            from yoyopod.ui.screens.navigation.ask import AskScreen
+            from yoyopod.ui.screens.navigation.home import HomeScreen
+            from yoyopod.ui.screens.navigation.hub import HubScreen
+            from yoyopod.ui.screens.navigation.listen import ListenScreen
+            from yoyopod.ui.screens.navigation.menu import MenuScreen
+            from yoyopod.ui.screens.system.power import (
+                PowerScreen,
+                build_power_screen_actions,
+                build_power_screen_state_provider,
+            )
+            from yoyopod.ui.screens.voip.call_history import CallHistoryScreen
+            from yoyopod.ui.screens.voip.contact_list import ContactListScreen
+            from yoyopod.ui.screens.voip.in_call import InCallScreen
+            from yoyopod.ui.screens.voip.incoming_call import IncomingCallScreen
+            from yoyopod.ui.screens.voip.outgoing_call import OutgoingCallScreen
+            from yoyopod.ui.screens.voip.quick_call import CallScreen
+            from yoyopod.ui.screens.voip.talk_contact import TalkContactScreen
+            from yoyopod.ui.screens.voip.voice_note import (
+                VoiceNoteScreen,
+                build_voice_note_actions,
+                build_voice_note_state_provider,
+            )
+
             display = self.app.display
             context = self.app.context
             screen_manager = self.app.screen_manager
-            HubScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.navigation.hub", "HubScreen"
-            )
-            HomeScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.navigation.home", "HomeScreen"
-            )
-            ListenScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.navigation.listen", "ListenScreen"
-            )
-            MenuScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.navigation.menu", "MenuScreen"
-            )
-            AskScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.navigation.ask", "AskScreen"
-            )
-            PowerScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.system.power", "PowerScreen"
-            )
-            build_power_screen_state_provider = self._import_runtime_object(
-                "yoyopod.ui.screens.system.power",
-                "build_power_screen_state_provider",
-            )
-            build_power_screen_actions = self._import_runtime_object(
-                "yoyopod.ui.screens.system.power",
-                "build_power_screen_actions",
-            )
-            NowPlayingScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.music.now_playing", "NowPlayingScreen"
-            )
-            PlaylistScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.music.playlist", "PlaylistScreen"
-            )
-            RecentTracksScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.music.recent", "RecentTracksScreen"
-            )
-            build_now_playing_state_provider = self._import_runtime_object(
-                "yoyopod.ui.screens.music.now_playing",
-                "build_now_playing_state_provider",
-            )
-            build_now_playing_actions = self._import_runtime_object(
-                "yoyopod.ui.screens.music.now_playing",
-                "build_now_playing_actions",
-            )
-            CallScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.quick_call", "CallScreen"
-            )
-            CallHistoryScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.call_history", "CallHistoryScreen"
-            )
-            IncomingCallScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.incoming_call", "IncomingCallScreen"
-            )
-            OutgoingCallScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.outgoing_call", "OutgoingCallScreen"
-            )
-            InCallScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.in_call", "InCallScreen"
-            )
-            ContactListScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.contact_list", "ContactListScreen"
-            )
-            TalkContactScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.talk_contact", "TalkContactScreen"
-            )
-            VoiceNoteScreen = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.voice_note", "VoiceNoteScreen"
-            )
-            build_voice_note_state_provider = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.voice_note",
-                "build_voice_note_state_provider",
-            )
-            build_voice_note_actions = self._import_runtime_object(
-                "yoyopod.ui.screens.voip.voice_note", "build_voice_note_actions"
-            )
             menu_items = ["Listen", "Talk", "Ask", "Setup"]
             self.app.hub_screen = HubScreen(
                 display,
