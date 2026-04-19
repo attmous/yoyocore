@@ -169,7 +169,7 @@ def test_active_gps_page_refreshes_coordinates_via_explicit_state_hook():
     screen.enter()
     screen.page_index = 2
 
-    screen.refresh_prepared_state(force=True, allow_gps_refresh=True)
+    screen.refresh_prepared_state(allow_gps_refresh=True)
     payload = screen.lvgl_payload()
 
     assert nm.query_gps_calls == 1

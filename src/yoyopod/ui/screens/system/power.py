@@ -286,7 +286,7 @@ class PowerScreen(Screen):
         self.in_detail = False
         if self._actions.refresh_voice_devices is not None:
             self._actions.refresh_voice_devices()
-        self.refresh_prepared_state(force=True)
+        self.refresh_prepared_state()
         self._ensure_lvgl_view()
 
     def exit(self) -> None:
@@ -773,26 +773,23 @@ class PowerScreen(Screen):
         """Return cached prepared state, hydrating it for explicit non-render callers."""
 
         if self._prepared_state is None:
-            return self.refresh_prepared_state(force=True)
+            return self.refresh_prepared_state()
         return self._prepared_state
 
     def refresh_prepared_state(
         self,
         *,
-        force: bool = False,
         allow_gps_refresh: bool = False,
     ) -> PowerScreenState:
         """Refresh and cache prepared Setup state outside render-time code paths."""
 
-        gps_refreshed = allow_gps_refresh and self._refresh_gps_if_due()
-        if not force and self._prepared_state is not None and not gps_refreshed:
-            return self._prepared_state
-
-        # Forced visible-tick refreshes intentionally rerun the provider; page caching only skips
-        # the later build_pages work. If provider inputs ever become expensive, memoize them below
-        # this screen layer rather than trying to recover that cost from render-time caching.
-        # GPS refresh mutates shared modem state, so a successful query should be followed by a
-        # fresh provider read even when we would otherwise keep reusing cached prepared state.
+        # Explicit refresh hooks intentionally rerun the provider; page caching only skips the
+        # later build_pages work. If provider inputs ever become expensive, memoize them below this
+        # screen layer rather than trying to recover that cost from render-time caching.
+        # GPS refresh mutates shared modem state, so a successful query should be followed by the
+        # same fresh provider read as any other explicit hydration path.
+        if allow_gps_refresh:
+            self._refresh_gps_if_due()
         try:
             self._prepared_state = self._state_provider()
         except Exception:
@@ -806,7 +803,6 @@ class PowerScreen(Screen):
         # starts. Page navigation performs its own explicit refresh, so the pre-refresh page title
         # still represents the active page when the periodic visible-tick arrives.
         self.refresh_prepared_state(
-            force=True,
             allow_gps_refresh=self._current_page_title() == "GPS",
         )
 
@@ -880,7 +876,7 @@ class PowerScreen(Screen):
 
         return (
             PowerScreen._snapshot_page_signature(state.snapshot),
-            tuple(sorted(state.status.items())),
+            tuple(sorted(state.status.items(), key=lambda item: item[0])),
             state.network_enabled,
             state.network_rows,
             state.gps_rows,
@@ -905,7 +901,6 @@ class PowerScreen(Screen):
         # here without reintroducing render-time work. Keep providers cached/in-memory if this
         # hook ever starts to feel expensive.
         self.refresh_prepared_state(
-            force=True,
             allow_gps_refresh=self._current_page_title() == "GPS",
         )
 

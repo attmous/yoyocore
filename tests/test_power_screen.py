@@ -331,7 +331,7 @@ def test_power_screen_reuses_prepared_pages_until_explicit_refresh() -> None:
         assert first_payload.total_pages == 4
         assert second_payload.total_pages == 4
 
-        screen.refresh_prepared_state(force=True)
+        screen.refresh_prepared_state()
         refreshed_payload = screen.lvgl_payload()
 
         assert provider.calls == 2
@@ -390,7 +390,7 @@ def test_power_screen_snapshot_cache_ignores_hidden_snapshot_fields() -> None:
         screen.enter()
         first_pages = screen._prepared_pages()
 
-        screen.refresh_prepared_state(force=True)
+        screen.refresh_prepared_state()
         second_pages = screen._prepared_pages()
 
         assert provider.calls == 2
