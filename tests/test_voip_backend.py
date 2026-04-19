@@ -447,6 +447,8 @@ def test_voip_manager_derives_live_call_duration_without_worker_thread(
     manager.call_start_time = 940.0
     manager.call_state = CallState.CONNECTED
 
+    assert not hasattr(manager, "duration_thread")
+    assert not hasattr(VoIPManager, "_track_duration")
     assert manager.get_call_duration() == 60
 
 
