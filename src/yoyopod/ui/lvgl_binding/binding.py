@@ -9,6 +9,18 @@ from pathlib import Path
 from cffi import FFI
 from loguru import logger
 
+from .scenes import (
+    AskSceneMixin,
+    CallsSceneMixin,
+    HubSceneMixin,
+    ListenSceneMixin,
+    NowPlayingSceneMixin,
+    PlaylistSceneMixin,
+    PowerSceneMixin,
+    StatusBarSceneMixin,
+    TalkSceneMixin,
+)
+
 SHIM_CDEF = """
 typedef void (*yoyopod_lvgl_flush_cb_t)(
     int32_t x,
@@ -243,20 +255,30 @@ int yoyopod_lvgl_power_sync(
     int32_t power_available,
     uint32_t accent_rgb
 );
-    void yoyopod_lvgl_power_destroy(void);
-    void yoyopod_lvgl_clear_screen(void);
-    void yoyopod_lvgl_force_refresh(void);
-    int32_t yoyopod_lvgl_snapshot(unsigned char * output_buf, uint32_t buf_size);
-    const char * yoyopod_lvgl_last_error(void);
-    const char * yoyopod_lvgl_version(void);
-    """
+void yoyopod_lvgl_power_destroy(void);
+void yoyopod_lvgl_clear_screen(void);
+void yoyopod_lvgl_force_refresh(void);
+int32_t yoyopod_lvgl_snapshot(unsigned char * output_buf, uint32_t buf_size);
+const char * yoyopod_lvgl_last_error(void);
+const char * yoyopod_lvgl_version(void);
+"""
 
 
 class LvglBindingError(RuntimeError):
     """Raised when the native LVGL shim cannot be loaded or initialized."""
 
 
-class LvglBinding:
+class LvglBinding(
+    StatusBarSceneMixin,
+    HubSceneMixin,
+    TalkSceneMixin,
+    ListenSceneMixin,
+    PlaylistSceneMixin,
+    NowPlayingSceneMixin,
+    CallsSceneMixin,
+    AskSceneMixin,
+    PowerSceneMixin,
+):
     """Thin ABI-mode wrapper over the native LVGL shim."""
 
     KEY_NONE = 0
@@ -341,6 +363,10 @@ class LvglBinding:
             cache.popitem(last=False)
         return cached
 
+    def _raise_if_error(self, result: int) -> None:
+        if result != 0:
+            raise LvglBindingError(self.last_error())
+
     def init(self) -> None:
         if self.lib.yoyopod_lvgl_init() != 0:
             raise LvglBindingError(self.last_error())
@@ -384,642 +410,6 @@ class LvglBinding:
         if self.lib.yoyopod_lvgl_show_probe_scene(scene_id) != 0:
             raise LvglBindingError(self.last_error())
 
-    def set_status_bar_state(
-        self,
-        *,
-        network_enabled: int,
-        network_connected: int,
-        wifi_connected: int,
-        signal_strength: int,
-        gps_has_fix: int,
-    ) -> None:
-        result = self.lib.yoyopod_lvgl_set_status_bar_state(
-            int(network_enabled),
-            int(network_connected),
-            int(wifi_connected),
-            max(0, min(4, int(signal_strength))),
-            int(gps_has_fix),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def hub_build(self) -> None:
-        if self.lib.yoyopod_lvgl_hub_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def hub_sync(
-        self,
-        *,
-        icon_key: str,
-        title: str,
-        subtitle: str,
-        footer: str,
-        time_text: str | None,
-        accent: tuple[int, int, int],
-        selected_index: int,
-        total_cards: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-    ) -> None:
-        icon_key_raw = self._get_cached_char_array(
-            self._hub_sync_string_cache,
-            icon_key,
-            max_entries=self.HUB_SYNC_STRING_CACHE_LIMIT,
-        )
-        title_raw = self._get_cached_char_array(
-            self._hub_sync_string_cache,
-            title,
-            max_entries=self.HUB_SYNC_STRING_CACHE_LIMIT,
-        )
-        subtitle_raw = self._get_cached_char_array(
-            self._hub_sync_string_cache,
-            subtitle,
-            max_entries=self.HUB_SYNC_STRING_CACHE_LIMIT,
-        )
-        footer_raw = self._get_cached_char_array(
-            self._hub_sync_string_cache,
-            footer,
-            max_entries=self.HUB_SYNC_STRING_CACHE_LIMIT,
-        )
-        if time_text:
-            time_raw = self._new_char_array(time_text)
-        else:
-            time_raw = self.ffi.NULL
-
-        result = self.lib.yoyopod_lvgl_hub_sync(
-            icon_key_raw,
-            title_raw,
-            subtitle_raw,
-            footer_raw,
-            time_raw,
-            self._pack_rgb(accent),
-            selected_index,
-            total_cards,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def hub_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_hub_destroy()
-
-    def talk_build(self) -> None:
-        if self.lib.yoyopod_lvgl_talk_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def talk_sync(
-        self,
-        *,
-        title_text: str,
-        icon_key: str | None,
-        outlined: bool,
-        footer: str,
-        selected_index: int,
-        total_cards: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
-        icon_raw = self.ffi.new("char[]", icon_key.encode("utf-8")) if icon_key else self.ffi.NULL
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        result = self.lib.yoyopod_lvgl_talk_sync(
-            title_raw,
-            icon_raw,
-            1 if outlined else 0,
-            footer_raw,
-            selected_index,
-            total_cards,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def talk_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_talk_destroy()
-
-    def talk_actions_build(self) -> None:
-        if self.lib.yoyopod_lvgl_talk_actions_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def talk_actions_sync(
-        self,
-        *,
-        contact_name: str,
-        title_text: str | None,
-        status_text: str | None,
-        status_kind: int,
-        footer: str,
-        icon_keys: list[str],
-        color_kinds: list[int],
-        action_count: int,
-        selected_index: int,
-        layout_kind: int,
-        button_size_kind: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        normalized_icons = list(icon_keys[:3])
-        while len(normalized_icons) < 3:
-            normalized_icons.append("")
-        normalized_colors = list(color_kinds[:3])
-        while len(normalized_colors) < 3:
-            normalized_colors.append(0)
-
-        contact_raw = self.ffi.new("char[]", contact_name.encode("utf-8"))
-        title_raw = (
-            self.ffi.new("char[]", title_text.encode("utf-8")) if title_text else self.ffi.NULL
-        )
-        status_raw = (
-            self.ffi.new("char[]", status_text.encode("utf-8")) if status_text else self.ffi.NULL
-        )
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        icon_0_raw = self.ffi.new("char[]", normalized_icons[0].encode("utf-8"))
-        icon_1_raw = self.ffi.new("char[]", normalized_icons[1].encode("utf-8"))
-        icon_2_raw = self.ffi.new("char[]", normalized_icons[2].encode("utf-8"))
-
-        result = self.lib.yoyopod_lvgl_talk_actions_sync(
-            contact_raw,
-            title_raw,
-            status_raw,
-            int(status_kind),
-            footer_raw,
-            icon_0_raw,
-            int(normalized_colors[0]),
-            icon_1_raw,
-            int(normalized_colors[1]),
-            icon_2_raw,
-            int(normalized_colors[2]),
-            int(action_count),
-            int(selected_index),
-            int(layout_kind),
-            int(button_size_kind),
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def talk_actions_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_talk_actions_destroy()
-
-    def listen_build(self) -> None:
-        if self.lib.yoyopod_lvgl_listen_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def listen_sync(
-        self,
-        *,
-        page_text: str | None,
-        footer: str,
-        items: list[str],
-        subtitles: list[str],
-        icon_keys: list[str],
-        selected_index: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-        empty_title: str,
-        empty_subtitle: str,
-    ) -> None:
-        normalized_items = list(items[:4])
-        while len(normalized_items) < 4:
-            normalized_items.append("")
-        normalized_subtitles = list(subtitles[:4])
-        while len(normalized_subtitles) < 4:
-            normalized_subtitles.append("")
-        normalized_icon_keys = list(icon_keys[:4])
-        while len(normalized_icon_keys) < 4:
-            normalized_icon_keys.append("")
-
-        page_text_raw = (
-            self.ffi.new("char[]", page_text.encode("utf-8")) if page_text else self.ffi.NULL
-        )
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        item_0_raw = self.ffi.new("char[]", normalized_items[0].encode("utf-8"))
-        item_1_raw = self.ffi.new("char[]", normalized_items[1].encode("utf-8"))
-        item_2_raw = self.ffi.new("char[]", normalized_items[2].encode("utf-8"))
-        item_3_raw = self.ffi.new("char[]", normalized_items[3].encode("utf-8"))
-        subtitle_0_raw = self.ffi.new("char[]", normalized_subtitles[0].encode("utf-8"))
-        subtitle_1_raw = self.ffi.new("char[]", normalized_subtitles[1].encode("utf-8"))
-        subtitle_2_raw = self.ffi.new("char[]", normalized_subtitles[2].encode("utf-8"))
-        subtitle_3_raw = self.ffi.new("char[]", normalized_subtitles[3].encode("utf-8"))
-        icon_0_raw = self.ffi.new("char[]", normalized_icon_keys[0].encode("utf-8"))
-        icon_1_raw = self.ffi.new("char[]", normalized_icon_keys[1].encode("utf-8"))
-        icon_2_raw = self.ffi.new("char[]", normalized_icon_keys[2].encode("utf-8"))
-        icon_3_raw = self.ffi.new("char[]", normalized_icon_keys[3].encode("utf-8"))
-        empty_title_raw = self.ffi.new("char[]", empty_title.encode("utf-8"))
-        empty_subtitle_raw = self.ffi.new("char[]", empty_subtitle.encode("utf-8"))
-
-        result = self.lib.yoyopod_lvgl_listen_sync(
-            page_text_raw,
-            footer_raw,
-            item_0_raw,
-            item_1_raw,
-            item_2_raw,
-            item_3_raw,
-            subtitle_0_raw,
-            subtitle_1_raw,
-            subtitle_2_raw,
-            subtitle_3_raw,
-            icon_0_raw,
-            icon_1_raw,
-            icon_2_raw,
-            icon_3_raw,
-            len(items),
-            selected_index,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-            empty_title_raw,
-            empty_subtitle_raw,
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def listen_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_listen_destroy()
-
-    def playlist_build(self) -> None:
-        if self.lib.yoyopod_lvgl_playlist_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def playlist_sync(
-        self,
-        *,
-        title_text: str,
-        page_text: str | None,
-        status_chip_text: str | None = None,
-        status_chip_kind: int = 0,
-        footer: str,
-        items: list[str],
-        subtitles: list[str],
-        badges: list[str],
-        icon_keys: list[str],
-        selected_visible_index: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-        empty_title: str,
-        empty_subtitle: str,
-        empty_icon_key: str,
-    ) -> None:
-        normalized_items = list(items[:4])
-        while len(normalized_items) < 4:
-            normalized_items.append("")
-        normalized_subtitles = list(subtitles[:4])
-        while len(normalized_subtitles) < 4:
-            normalized_subtitles.append("")
-
-        normalized_badges = list(badges[:4])
-        while len(normalized_badges) < 4:
-            normalized_badges.append("")
-        normalized_icon_keys = list(icon_keys[:4])
-        while len(normalized_icon_keys) < 4:
-            normalized_icon_keys.append("")
-
-        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
-        page_text_raw = (
-            self.ffi.new("char[]", page_text.encode("utf-8")) if page_text else self.ffi.NULL
-        )
-        status_chip_text_raw = (
-            self.ffi.new("char[]", status_chip_text.encode("utf-8"))
-            if status_chip_text
-            else self.ffi.NULL
-        )
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        item_0_raw = self.ffi.new("char[]", normalized_items[0].encode("utf-8"))
-        item_1_raw = self.ffi.new("char[]", normalized_items[1].encode("utf-8"))
-        item_2_raw = self.ffi.new("char[]", normalized_items[2].encode("utf-8"))
-        item_3_raw = self.ffi.new("char[]", normalized_items[3].encode("utf-8"))
-        subtitle_0_raw = self.ffi.new("char[]", normalized_subtitles[0].encode("utf-8"))
-        subtitle_1_raw = self.ffi.new("char[]", normalized_subtitles[1].encode("utf-8"))
-        subtitle_2_raw = self.ffi.new("char[]", normalized_subtitles[2].encode("utf-8"))
-        subtitle_3_raw = self.ffi.new("char[]", normalized_subtitles[3].encode("utf-8"))
-        badge_0_raw = self.ffi.new("char[]", normalized_badges[0].encode("utf-8"))
-        badge_1_raw = self.ffi.new("char[]", normalized_badges[1].encode("utf-8"))
-        badge_2_raw = self.ffi.new("char[]", normalized_badges[2].encode("utf-8"))
-        badge_3_raw = self.ffi.new("char[]", normalized_badges[3].encode("utf-8"))
-        icon_0_raw = self.ffi.new("char[]", normalized_icon_keys[0].encode("utf-8"))
-        icon_1_raw = self.ffi.new("char[]", normalized_icon_keys[1].encode("utf-8"))
-        icon_2_raw = self.ffi.new("char[]", normalized_icon_keys[2].encode("utf-8"))
-        icon_3_raw = self.ffi.new("char[]", normalized_icon_keys[3].encode("utf-8"))
-        empty_title_raw = self.ffi.new("char[]", empty_title.encode("utf-8"))
-        empty_subtitle_raw = self.ffi.new("char[]", empty_subtitle.encode("utf-8"))
-        empty_icon_raw = self.ffi.new("char[]", empty_icon_key.encode("utf-8"))
-
-        result = self.lib.yoyopod_lvgl_playlist_sync(
-            title_raw,
-            page_text_raw,
-            status_chip_text_raw,
-            int(status_chip_kind),
-            footer_raw,
-            item_0_raw,
-            item_1_raw,
-            item_2_raw,
-            item_3_raw,
-            subtitle_0_raw,
-            subtitle_1_raw,
-            subtitle_2_raw,
-            subtitle_3_raw,
-            badge_0_raw,
-            badge_1_raw,
-            badge_2_raw,
-            badge_3_raw,
-            icon_0_raw,
-            icon_1_raw,
-            icon_2_raw,
-            icon_3_raw,
-            len(items),
-            selected_visible_index,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-            empty_title_raw,
-            empty_subtitle_raw,
-            empty_icon_raw,
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def playlist_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_playlist_destroy()
-
-    def now_playing_build(self) -> None:
-        if self.lib.yoyopod_lvgl_now_playing_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def now_playing_sync(
-        self,
-        *,
-        title_text: str,
-        artist_text: str,
-        state_text: str,
-        footer: str,
-        progress_permille: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
-        artist_raw = self.ffi.new("char[]", artist_text.encode("utf-8"))
-        state_raw = self.ffi.new("char[]", state_text.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-
-        result = self.lib.yoyopod_lvgl_now_playing_sync(
-            title_raw,
-            artist_raw,
-            state_raw,
-            footer_raw,
-            max(0, min(1000, int(progress_permille))),
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def now_playing_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_now_playing_destroy()
-
-    def incoming_call_build(self) -> None:
-        if self.lib.yoyopod_lvgl_incoming_call_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def incoming_call_sync(
-        self,
-        *,
-        caller_name: str,
-        caller_address: str,
-        footer: str,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        caller_name_raw = self.ffi.new("char[]", caller_name.encode("utf-8"))
-        caller_address_raw = self.ffi.new("char[]", caller_address.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-
-        result = self.lib.yoyopod_lvgl_incoming_call_sync(
-            caller_name_raw,
-            caller_address_raw,
-            footer_raw,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def incoming_call_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_incoming_call_destroy()
-
-    def outgoing_call_build(self) -> None:
-        if self.lib.yoyopod_lvgl_outgoing_call_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def outgoing_call_sync(
-        self,
-        *,
-        callee_name: str,
-        callee_address: str,
-        footer: str,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        callee_name_raw = self.ffi.new("char[]", callee_name.encode("utf-8"))
-        callee_address_raw = self.ffi.new("char[]", callee_address.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        result = self.lib.yoyopod_lvgl_outgoing_call_sync(
-            callee_name_raw,
-            callee_address_raw,
-            footer_raw,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def outgoing_call_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_outgoing_call_destroy()
-
-    def in_call_build(self) -> None:
-        if self.lib.yoyopod_lvgl_in_call_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def in_call_sync(
-        self,
-        *,
-        caller_name: str,
-        duration_text: str,
-        mute_text: str,
-        footer: str,
-        muted: bool,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        caller_name_raw = self.ffi.new("char[]", caller_name.encode("utf-8"))
-        duration_raw = self.ffi.new("char[]", duration_text.encode("utf-8"))
-        mute_raw = self.ffi.new("char[]", mute_text.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        result = self.lib.yoyopod_lvgl_in_call_sync(
-            caller_name_raw,
-            duration_raw,
-            mute_raw,
-            footer_raw,
-            1 if muted else 0,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def in_call_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_in_call_destroy()
-
-    def ask_build(self) -> None:
-        if self.lib.yoyopod_lvgl_ask_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def ask_sync(
-        self,
-        *,
-        icon_key: str,
-        title_text: str,
-        subtitle_text: str,
-        footer: str,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        icon_raw = self.ffi.new("char[]", icon_key.encode("utf-8"))
-        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
-        subtitle_raw = self.ffi.new("char[]", subtitle_text.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        result = self.lib.yoyopod_lvgl_ask_sync(
-            icon_raw,
-            title_raw,
-            subtitle_raw,
-            footer_raw,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def ask_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_ask_destroy()
-
-    def power_build(self) -> None:
-        if self.lib.yoyopod_lvgl_power_build() != 0:
-            raise LvglBindingError(self.last_error())
-
-    def power_sync(
-        self,
-        *,
-        title_text: str,
-        page_text: str | None,
-        icon_key: str,
-        footer: str,
-        items: list[str],
-        current_page_index: int,
-        total_pages: int,
-        voip_state: int,
-        battery_percent: int,
-        charging: bool,
-        power_available: bool,
-        accent: tuple[int, int, int],
-    ) -> None:
-        normalized_items = list(items[:5])
-        while len(normalized_items) < 5:
-            normalized_items.append("")
-
-        title_raw = self.ffi.new("char[]", title_text.encode("utf-8"))
-        page_text_raw = (
-            self.ffi.new("char[]", page_text.encode("utf-8")) if page_text else self.ffi.NULL
-        )
-        icon_raw = self.ffi.new("char[]", icon_key.encode("utf-8"))
-        footer_raw = self.ffi.new("char[]", footer.encode("utf-8"))
-        item_0_raw = self.ffi.new("char[]", normalized_items[0].encode("utf-8"))
-        item_1_raw = self.ffi.new("char[]", normalized_items[1].encode("utf-8"))
-        item_2_raw = self.ffi.new("char[]", normalized_items[2].encode("utf-8"))
-        item_3_raw = self.ffi.new("char[]", normalized_items[3].encode("utf-8"))
-        item_4_raw = self.ffi.new("char[]", normalized_items[4].encode("utf-8"))
-        result = self.lib.yoyopod_lvgl_power_sync(
-            title_raw,
-            page_text_raw,
-            icon_raw,
-            footer_raw,
-            item_0_raw,
-            item_1_raw,
-            item_2_raw,
-            item_3_raw,
-            item_4_raw,
-            len(items),
-            current_page_index,
-            total_pages,
-            voip_state,
-            battery_percent,
-            1 if charging else 0,
-            1 if power_available else 0,
-            self._pack_rgb(accent),
-        )
-        if result != 0:
-            raise LvglBindingError(self.last_error())
-
-    def power_destroy(self) -> None:
-        self.lib.yoyopod_lvgl_power_destroy()
-
     def snapshot(self, width: int, height: int) -> bytes | None:
         """Capture the active LVGL screen to an RGB565_SWAPPED byte buffer.
 
@@ -1033,6 +423,7 @@ class LvglBinding:
         Returns:
             Bytes of RGB565_SWAPPED pixel data, or None on failure.
         """
+
         # 2 bytes per pixel for RGB565
         buf_size = width * height * 2
         output_buf = self.ffi.new(f"unsigned char[{buf_size}]")
