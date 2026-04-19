@@ -25,6 +25,7 @@ from yoyopod.ui.input.hal import InteractionProfile
 
 if TYPE_CHECKING:
     from yoyopod.audio.manager import AudioManager
+    from yoyopod.audio.volume_controller import AudioVolumeController
     from yoyopod.power import PowerSnapshot
 
 __all__ = [
@@ -59,6 +60,7 @@ class AppContext:
         interaction_profile: InteractionProfile = InteractionProfile.STANDARD,
     ) -> None:
         self.audio_manager = audio_manager
+        self.audio_volume_controller: AudioVolumeController | None = None
         self.interaction_profile = interaction_profile
 
         self.media = MediaRuntimeState()
