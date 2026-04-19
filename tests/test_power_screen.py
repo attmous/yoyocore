@@ -11,12 +11,12 @@ from yoyopod.runtime_state import VoiceState
 from yoyopod.ui.display import Display
 from yoyopod.ui.input import InteractionProfile
 from yoyopod.ui.screens.system.power import (
-    _VOICE_PAGE_SIGNATURE_FIELDS,
     PowerScreen,
     PowerScreenState,
     build_power_screen_actions,
     build_power_screen_state_provider,
 )
+from yoyopod.ui.screens.system.power_viewmodel import _VOICE_PAGE_SIGNATURE_FIELDS
 
 
 class StubPowerManager:
