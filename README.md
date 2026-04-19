@@ -13,6 +13,13 @@ Supported display/input modes:
 - PiSugar Whisplay HAT: `240x280` portrait with a single PTT-style button
 - Simulation mode: browser display with keyboard and web-button input
 
+## Call And Music Contract
+
+- Incoming and outgoing call setup both pause local music once when playback is actively running.
+- Missed, rejected, failed, cancelled, and completed call teardown only auto-resume music when YoyoPod paused it for that call and `auto_resume_after_call` is enabled.
+- Calls that start while music is already paused or idle leave playback unchanged.
+- Playback FSM state only flips after the pause or resume command succeeds, so navigation after the call keeps the visible playback truth aligned with the backend.
+
 ## Quick Start
 
 Local-only contributor path:

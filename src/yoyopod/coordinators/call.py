@@ -189,6 +189,7 @@ class CallCoordinator:
             CallState.OUTGOING_RINGING,
             CallState.OUTGOING_EARLY_MEDIA,
         ):
+            self._pause_music_for_call(phase="outgoing")
             self._ensure_outgoing_call_session()
             self.runtime.call_fsm.transition("dial")
             self.runtime.sync_app_state("call_outgoing")
@@ -210,7 +211,7 @@ class CallCoordinator:
             return
 
         if state == CallState.INCOMING:
-            self._pause_music_for_incoming_call()
+            self._pause_music_for_call(phase="incoming")
             self.runtime.call_fsm.transition("incoming")
             self.runtime.sync_app_state("call_incoming_state")
             self._present_incoming_call_if_ready()
@@ -271,11 +272,11 @@ class CallCoordinator:
             self.runtime.call_fsm.sync(CallSessionState.IDLE)
 
         if should_resume:
-            logger.info("Auto-resuming music after call")
-            if self.runtime.music_backend:
-                self.runtime.music_backend.play()
-            self.runtime.music_fsm.transition("play")
-            self.screen_coordinator.refresh_now_playing_screen()
+            if self._resume_music_after_call():
+                logger.info("Auto-resumed music after call")
+            else:
+                logger.warning("Music remains paused after failed auto-resume")
+                self.runtime.music_fsm.transition("pause")
         elif self.runtime.call_interruption_policy.music_interrupted_by_call:
             logger.info("Music stays paused (auto-resume disabled)")
             self.runtime.music_fsm.transition("pause")
@@ -350,25 +351,45 @@ class CallCoordinator:
         caller_info = self._current_caller_info()
         self._active_call_session = _CallSessionDraft(
             direction="outgoing",
-            display_name=str(caller_info.get("display_name") or caller_info.get("name") or "Unknown"),
+            display_name=str(
+                caller_info.get("display_name") or caller_info.get("name") or "Unknown"
+            ),
             sip_address=str(caller_info.get("address") or ""),
         )
 
-    def _pause_music_for_incoming_call(self) -> None:
-        """Pause active playback once when a call enters the incoming phase."""
+    def _pause_music_for_call(self, *, phase: str) -> None:
+        """Pause active playback once when a call enters an interruption phase."""
 
-        playback_state = (
-            self.runtime.music_backend.get_playback_state()
-            if self.runtime.music_backend and self.runtime.music_backend.is_connected
-            else "stopped"
-        )
-        if playback_state != "playing":
+        if self.runtime.call_interruption_policy.music_interrupted_by_call:
             return
 
-        logger.info("Auto-pausing music for incoming call")
-        self.runtime.call_interruption_policy.pause_for_call(self.runtime.music_fsm)
-        if self.runtime.music_backend:
-            self.runtime.music_backend.pause()
+        if self.runtime.music_backend is None or not self.runtime.music_backend.is_connected:
+            logger.debug("Skipping auto-pause for {} call: music backend unavailable", phase)
+            return
+
+        if self.runtime.music_backend.get_playback_state() != "playing":
+            return
+
+        logger.info("Auto-pausing music for {} call", phase)
+        if not self.runtime.music_backend.pause():
+            logger.warning("Failed to auto-pause music for {} call", phase)
+            return
+
+        self.runtime.call_interruption_policy.mark_paused_for_call(self.runtime.music_fsm)
+
+    def _resume_music_after_call(self) -> bool:
+        """Resume interrupted music only when the backend confirms the command."""
+
+        if self.runtime.music_backend is None or not self.runtime.music_backend.is_connected:
+            logger.warning("Cannot auto-resume music after call: music backend unavailable")
+            return False
+
+        if not self.runtime.music_backend.play():
+            return False
+
+        self.runtime.music_fsm.transition("play")
+        self.screen_coordinator.refresh_now_playing_screen()
+        return True
 
     def _present_incoming_call_if_ready(self) -> None:
         """Show the incoming-call screen once state and caller metadata are both known."""
