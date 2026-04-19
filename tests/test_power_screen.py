@@ -340,6 +340,52 @@ def test_power_screen_reuses_prepared_pages_until_explicit_refresh() -> None:
         display.cleanup()
 
 
+def test_power_screen_visible_tick_skips_immediate_post_enter_refresh() -> None:
+    """Entering Setup should not immediately double-fetch on the next visible tick."""
+
+    class CountingStateProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self) -> PowerScreenState:
+            self.calls += 1
+            return PowerScreenState()
+
+    display = Display(simulate=True)
+    try:
+        provider = CountingStateProvider()
+        screen = PowerScreen(display, AppContext(), state_provider=provider)
+        screen._visible_tick_refresh_grace_seconds = 60.0
+
+        screen.enter()
+        screen.refresh_for_visible_tick()
+
+        assert provider.calls == 1
+    finally:
+        display.cleanup()
+
+
+def test_power_screen_copies_provider_status_on_refresh() -> None:
+    """Prepared state should not retain provider-owned mutable status mappings."""
+
+    shared_status = {"screen_awake": True}
+
+    def provider() -> PowerScreenState:
+        return PowerScreenState(status=shared_status)
+
+    display = Display(simulate=True)
+    try:
+        screen = PowerScreen(display, AppContext(), state_provider=provider)
+
+        refreshed_state = screen.refresh_prepared_state()
+        shared_status["screen_awake"] = False
+
+        assert refreshed_state.status["screen_awake"] is True
+        assert screen._get_status()["screen_awake"] is True
+    finally:
+        display.cleanup()
+
+
 def test_power_screen_snapshot_cache_ignores_hidden_snapshot_fields() -> None:
     """Prepared pages should survive snapshot-only churn that does not affect Setup rows."""
 

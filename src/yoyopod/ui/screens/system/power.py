@@ -273,6 +273,8 @@ class PowerScreen(Screen):
         self._lvgl_view: "ScreenView | None" = None
         self._last_gps_query_at = 0.0
         self._gps_refresh_interval_seconds = 2.0
+        self._visible_tick_refresh_grace_seconds = 0.5
+        self._last_prepared_refresh_at = 0.0
         self._prepared_state: PowerScreenState | None = None
         self._cached_pages: list[PowerPage] | None = None
         self._cached_pages_signature: tuple[object, ...] | None = None
@@ -791,7 +793,8 @@ class PowerScreen(Screen):
         if allow_gps_refresh:
             self._refresh_gps_if_due()
         try:
-            self._prepared_state = self._state_provider()
+            self._prepared_state = self._normalize_prepared_state(self._state_provider())
+            self._last_prepared_refresh_at = time.monotonic()
         except Exception:
             self._prepared_state = PowerScreenState()
         return self._prepared_state
@@ -799,6 +802,12 @@ class PowerScreen(Screen):
     def refresh_for_visible_tick(self) -> None:
         """Refresh prepared state before a coordinator-driven visible-screen render."""
 
+        if (
+            self._prepared_state is not None
+            and (time.monotonic() - self._last_prepared_refresh_at)
+            < self._visible_tick_refresh_grace_seconds
+        ):
+            return
         # Determine GPS eligibility from the page the user is already viewing before this refresh
         # starts. Page navigation performs its own explicit refresh, so the pre-refresh page title
         # still represents the active page when the periodic visible-tick arrives.
@@ -806,16 +815,10 @@ class PowerScreen(Screen):
             allow_gps_refresh=self._current_page_title() == "GPS",
         )
 
-    def _prepared_pages(
-        self,
-        *,
-        state: PowerScreenState | None = None,
-    ) -> list[PowerPage]:
+    def _prepared_pages(self) -> list[PowerPage]:
         """Return cached page models until prepared state or voice inputs change."""
 
-        if state is not None:
-            resolved_state = state
-        elif self._prepared_state is None:
+        if self._prepared_state is None:
             resolved_state = PowerScreenState()
         else:
             resolved_state = self._prepared_state
@@ -832,6 +835,20 @@ class PowerScreen(Screen):
         self._cached_pages = self.build_pages(state=resolved_state)
         self._cached_pages_signature = cache_signature
         return self._cached_pages
+
+    @staticmethod
+    def _normalize_prepared_state(state: PowerScreenState) -> PowerScreenState:
+        """Freeze provider output into a self-owned prepared-state snapshot."""
+
+        return PowerScreenState(
+            snapshot=state.snapshot,
+            status=dict(state.status),
+            network_enabled=state.network_enabled,
+            network_rows=tuple(state.network_rows),
+            gps_rows=tuple(state.gps_rows),
+            playback_devices=tuple(state.playback_devices),
+            capture_devices=tuple(state.capture_devices),
+        )
 
     def _voice_page_signature(self) -> tuple[object, ...] | None:
         """Return the voice-facing inputs that affect Setup page content."""
