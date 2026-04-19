@@ -1,0 +1,155 @@
+"""Resolve voice settings and expose command outcomes."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+from typing import TYPE_CHECKING, Callable
+
+from yoyopod.voice import VoiceSettings
+
+if TYPE_CHECKING:
+    from yoyopod.app_context import AppContext
+    from yoyopod.config import ConfigManager
+
+
+@dataclass(slots=True, frozen=True)
+class VoiceCommandOutcome:
+    """Result returned by the shared voice command executor."""
+
+    headline: str
+    body: str
+    should_speak: bool = True
+    route_name: str | None = None
+    auto_return: bool = True
+
+
+class VoiceSettingsResolver:
+    """Resolve current voice settings from the app runtime and config layer."""
+
+    def __init__(
+        self,
+        *,
+        context: "AppContext | None",
+        config_manager: "ConfigManager | None" = None,
+        settings_provider: Callable[[], VoiceSettings] | None = None,
+    ) -> None:
+        self._context = context
+        self._config_manager = config_manager
+        self._settings_provider = settings_provider
+
+    def current(self) -> VoiceSettings:
+        """Return the latest runtime voice settings."""
+
+        if self._settings_provider is not None:
+            return self._settings_provider()
+        defaults = self.defaults()
+        if self._context is None:
+            return defaults
+
+        voice = self._context.voice
+        capture_device_id = (
+            voice.capture_device_id
+            if voice.capture_device_id is not None
+            else defaults.capture_device_id
+        )
+        speaker_device_id = (
+            voice.speaker_device_id
+            if voice.speaker_device_id is not None
+            else defaults.speaker_device_id
+        )
+        return replace(
+            defaults,
+            commands_enabled=voice.commands_enabled,
+            ai_requests_enabled=voice.ai_requests_enabled,
+            screen_read_enabled=voice.screen_read_enabled,
+            stt_enabled=voice.stt_enabled,
+            tts_enabled=voice.tts_enabled,
+            mic_muted=voice.mic_muted,
+            output_volume=voice.output_volume,
+            capture_device_id=capture_device_id,
+            speaker_device_id=speaker_device_id,
+        )
+
+    def defaults(self) -> VoiceSettings:
+        """Return configured voice defaults when no provider is supplied."""
+
+        capture_device_id = None
+        speaker_device_id = None
+        assistant_cfg = None
+        if self._config_manager is not None:
+            voice_cfg = getattr(self._config_manager, "get_voice_settings", lambda: None)()
+            if voice_cfg is not None:
+                assistant_cfg = getattr(voice_cfg, "assistant", None)
+                audio_cfg = getattr(voice_cfg, "audio", None)
+                if audio_cfg is not None:
+                    capture_device_id = getattr(audio_cfg, "capture_device_id", "").strip() or None
+                    speaker_device_id = getattr(audio_cfg, "speaker_device_id", "").strip() or None
+
+            legacy_app_settings = getattr(self._config_manager, "get_app_settings", None)
+            legacy_voice_cfg = None
+            if callable(legacy_app_settings):
+                app_settings = legacy_app_settings()
+                legacy_voice_cfg = getattr(app_settings, "voice", None)
+                if assistant_cfg is None:
+                    assistant_cfg = legacy_voice_cfg
+                if legacy_voice_cfg is not None:
+                    if capture_device_id is None:
+                        capture_device_id = (
+                            getattr(legacy_voice_cfg, "capture_device_id", "").strip() or None
+                        )
+                    if speaker_device_id is None:
+                        speaker_device_id = (
+                            getattr(legacy_voice_cfg, "speaker_device_id", "").strip() or None
+                        )
+
+            if capture_device_id is None:
+                capture_device_id = getattr(self._config_manager, "get_capture_device_id", lambda: None)()
+            if speaker_device_id is None:
+                speaker_device_id = getattr(
+                    self._config_manager,
+                    "get_voice_speaker_device_id",
+                    lambda: None,
+                )()
+            if speaker_device_id is None:
+                speaker_device_id = getattr(
+                    self._config_manager,
+                    "get_ring_output_device",
+                    lambda: None,
+                )()
+
+        defaults = VoiceSettings(
+            capture_device_id=capture_device_id,
+            speaker_device_id=speaker_device_id or None,
+        )
+        if self._config_manager is None:
+            return defaults
+        if assistant_cfg is None:
+            return defaults
+
+        get_default_output_volume = getattr(self._config_manager, "get_default_output_volume", None)
+        output_volume = defaults.output_volume
+        if callable(get_default_output_volume):
+            output_volume = int(get_default_output_volume())
+
+        return VoiceSettings(
+            commands_enabled=assistant_cfg.commands_enabled,
+            ai_requests_enabled=assistant_cfg.ai_requests_enabled,
+            screen_read_enabled=assistant_cfg.screen_read_enabled,
+            stt_enabled=assistant_cfg.stt_enabled,
+            tts_enabled=assistant_cfg.tts_enabled,
+            output_volume=output_volume,
+            stt_backend=assistant_cfg.stt_backend,
+            tts_backend=assistant_cfg.tts_backend,
+            vosk_model_path=assistant_cfg.vosk_model_path,
+            vosk_model_keep_loaded=getattr(
+                assistant_cfg,
+                "vosk_model_keep_loaded",
+                defaults.vosk_model_keep_loaded,
+            ),
+            speaker_device_id=speaker_device_id,
+            capture_device_id=capture_device_id,
+            sample_rate_hz=assistant_cfg.sample_rate_hz,
+            record_seconds=assistant_cfg.record_seconds,
+            tts_rate_wpm=assistant_cfg.tts_rate_wpm,
+            tts_voice=assistant_cfg.tts_voice,
+        )
