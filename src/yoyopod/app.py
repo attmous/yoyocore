@@ -62,6 +62,7 @@ from yoyopod.runtime import (
     ShutdownLifecycleService,
     VoiceRuntimeCoordinator,
 )
+from yoyopod.runtime.event_wiring import RuntimeEventWiring
 from yoyopod.ui.input import InteractionProfile
 from yoyopod.cloud import CloudManager
 from yoyopod.communication import CallHistoryStore, VoIPManager
@@ -235,30 +236,8 @@ class YoyoPodApp:
         self.shutdown_service = ShutdownLifecycleService(self)
         self.runtime_loop = RuntimeLoopService(self)
         self.boot_service = RuntimeBootService(self)
-
-        self.event_bus.subscribe(ScreenChangedEvent, self._handle_screen_changed_event)
-        self.event_bus.subscribe(UserActivityEvent, self._handle_user_activity_event)
-        self.event_bus.subscribe(
-            RecoveryAttemptCompletedEvent,
-            self._handle_recovery_attempt_completed_event,
-        )
-        self.event_bus.subscribe(
-            LowBatteryWarningRaised,
-            self._handle_low_battery_warning_event,
-        )
-        self.event_bus.subscribe(
-            GracefulShutdownRequested,
-            self._handle_graceful_shutdown_requested_event,
-        )
-        self.event_bus.subscribe(
-            GracefulShutdownCancelled,
-            self._handle_graceful_shutdown_cancelled_event,
-        )
-        self.event_bus.subscribe(NetworkPppUpEvent, self._handle_network_ppp_up)
-        self.event_bus.subscribe(NetworkSignalUpdateEvent, self._handle_network_signal_update)
-        self.event_bus.subscribe(NetworkGpsFixEvent, self._handle_network_gps_fix)
-        self.event_bus.subscribe(NetworkGpsNoFixEvent, self._handle_network_gps_no_fix)
-        self.event_bus.subscribe(NetworkPppDownEvent, self._handle_network_ppp_down)
+        self.event_wiring = RuntimeEventWiring(self)
+        self.event_wiring.register()
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -286,16 +265,19 @@ class YoyoPodApp:
         return self.boot_service.load_configuration()
 
     def _resolve_screen_timeout_seconds(self) -> float:
-        return self.screen_power_service.resolve_screen_timeout_seconds()
+        return self.boot_service.resolve_screen_timeout_seconds()
 
     def _resolve_active_brightness(self) -> float:
-        return self.screen_power_service.resolve_active_brightness()
+        return self.boot_service.resolve_active_brightness()
 
     def _configure_screen_power(self, initial_now: float | None = None) -> None:
         self.screen_power_service.configure_screen_power(initial_now)
 
-    def _refresh_talk_summary(self) -> None:
+    def refresh_talk_summary(self) -> None:
         self.boot_service.refresh_talk_summary()
+
+    def _refresh_talk_summary(self) -> None:
+        self.refresh_talk_summary()
 
     def _init_core_components(self) -> bool:
         return self.boot_service.init_core_components()
@@ -416,50 +398,22 @@ class YoyoPodApp:
         unread_voice_notes: int,
         latest_voice_note_by_contact: dict[str, dict[str, object]],
     ) -> None:
-        """Keep Talk voice-note summary state in sync with the VoIP manager."""
-        if self.context is None:
-            return
-        self.context.update_voice_note_summary(
+        self.event_wiring.handle_voice_note_summary_changed(
             unread_voice_notes=unread_voice_notes,
             latest_voice_note_by_contact=latest_voice_note_by_contact,
         )
-        self._refresh_talk_related_screen()
 
     def _handle_voice_note_activity_changed(self, *_args: Any) -> None:
-        """Refresh active draft state after a message or delivery update."""
-        self._sync_active_voice_note_context()
-        self._refresh_talk_summary()
-        self._refresh_talk_related_screen()
+        self.event_wiring.handle_voice_note_activity_changed(*_args)
 
     def _handle_voice_note_failure(self, *_args: Any) -> None:
-        """Refresh draft state after a failed message operation."""
-        self._sync_active_voice_note_context()
-        self._refresh_talk_related_screen()
+        self.event_wiring.handle_voice_note_failure(*_args)
 
     def _sync_active_voice_note_context(self) -> None:
-        """Mirror the active voice-note draft into the shared app context."""
-        if self.context is None or self.voip_manager is None:
-            return
-        draft = self.voip_manager.get_active_voice_note()
-        if draft is None:
-            self.context.update_active_voice_note(send_state="idle")
-            return
-        self.context.update_active_voice_note(
-            send_state=draft.send_state,
-            status_text=draft.status_text,
-            file_path=draft.file_path,
-            duration_ms=draft.duration_ms,
-        )
+        self.event_wiring.sync_active_voice_note_context()
 
     def _refresh_talk_related_screen(self) -> None:
-        """Re-render Talk screens when their message state changes."""
-        if self.screen_manager is None:
-            return
-        current_screen = self.screen_manager.get_current_screen()
-        if current_screen is None:
-            return
-        if current_screen.route_name in {"call", "talk_contact", "voice_note"}:
-            self.screen_manager.refresh_current_screen()
+        self.event_wiring.refresh_talk_related_screen()
 
     def _setup_music_callbacks(self) -> None:
         self.boot_service.setup_music_callbacks()
@@ -497,127 +451,63 @@ class YoyoPodApp:
         self.runtime_loop.iterate_voip_backend_if_due(now)
 
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
-        self.screen_power_service.handle_screen_changed_event(event)
+        self.event_wiring.handle_screen_changed_event(event)
 
     def _queue_user_activity_event(self, action: Any, _data: Any | None = None) -> None:
         self.screen_power_service.queue_user_activity_event(action, _data)
 
     def _handle_user_activity_event(self, event: UserActivityEvent) -> None:
-        self.screen_power_service.handle_user_activity_event(event)
+        self.event_wiring.handle_user_activity_event(event)
 
     def _handle_recovery_attempt_completed_event(
         self,
         event: RecoveryAttemptCompletedEvent,
     ) -> None:
-        self.recovery_service.handle_recovery_attempt_completed_event(event)
+        self.event_wiring.handle_recovery_attempt_completed_event(event)
 
     def _handle_low_battery_warning_event(self, event: LowBatteryWarningRaised) -> None:
-        self.screen_power_service.handle_low_battery_warning_event(event)
+        self.event_wiring.handle_low_battery_warning_event(event)
 
     def _handle_graceful_shutdown_requested_event(
         self,
         event: GracefulShutdownRequested,
     ) -> None:
-        self.shutdown_service.handle_graceful_shutdown_requested_event(event)
+        self.event_wiring.handle_graceful_shutdown_requested_event(event)
 
     def _handle_graceful_shutdown_cancelled_event(
         self,
         event: GracefulShutdownCancelled,
     ) -> None:
-        self.shutdown_service.handle_graceful_shutdown_cancelled_event(event)
+        self.event_wiring.handle_graceful_shutdown_cancelled_event(event)
+
+    def cellular_connection_type(self) -> str:
+        """Return a best-effort cellular connection type for degraded status chrome."""
+        return self.event_wiring.cellular_connection_type()
 
     def _cellular_connection_type(self) -> str:
-        """Return a best-effort cellular connection type for degraded status chrome."""
-        if self.network_manager is None or not self.network_manager.config.enabled:
-            return "none"
+        return self.cellular_connection_type()
 
-        from yoyopod.network.models import ModemPhase
-
-        state = self.network_manager.modem_state
-        if state.phase == ModemPhase.OFF:
-            return "none"
-        return "4g"
+    def sync_network_context_from_manager(self) -> None:
+        """Refresh AppContext network state from the current modem snapshot."""
+        self.event_wiring.sync_network_context_from_manager()
 
     def _sync_network_context_from_manager(self) -> None:
-        """Refresh AppContext network state from the current modem snapshot."""
-        if self.context is None or self.network_manager is None:
-            return
-
-        state = self.network_manager.modem_state
-        signal_bars = state.signal.bars if state.signal is not None else 0
-        self.context.update_network_status(
-            network_enabled=self.network_manager.config.enabled,
-            signal_bars=signal_bars,
-            connection_type=self._cellular_connection_type(),
-            connected=self.network_manager.is_online,
-            gps_has_fix=state.gps is not None,
-        )
+        self.sync_network_context_from_manager()
 
     def _handle_network_ppp_up(self, event: NetworkPppUpEvent) -> None:
-        """Refresh network connectivity state when PPP comes online."""
-        if self.cloud_manager is not None:
-            self.cloud_manager.note_network_change(connected=True)
-        if self.network_manager is not None:
-            self._sync_network_context_from_manager()
-            return
-        if self.context is not None:
-            self.context.update_network_status(
-                network_enabled=True,
-                connected=True,
-                connection_type=event.connection_type,
-            )
+        self.event_wiring.handle_network_ppp_up(event)
 
     def _handle_network_signal_update(self, event: NetworkSignalUpdateEvent) -> None:
-        """Refresh signal bars when the modem reports new telemetry."""
-        if self.network_manager is not None:
-            self._sync_network_context_from_manager()
-            return
-        if self.context is not None:
-            connection_type = self.context.connection_type
-            if connection_type == "none":
-                connection_type = "4g"
-            self.context.update_network_status(
-                network_enabled=True,
-                signal_bars=event.bars,
-                connection_type=connection_type,
-            )
+        self.event_wiring.handle_network_signal_update(event)
 
     def _handle_network_gps_fix(self, event: NetworkGpsFixEvent) -> None:
-        """Update GPS fix state in AppContext."""
-        if self.network_manager is not None:
-            self._sync_network_context_from_manager()
-            return
-        if self.context is not None:
-            connection_type = self.context.connection_type
-            if connection_type == "none":
-                connection_type = "4g"
-            self.context.update_network_status(
-                network_enabled=True,
-                connection_type=connection_type,
-                gps_has_fix=True,
-            )
+        self.event_wiring.handle_network_gps_fix(event)
 
     def _handle_network_gps_no_fix(self, _event: NetworkGpsNoFixEvent) -> None:
-        """Clear GPS fix state when a query completes without coordinates."""
-        if self.network_manager is not None:
-            self._sync_network_context_from_manager()
-            return
-        if self.context is not None:
-            self.context.update_network_status(gps_has_fix=False)
+        self.event_wiring.handle_network_gps_no_fix(_event)
 
     def _handle_network_ppp_down(self, _event: NetworkPppDownEvent) -> None:
-        """Reset network state in AppContext when PPP drops."""
-        if self.cloud_manager is not None:
-            self.cloud_manager.note_network_change(connected=False)
-        if self.network_manager is not None:
-            self._sync_network_context_from_manager()
-            return
-        if self.context is not None:
-            self.context.update_network_status(
-                network_enabled=True,
-                connected=False,
-                gps_has_fix=False,
-            )
+        self.event_wiring.handle_network_ppp_down(_event)
 
     def _register_power_shutdown_hooks(self) -> None:
         self.shutdown_service.register_power_shutdown_hooks()
