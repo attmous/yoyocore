@@ -37,7 +37,10 @@ class PowerRuntimeService:
         self.app._next_power_poll_at = poll_now + interval
 
         if force:
-            self._publish_snapshot(snapshot=self.app.power_manager.get_snapshot())
+            if self.app._power_refresh_in_flight:
+                self._publish_cached_snapshot_if_ready()
+                return
+
             self._start_power_refresh_worker()
             return
 
@@ -87,10 +90,30 @@ class PowerRuntimeService:
         self.app._power_refresh_in_flight = False
         self._publish_snapshot(snapshot=snapshot)
 
+    def _publish_cached_snapshot_if_ready(self) -> None:
+        """Publish cached power state only when a prior refresh already established runtime state."""
+
+        if self.app.power_manager is None:
+            return
+
+        self.app.boot_service.ensure_coordinators()
+        assert self.app.coordinator_runtime is not None
+        if self.app.coordinator_runtime.power_snapshot is None:
+            return
+
+        self._publish_snapshot(snapshot=self.app.power_manager.get_snapshot())
+
     def _publish_snapshot(self, *, snapshot: "PowerSnapshot") -> None:
         """Publish one power snapshot onto the coordinator thread."""
 
         self.app.boot_service.ensure_coordinators()
+        assert self.app.coordinator_runtime is not None
+        if (
+            self.app.coordinator_runtime.power_snapshot == snapshot
+            and self.app._power_available == snapshot.available
+        ):
+            return
+
         assert self.app.power_coordinator is not None
         self.app.power_coordinator.publish_snapshot(snapshot)
 
