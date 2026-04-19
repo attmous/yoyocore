@@ -22,7 +22,7 @@ from yoyopod.events import (
     VoIPAvailabilityChangedEvent,
 )
 from yoyopod.communication import CallHistoryEntry, CallHistoryStore, CallState, RegistrationState
-from yoyopod.fsm import CallSessionState, MusicState
+from yoyopod.fsm import CallSessionState
 
 
 @dataclass(slots=True)
@@ -363,15 +363,15 @@ class CallCoordinator:
         if self.runtime.call_interruption_policy.music_interrupted_by_call:
             return
 
-        if self._current_music_playback_state() != "playing":
+        if self.runtime.music_backend is None or not self.runtime.music_backend.is_connected:
+            logger.debug("Skipping auto-pause for {} call: music backend unavailable", phase)
+            return
+
+        if self.runtime.music_backend.get_playback_state() != "playing":
             return
 
         logger.info("Auto-pausing music for {} call", phase)
-        if (
-            self.runtime.music_backend
-            and self.runtime.music_backend.is_connected
-            and not self.runtime.music_backend.pause()
-        ):
+        if not self.runtime.music_backend.pause():
             logger.warning("Failed to auto-pause music for {} call", phase)
             return
 
@@ -380,28 +380,16 @@ class CallCoordinator:
     def _resume_music_after_call(self) -> bool:
         """Resume interrupted music only when the backend confirms the command."""
 
-        if (
-            self.runtime.music_backend
-            and self.runtime.music_backend.is_connected
-            and not self.runtime.music_backend.play()
-        ):
+        if self.runtime.music_backend is None or not self.runtime.music_backend.is_connected:
+            logger.warning("Cannot auto-resume music after call: music backend unavailable")
+            return False
+
+        if not self.runtime.music_backend.play():
             return False
 
         self.runtime.music_fsm.transition("play")
         self.screen_coordinator.refresh_now_playing_screen()
         return True
-
-    def _current_music_playback_state(self) -> str:
-        """Return the best available current playback state for interruption decisions."""
-
-        if self.runtime.music_backend and self.runtime.music_backend.is_connected:
-            return self.runtime.music_backend.get_playback_state()
-
-        return {
-            MusicState.IDLE: "stopped",
-            MusicState.PLAYING: "playing",
-            MusicState.PAUSED: "paused",
-        }[self.runtime.music_fsm.state]
 
     def _present_incoming_call_if_ready(self) -> None:
         """Show the incoming-call screen once state and caller metadata are both known."""

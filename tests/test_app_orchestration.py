@@ -668,6 +668,21 @@ def test_incoming_call_keeps_music_playing_when_pause_command_fails() -> None:
     assert harness.call_fsm.state == CallSessionState.INCOMING
 
 
+def test_incoming_call_does_not_mark_interrupted_when_music_backend_is_unavailable() -> None:
+    """Call setup should not claim a successful pause without a connected music backend."""
+    harness = OrchestrationHarness.build(playback_state="playing")
+    harness.music_backend.stop()
+    harness.sync_runtime(music_state=MusicState.PLAYING, trigger="playback_playing")
+
+    harness.publish(CallStateChangedEvent(state=CallState.INCOMING))
+
+    assert harness.drain_events() == 1
+    assert harness.music_backend.pause_calls == 0
+    assert harness.music_fsm.state == MusicState.PLAYING
+    assert not harness.call_interruption_policy.music_interrupted_by_call
+    assert harness.call_fsm.state == CallSessionState.INCOMING
+
+
 def test_incoming_call_metadata_waits_for_incoming_state_before_mutating_runtime() -> None:
     """Caller metadata alone should not move the runtime into an active incoming phase."""
     harness = OrchestrationHarness.build(playback_state="playing")
@@ -744,6 +759,27 @@ def test_call_end_keeps_music_paused_when_resume_command_fails() -> None:
 
     assert harness.drain_events() == 1
     assert harness.music_backend.play_calls == 1
+    assert harness.music_fsm.state == MusicState.PAUSED
+    assert harness.call_fsm.state == CallSessionState.IDLE
+    assert not harness.call_interruption_policy.music_interrupted_by_call
+    assert harness.screen_manager.current_screen is harness.screens.menu
+
+
+def test_call_end_keeps_music_paused_when_music_backend_is_unavailable() -> None:
+    """Call teardown should not claim playback resumed without a connected backend."""
+    harness = OrchestrationHarness.build(playback_state="paused", auto_resume=True)
+    harness.music_backend.stop()
+    harness.sync_runtime(
+        music_state=MusicState.PAUSED,
+        call_state=CallSessionState.ACTIVE,
+        music_interrupted_by_call=True,
+    )
+    harness.push_screens("incoming_call", "in_call")
+
+    harness.publish(CallEndedEvent())
+
+    assert harness.drain_events() == 1
+    assert harness.music_backend.play_calls == 0
     assert harness.music_fsm.state == MusicState.PAUSED
     assert harness.call_fsm.state == CallSessionState.IDLE
     assert not harness.call_interruption_policy.music_interrupted_by_call

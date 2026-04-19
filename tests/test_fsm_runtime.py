@@ -71,12 +71,13 @@ def test_call_interruption_policy_pauses_and_resumes_music() -> None:
     music_fsm = MusicFSM()
     policy = CallInterruptionPolicy()
 
-    assert not policy.pause_for_call(music_fsm)
+    assert not policy.music_interrupted_by_call
     assert not policy.should_auto_resume(auto_resume=True)
 
     assert music_fsm.transition("play")
-    assert policy.pause_for_call(music_fsm)
+    policy.mark_paused_for_call(music_fsm)
     assert music_fsm.state == MusicState.PAUSED
+    assert policy.music_interrupted_by_call
     assert policy.should_auto_resume(auto_resume=True)
     assert not policy.should_auto_resume(auto_resume=False)
 
@@ -128,7 +129,7 @@ def test_runtime_state_is_derived_from_split_fsms() -> None:
     assert state_change.entered(AppRuntimeState.PLAYING_WITH_VOIP)
     assert runtime.current_app_state == AppRuntimeState.PLAYING_WITH_VOIP
 
-    runtime.call_interruption_policy.pause_for_call(runtime.music_fsm)
+    runtime.call_interruption_policy.mark_paused_for_call(runtime.music_fsm)
     state_change = runtime.sync_app_state("auto_pause_for_call")
     assert state_change.entered(AppRuntimeState.PAUSED_BY_CALL)
     assert runtime.current_app_state == AppRuntimeState.PAUSED_BY_CALL
