@@ -15,6 +15,7 @@ from yoyopod.ui.screens.theme_tokens import (
     HEADER_SIDE_INSET_PORTRAIT,
     INK,
     MUTED,
+    MUTED_DIM,
     SURFACE,
     SURFACE_BORDER,
     SURFACE_RAISED,
