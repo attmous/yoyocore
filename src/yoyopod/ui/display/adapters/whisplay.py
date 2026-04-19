@@ -18,6 +18,7 @@ Date: 2025-11-30
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from functools import lru_cache
 from importlib import import_module
 from pathlib import Path
@@ -181,6 +182,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
     _SLOW_FULL_FRAME_UPDATE_THRESHOLD_SECONDS = 0.03
     _SLOW_REGION_FLUSH_THRESHOLD_SECONDS = 0.008
     _PARTIAL_FLUSH_TIMING_LOG_INTERVAL = 60
+    _FONT_CACHE_MAX_SIZE = 16
 
     def __init__(
         self,
@@ -222,7 +224,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         self.lvgl_buffer_lines = max(1, int(lvgl_buffer_lines))
         self.ui_backend = None
         self._force_shadow_buffer_sync = False
-        self._font_cache: dict[tuple[str, int], object] = {}
+        self._font_cache: OrderedDict[tuple[str, int], object] = OrderedDict()
         self._timing_metrics: dict[str, float | int] = {
             "full_frame_updates": 0,
             "last_full_frame_convert_ms": 0.0,
@@ -351,6 +353,7 @@ class WhisplayDisplayAdapter(DisplayHAL):
         )
         cached_font = self._font_cache.get(cache_key)
         if cached_font is not None:
+            self._font_cache.move_to_end(cache_key)
             return cached_font
 
         try:
@@ -363,10 +366,13 @@ class WhisplayDisplayAdapter(DisplayHAL):
             cache_key = ("__pil_default__", font_size)
             cached_font = self._font_cache.get(cache_key)
             if cached_font is not None:
+                self._font_cache.move_to_end(cache_key)
                 return cached_font
             font = image_font_module.load_default()
 
         self._font_cache[cache_key] = font
+        if len(self._font_cache) > self._FONT_CACHE_MAX_SIZE:
+            self._font_cache.popitem(last=False)
         return font
 
     @staticmethod

@@ -348,6 +348,56 @@ def test_whisplay_font_cache_reuses_loaded_fonts(monkeypatch) -> None:
     assert len(load_calls) == 1
 
 
+def test_whisplay_font_cache_evicts_least_recently_used_fonts(monkeypatch, tmp_path) -> None:
+    """The font cache should stay bounded and evict the stalest entries first."""
+
+    adapter = WhisplayDisplayAdapter(simulate=True, renderer="pil")
+    adapter._font_cache.clear()
+    fake_font_path = tmp_path / "bounded-cache.ttf"
+    fake_font_path.write_text("unused font payload")
+    monkeypatch.setattr(
+        "yoyopod.ui.display.adapters.whisplay.DEFAULT_FONT_PATH",
+        fake_font_path,
+    )
+
+    load_calls: list[tuple[str, int]] = []
+
+    def fake_truetype(path: str, size: int, *args, **kwargs) -> object:
+        load_calls.append((path, size))
+        return object()
+
+    monkeypatch.setattr(
+        "yoyopod.ui.display.adapters.whisplay._load_pillow_modules",
+        lambda: (
+            None,
+            None,
+            None,
+            SimpleNamespace(
+                truetype=fake_truetype,
+                load_default=ImageFont.load_default,
+            ),
+        ),
+    )
+
+    oldest_font = adapter._load_font(10)
+    for size in range(11, 26):
+        adapter._load_font(size)
+
+    assert len(adapter._font_cache) == adapter._FONT_CACHE_MAX_SIZE
+    assert oldest_font is adapter._load_font(10)
+
+    adapter._load_font(26)
+
+    assert len(adapter._font_cache) == adapter._FONT_CACHE_MAX_SIZE
+    assert 11 not in [size for _, size in adapter._font_cache.keys()]
+    assert 10 in [size for _, size in adapter._font_cache.keys()]
+
+    reloaded_font = adapter._load_font(11)
+
+    assert reloaded_font is not oldest_font
+    assert load_calls.count((str(fake_font_path.resolve()), 11)) == 2
+
+
 def test_rgb565_conversion_matches_expected_byte_order() -> None:
     """The optimized conversion should preserve the adapter's big-endian RGB565 contract."""
 
