@@ -112,3 +112,48 @@ def test_contact_prefers_sip_call_path_while_gsm_is_disabled() -> None:
         "gsm",
         "+1 555-0102",
     )
+
+
+def test_cloud_contact_sync_dedupes_matching_seed_contact(tmp_path: Path) -> None:
+    contacts_file = tmp_path / "data" / "people" / "contacts.yaml"
+    contacts_file.parent.mkdir(parents=True, exist_ok=True)
+    contacts_file.write_text(
+        yaml.safe_dump(
+            {
+                "contacts": [
+                    {
+                        "name": "Hagar",
+                        "sip_address": "sip:hagarmo@sip.linphone.org",
+                        "favorite": True,
+                        "notes": "Mama",
+                    }
+                ],
+                "speed_dial": {
+                    1: "sip:hagarmo@sip.linphone.org",
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    directory = PeopleDirectory(contacts_file)
+    directory.merge_cloud_contacts(
+        [
+            {
+                "id": "contact-hagar",
+                "name": "Hagar",
+                "sip_address": "sip:hagarmo@sip.linphone.org",
+                "phone_number": None,
+                "relationship": "Mama",
+                "is_primary": True,
+                "can_call": True,
+                "can_receive": True,
+                "quick_dial": 1,
+            }
+        ]
+    )
+
+    assert len(directory.contacts) == 1
+    assert directory.contacts[0].sync_origin == "cloud"
+    assert directory.contacts[0].contact_id == "contact-hagar"
