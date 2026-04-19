@@ -357,7 +357,10 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
     class FakeChip:
         def request_lines(self, *, consumer: str, config: dict[int, object]) -> FakeRequest:
             assert consumer == "pimoroni-led-r"
-            assert config[12].kwargs == {"direction": "output"}
+            assert config[12].kwargs == {
+                "direction": "output",
+                "output_value": "active",
+            }
             return FakeRequest()
 
         def close(self) -> None:
@@ -381,7 +384,42 @@ def test_request_output_supports_official_gpiod_v2_request_lines(
     line = gpiod_compat.request_output(chip, 12, "pimoroni-led-r", default_val=1)
     line.set_value("manual")
 
-    assert set_calls == [(12, "active"), (12, "manual")]
+    assert set_calls == [(12, "manual")]
+
+
+def test_request_input_events_does_not_mask_internal_type_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from yoyopod.ui import gpiod_compat
+
+    class FakeLineSettings:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = kwargs
+
+    class FakeChip:
+        def request_lines(self, *, consumer: str, config: dict[int, object]) -> object:
+            raise TypeError("internal line request failure")
+
+        def close(self) -> None:
+            return None
+
+    fake_gpiod = SimpleNamespace(
+        Chip=lambda _path: FakeChip(),
+        LineSettings=FakeLineSettings,
+        line=SimpleNamespace(
+            Direction=SimpleNamespace(INPUT="input", OUTPUT="output"),
+            Bias=SimpleNamespace(DISABLED="bias-disabled"),
+            Edge=SimpleNamespace(BOTH="both-edges"),
+            Value=SimpleNamespace(ACTIVE="active", INACTIVE="inactive"),
+        ),
+    )
+
+    monkeypatch.setattr(gpiod_compat, "HAS_GPIOD", True)
+    monkeypatch.setattr(gpiod_compat, "_gpiod", fake_gpiod)
+
+    chip = gpiod_compat.open_chip("gpiochip0")
+    with pytest.raises(TypeError, match="internal line request failure"):
+        gpiod_compat.request_input_events(chip, 7, "yoyopod-btn")
 
 
 def test_event_wait_loop_seeds_initial_pressed_state(monkeypatch: pytest.MonkeyPatch) -> None:

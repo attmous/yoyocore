@@ -10,6 +10,7 @@ are available.
 
 from __future__ import annotations
 
+import inspect
 import select
 from typing import Any
 
@@ -141,12 +142,9 @@ def _resolve_gpiod_attr(*paths: str) -> Any:
 def _supports_v2_requests(chip: Any) -> bool:
     """Return True when the runtime exposes libgpiod v2 line-request helpers."""
     raw_chip = getattr(chip, "_chip", chip)
-    return (
-        hasattr(_gpiod, "LineSettings")
-        and (
-            callable(getattr(raw_chip, "request_lines", None))
-            or callable(getattr(_gpiod, "request_lines", None))
-        )
+    return hasattr(_gpiod, "LineSettings") and (
+        callable(getattr(raw_chip, "request_lines", None))
+        or callable(getattr(_gpiod, "request_lines", None))
     )
 
 
@@ -155,6 +153,7 @@ def _make_line_settings(
     direction: Any = None,
     bias: Any = None,
     edge_detection: Any = None,
+    output_value: Any = None,
 ) -> Any:
     """Create a libgpiod v2 LineSettings object across minor API variations."""
     line_settings_cls = getattr(_gpiod, "LineSettings", None)
@@ -168,6 +167,8 @@ def _make_line_settings(
         kwargs["bias"] = bias
     if edge_detection is not None:
         kwargs["edge_detection"] = edge_detection
+    if output_value is not None:
+        kwargs["output_value"] = output_value
 
     try:
         return line_settings_cls(**kwargs)
@@ -176,6 +177,40 @@ def _make_line_settings(
         for name, value in kwargs.items():
             setattr(settings, name, value)
         return settings
+
+
+def _call_with_first_supported_signature(
+    func: Any,
+    candidates: tuple[tuple[tuple[Any, ...], dict[str, Any]], ...],
+) -> Any:
+    """Call the first candidate whose signature matches without masking runtime errors."""
+    try:
+        signature = inspect.signature(func)
+    except (TypeError, ValueError):
+        signature = None
+
+    if signature is not None:
+        for args, kwargs in candidates:
+            try:
+                signature.bind(*args, **kwargs)
+            except TypeError:
+                continue
+            return func(*args, **kwargs)
+        raise TypeError("No compatible request_lines signature matched")
+
+    signature_errors: list[TypeError] = []
+    for args, kwargs in candidates:
+        try:
+            return func(*args, **kwargs)
+        except TypeError as exc:
+            if "unexpected keyword" not in str(exc) and "positional" not in str(exc):
+                raise
+            signature_errors.append(exc)
+
+    if signature_errors:
+        raise signature_errors[-1]
+
+    raise TypeError("No compatible request_lines signature matched")
 
 
 def _request_v2_line(
@@ -192,15 +227,13 @@ def _request_v2_line(
     request = None
     request_lines = getattr(raw_chip, "request_lines", None)
     if callable(request_lines):
-        for kwargs in (
-            {"consumer": consumer, "config": config},
-            {"config": config, "consumer": consumer},
-        ):
-            try:
-                request = request_lines(**kwargs)
-                break
-            except TypeError:
-                continue
+        request = _call_with_first_supported_signature(
+            request_lines,
+            (
+                ((), {"consumer": consumer, "config": config}),
+                ((), {"config": config, "consumer": consumer}),
+            ),
+        )
 
     if request is None:
         request_lines = getattr(_gpiod, "request_lines", None)
@@ -208,16 +241,14 @@ def _request_v2_line(
         if not callable(request_lines) or chip_path is None:
             raise RuntimeError("gpiod v2 request_lines() is unavailable")
 
-        for args, kwargs in (
-            ((chip_path,), {"consumer": consumer, "config": config}),
-            ((), {"path": chip_path, "consumer": consumer, "config": config}),
-            ((chip_path, consumer, config), {}),
-        ):
-            try:
-                request = request_lines(*args, **kwargs)
-                break
-            except TypeError:
-                continue
+        request = _call_with_first_supported_signature(
+            request_lines,
+            (
+                ((chip_path,), {"consumer": consumer, "config": config}),
+                ((), {"path": chip_path, "consumer": consumer, "config": config}),
+                ((chip_path, consumer, config), {}),
+            ),
+        )
 
     if request is None:
         raise RuntimeError("Failed to request libgpiod v2 line")
@@ -254,10 +285,11 @@ def request_output(chip: Any, line_offset: int, consumer: str, default_val: int 
     raw_chip = getattr(chip, "_chip", chip)
     if _supports_v2_requests(chip):
         direction_output = _resolve_gpiod_attr("line.Direction.OUTPUT", "Direction.OUTPUT")
-        settings = _make_line_settings(direction=direction_output)
-        line = _request_v2_line(chip, line_offset, consumer, settings=settings)
-        line.set_value(_resolve_output_value(default_val))
-        return line
+        settings = _make_line_settings(
+            direction=direction_output,
+            output_value=_resolve_output_value(default_val),
+        )
+        return _request_v2_line(chip, line_offset, consumer, settings=settings)
 
     line = raw_chip.get_line(line_offset)
 
