@@ -78,8 +78,8 @@ def test_build_pi_setup_commands_include_install_sync_and_builds() -> None:
         "pisugar-server",
     )
     assert commands[2].command == ("uv", "sync", "--extra", "dev")
-    assert commands[3].command == ("uv", "run", "yoyoctl", "build", "liblinphone")
-    assert commands[4].command == ("uv", "run", "yoyoctl", "build", "lvgl")
+    assert commands[3].command == ("uv", "run", "yoyopod", "build", "liblinphone")
+    assert commands[4].command == ("uv", "run", "yoyopod", "build", "lvgl")
 
 
 def test_collect_host_setup_checks_cover_required_tools_modules_and_config(

@@ -215,8 +215,8 @@ def build_pi_setup_commands(
     if not skip_builds:
         commands.extend(
             (
-                SetupCommand("build-liblinphone", ("uv", "run", "yoyoctl", "build", "liblinphone")),
-                SetupCommand("build-lvgl", ("uv", "run", "yoyoctl", "build", "lvgl")),
+                SetupCommand("build-liblinphone", ("uv", "run", "yoyopod", "build", "liblinphone")),
+                SetupCommand("build-lvgl", ("uv", "run", "yoyopod", "build", "lvgl")),
             )
         )
     return tuple(commands)

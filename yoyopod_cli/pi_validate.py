@@ -574,7 +574,7 @@ def _voip_check(config_dir: Path, registration_timeout: float) -> _CheckResult:
         return _CheckResult(
             name="voip",
             status="fail",
-            details="Liblinphone shim is unavailable; run yoyoctl build liblinphone on the Pi",
+            details="Liblinphone shim is unavailable; run yoyopod build liblinphone on the Pi",
         )
 
     if not voip_config.sip_identity:
@@ -891,7 +891,7 @@ def _build_voip_manager_for_drill(config_dir: str) -> _VoIPManagerLike:
 
     if LiblinphoneBinding.try_load() is None:
         logger.error(
-            "Liblinphone shim is unavailable. Build it first with yoyoctl build liblinphone."
+            "Liblinphone shim is unavailable. Build it first with yoyopod build liblinphone."
         )
         raise typer.Exit(code=1)
 

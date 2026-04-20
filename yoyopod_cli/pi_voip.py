@@ -63,7 +63,7 @@ def _build_voip_manager(config_dir: str) -> _VoIPManagerLike:
 
     if LiblinphoneBinding.try_load() is None:
         logger.error(
-            "Liblinphone shim is unavailable. Build it first with yoyoctl build liblinphone."
+            "Liblinphone shim is unavailable. Build it first with yoyopod build liblinphone."
         )
         raise typer.Exit(code=1)
 
