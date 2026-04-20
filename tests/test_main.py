@@ -6,6 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import yoyopod.main as main_module
+import yoyopod.runtime.diagnostics as diagnostics_module
+import yoyopod.runtime.screenshot as screenshot_module
+from yoyopod.runtime import ResponsivenessWatchdogDecision
 from yoyopod.core import RUNTIME_REQUIRED_CONFIG_FILES
 
 
@@ -74,7 +77,7 @@ def test_capture_screenshot_prefers_readback_and_falls_back_to_shadow() -> None:
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    result = main_module._capture_screenshot(
+    result = screenshot_module._capture_screenshot(
         adapter=Adapter(),
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -95,7 +98,7 @@ def test_capture_screenshot_handles_missing_adapter() -> None:
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    result = main_module._capture_screenshot(
+    result = screenshot_module._capture_screenshot(
         adapter=None,
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -150,9 +153,9 @@ def test_request_screenshot_capture_queues_main_loop_callback(monkeypatch) -> No
         )
         return True
 
-    monkeypatch.setattr(main_module, "_capture_screenshot", fake_capture_screenshot)
+    monkeypatch.setattr(screenshot_module, "_capture_screenshot", fake_capture_screenshot)
 
-    main_module._request_screenshot_capture(
+    screenshot_module._request_screenshot_capture(
         app=App(),
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -185,7 +188,7 @@ def test_log_signal_snapshot_serializes_runtime_state() -> None:
         }
     )
 
-    main_module._log_signal_snapshot(
+    diagnostics_module._log_signal_snapshot(
         app=app,
         app_log=fake_log,
         signal_name="SIGUSR1",
@@ -210,7 +213,7 @@ def test_log_setup_failure_guidance_uses_shared_runtime_config_contract() -> Non
         error=lambda *args: logs.append(args),
     )
 
-    main_module._log_setup_failure_guidance(fake_log)
+    diagnostics_module._log_setup_failure_guidance(fake_log)
 
     for relative_path in RUNTIME_REQUIRED_CONFIG_FILES:
         assert (f"  - {relative_path.as_posix()} exists",) in logs
@@ -239,14 +242,12 @@ def test_capture_responsiveness_watchdog_evidence_writes_artifacts(
             recorded.append(kwargs)
 
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "dump_traceback",
-        lambda *, file, all_threads: file.write(
-            f"TRACEBACK all_threads={all_threads}\n"
-        ),
+        lambda *, file, all_threads: file.write(f"TRACEBACK all_threads={all_threads}\n"),
     )
 
-    decision = main_module.ResponsivenessWatchdogDecision(
+    decision = ResponsivenessWatchdogDecision(
         reason="coordinator_stall_after_input",
         suspected_scope="input_to_runtime_handoff",
         summary="input kept moving but the coordinator stalled",
@@ -259,7 +260,7 @@ def test_capture_responsiveness_watchdog_evidence_writes_artifacts(
         "handled_input_activity_age_seconds": 6.2,
     }
 
-    main_module._capture_responsiveness_watchdog_evidence(
+    diagnostics_module._capture_responsiveness_watchdog_evidence(
         app=App(),
         app_log=fake_log,
         error_log_path=tmp_path / "yoyopod_errors.log",
@@ -293,14 +294,14 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
     logs: list[tuple[str, tuple[object, ...]]] = []
 
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "register",
         lambda signum, *, file, all_threads, chain: register_calls.append(
             (signum, all_threads, chain)
         ),
     )
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "unregister",
         lambda signum: unregister_calls.append(signum),
     )
@@ -309,7 +310,7 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    dump_stream, installed = main_module._install_traceback_dump_handlers(
+    dump_stream, installed = diagnostics_module._install_traceback_dump_handlers(
         signals=(signal.SIGUSR1, signal.SIGUSR2),
         dump_path=tmp_path / "yoyopod_errors.log",
         app_log=fake_log,
@@ -323,7 +324,7 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
     assert dump_stream is not None
     assert dump_stream.closed is False
 
-    main_module._uninstall_traceback_dump_handlers(
+    diagnostics_module._uninstall_traceback_dump_handlers(
         signals=installed,
         dump_stream=dump_stream,
     )
