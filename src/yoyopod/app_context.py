@@ -93,16 +93,6 @@ class AppContext:
 
         logger.info("AppContext initialized")
 
-    @property
-    def playback(self) -> PlaybackState:
-        """Temporary compatibility alias for demo callers still using context.playback."""
-
-        return self.media.playback
-
-    @playback.setter
-    def playback(self, value: PlaybackState) -> None:
-        self.media.playback = value
-
     def set_playlist(self, playlist: PlaybackQueue) -> None:
         """Set the current playlist."""
 
