@@ -131,3 +131,20 @@ def test_app_context_nested_state_fields_are_mutable() -> None:
     assert context.talk.active_voice_note.duration_ms == 2800
     assert context.media.playback.volume == 64
     assert context.voice.output_volume == 64
+
+
+def test_app_context_playback_alias_still_targets_media_state() -> None:
+    """Playback stays available as a narrow compatibility alias for demo callers."""
+
+    context = AppContext()
+
+    assert context.playback is context.media.playback
+
+    context.playback.position = 54.0
+    assert context.media.playback.position == 54.0
+
+    replacement = type(context.media.playback)(is_playing=True, is_paused=False, is_stopped=False)
+    context.playback = replacement
+
+    assert context.playback is replacement
+    assert context.media.playback is replacement
