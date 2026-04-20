@@ -296,12 +296,16 @@ def _wait_for_route(
     """Pump the app until the requested route becomes active."""
 
     deadline = time.monotonic() + max(0.1, timeout_seconds)
+    last_route = _current_route(app)
     while time.monotonic() < deadline:
-        if _current_route(app) == route_name:
+        if last_route == route_name:
             return
         _pump_app(app, 0.05)
+        last_route = _current_route(app)
+    if last_route == route_name:
+        return
     raise NavigationSoakError(
-        f"navigation soak expected route '{route_name}', got '{_current_route(app)}'"
+        f"navigation soak expected route '{route_name}', got '{last_route}'"
     )
 
 
