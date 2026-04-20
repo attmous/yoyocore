@@ -12,7 +12,7 @@ from yoyopod.voice.commands import match_voice_command
 from .settings import VoiceCommandOutcome
 
 if TYPE_CHECKING:
-    from yoyopod.app_context import AppContext
+    from yoyopod.core import AppContext
     from yoyopod.config import ConfigManager
     from yoyopod.communication import VoIPManager
     from yoyopod.people import Contact
@@ -199,5 +199,5 @@ class VoiceCommandExecutor:
     def _sync_context_output_volume(self, volume: int | None) -> None:
         if volume is None or self._context is None:
             return
-        self._context.playback.volume = volume
+        self._context.media.playback.volume = volume
         self._context.voice.output_volume = volume

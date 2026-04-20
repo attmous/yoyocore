@@ -7,6 +7,12 @@ from typing import Any
 
 from loguru import logger
 
+from yoyopod.config.composition import (
+    DEVICE_HARDWARE_CONFIG,
+    APP_CORE_CONFIG,
+    config_loaded,
+    merge_layer_groups,
+)
 from yoyopod.config.layers import resolve_config_board, resolve_config_layers
 from yoyopod.config.models import (
     CloudConfig,
@@ -29,9 +35,7 @@ from yoyopod.config.storage import (
     load_yaml_mapping,
 )
 
-APP_CORE_CONFIG = Path("app/core.yaml")
 AUDIO_MUSIC_CONFIG = Path("audio/music.yaml")
-DEVICE_HARDWARE_CONFIG = Path("device/hardware.yaml")
 POWER_BACKEND_CONFIG = Path("power/backend.yaml")
 NETWORK_CELLULAR_CONFIG = Path("network/cellular.yaml")
 VOICE_ASSISTANT_CONFIG = Path("voice/assistant.yaml")
@@ -43,37 +47,6 @@ CLOUD_BACKEND_CONFIG = Path("cloud/backend.yaml")
 CLOUD_SECRETS_CONFIG = Path("cloud/device.secrets.yaml")
 SYSTEM_CLOUD_SECRETS_FILE = Path("/etc/yoyopod/cloud/device.secrets.yaml")
 _SECRET_KEYS = ("sip_password", "sip_password_ha1")
-
-
-def _config_loaded(*layer_groups: tuple[Path, ...]) -> bool:
-    """Return whether any layer in any group exists on disk."""
-
-    return any(path.exists() for group in layer_groups for path in group)
-
-
-def _merge_layer_groups(*layer_groups: tuple[Path, ...]) -> dict[str, Any]:
-    """Load and merge multiple layer groups in order."""
-
-    merged: dict[str, Any] = {}
-    for group in layer_groups:
-        merged = deep_merge_mappings(merged, load_yaml_layers(group))
-    return merged
-
-
-def load_composed_app_settings(
-    config_dir: str | Path = "config",
-    *,
-    config_board: str | None = None,
-) -> YoyoPodConfig:
-    """Load the typed app settings from the canonical app/device topology."""
-
-    base_dir = Path(config_dir)
-    active_board = resolve_config_board(explicit_board=config_board)
-    payload = _merge_layer_groups(
-        resolve_config_layers(base_dir, active_board, APP_CORE_CONFIG),
-        resolve_config_layers(base_dir, active_board, DEVICE_HARDWARE_CONFIG),
-    )
-    return build_config_model(YoyoPodConfig, payload)
 
 
 class ConfigManager:
@@ -175,6 +148,7 @@ class ConfigManager:
         self.runtime_config: dict[str, Any] = config_to_dict(self.runtime_settings)
 
         self.app_config_loaded = False
+        self.device_hardware_config_loaded = False
         self.media_config_loaded = False
         self.power_config_loaded = False
         self.network_config_loaded = False
@@ -239,7 +213,7 @@ class ConfigManager:
             current = load_yaml_mapping(self.device_hardware_file)
             data = deep_merge_mappings(current, patch)
             atomic_write_yaml(self.device_hardware_file, data)
-            self.voice_config_loaded = True
+            self.device_hardware_config_loaded = True
             logger.info("Device configuration layer updated successfully")
             return True
         except Exception:
@@ -281,12 +255,13 @@ class ConfigManager:
     def load_app_config(self) -> bool:
         """Load the typed app settings from canonical authored files."""
 
-        self.app_config_loaded = _config_loaded(
+        self.device_hardware_config_loaded = config_loaded(self.device_hardware_layers)
+        self.app_config_loaded = config_loaded(
             self.app_core_layers,
             self.device_hardware_layers,
         )
         try:
-            payload = _merge_layer_groups(
+            payload = merge_layer_groups(
                 self.app_core_layers,
                 self.device_hardware_layers,
             )
@@ -323,7 +298,8 @@ class ConfigManager:
     def load_media_config(self) -> bool:
         """Load the typed media config from audio-owned and device-owned layers."""
 
-        self.media_config_loaded = _config_loaded(
+        self.device_hardware_config_loaded = config_loaded(self.device_hardware_layers)
+        self.media_config_loaded = config_loaded(
             self.media_music_layers,
             self.device_hardware_layers,
         )
@@ -366,7 +342,7 @@ class ConfigManager:
     def load_power_config(self) -> bool:
         """Load the typed power config from domain-owned backend layers."""
 
-        self.power_config_loaded = _config_loaded(self.power_backend_layers)
+        self.power_config_loaded = config_loaded(self.power_backend_layers)
         try:
             payload = load_yaml_layers(self.power_backend_layers)
             self.power_settings = build_config_model(PowerConfig, payload.get("power", payload))
@@ -406,7 +382,8 @@ class ConfigManager:
     def load_voice_config(self) -> bool:
         """Load the typed voice config from voice-owned and device-owned layers."""
 
-        self.voice_config_loaded = _config_loaded(
+        self.device_hardware_config_loaded = config_loaded(self.device_hardware_layers)
+        self.voice_config_loaded = config_loaded(
             self.voice_assistant_layers,
             self.device_hardware_layers,
         )
@@ -440,7 +417,7 @@ class ConfigManager:
     def load_network_config(self) -> bool:
         """Load the typed network config from domain-owned cellular layers."""
 
-        self.network_config_loaded = _config_loaded(self.network_cellular_layers)
+        self.network_config_loaded = config_loaded(self.network_cellular_layers)
         try:
             payload = load_yaml_layers(self.network_cellular_layers)
             self.network_settings = build_config_model(
@@ -466,7 +443,8 @@ class ConfigManager:
     def load_communication_config(self) -> bool:
         """Load the typed communication config from calling/messaging/device/secrets files."""
 
-        self.communication_config_loaded = _config_loaded(
+        self.device_hardware_config_loaded = config_loaded(self.device_hardware_layers)
+        self.communication_config_loaded = config_loaded(
             self.communication_calling_layers,
             self.communication_messaging_layers,
             self.device_hardware_layers,
@@ -490,7 +468,7 @@ class ConfigManager:
             if not isinstance(communication_audio, dict):
                 communication_audio = {}
 
-            payload = _merge_layer_groups(
+            payload = merge_layer_groups(
                 self.communication_calling_layers,
                 self.communication_messaging_layers,
             )
@@ -527,7 +505,7 @@ class ConfigManager:
     def load_people_config(self) -> bool:
         """Load the typed people-data path config."""
 
-        self.people_config_loaded = _config_loaded(self.people_directory_layers)
+        self.people_config_loaded = config_loaded(self.people_directory_layers)
         try:
             payload = load_yaml_layers(self.people_directory_layers)
             self.people_settings = build_config_model(PeopleDirectoryConfig, payload)
@@ -543,7 +521,7 @@ class ConfigManager:
     def load_cloud_config(self) -> bool:
         """Load cloud/backend tracked config plus runtime-only device secrets."""
 
-        self.cloud_config_loaded = _config_loaded(self.cloud_backend_layers)
+        self.cloud_config_loaded = config_loaded(self.cloud_backend_layers)
         self.cloud_secrets_runtime_file = (
             self.cloud_secrets_file
             if self.cloud_secrets_file.exists()

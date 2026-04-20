@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from yoyopod.app_context import AppContext
+from yoyopod.core import AppContext
 from yoyopod.audio.music.models import MusicConfig, PlaybackQueue, Playlist, Track
 
 
@@ -131,7 +131,7 @@ def test_app_context_demo_playlist_uses_canonical_track_model() -> None:
     context = AppContext()
     playlist = context.create_demo_playlist()
     context.set_playlist(playlist)
-    context.playback.position = 45.0
+    context.media.playback.position = 45.0
 
     track = context.get_current_track()
 

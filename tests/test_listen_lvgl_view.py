@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from yoyopod.app_context import AppContext
+from yoyopod.core import AppContext
 from yoyopod.audio import LocalMusicService
 from yoyopod.ui.input import InteractionProfile
 from yoyopod.ui.screens import ListenScreen
@@ -53,9 +53,9 @@ def test_listen_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> No
     display = FakeLvglDisplay(binding)
     context = AppContext(interaction_profile=InteractionProfile.ONE_BUTTON)
     context.update_voip_status(configured=True, ready=False)
-    context.battery_percent = 58
-    context.battery_charging = False
-    context.power_available = True
+    context.power.battery_percent = 58
+    context.power.battery_charging = False
+    context.power.available = True
 
     screen = ListenScreen(
         display,

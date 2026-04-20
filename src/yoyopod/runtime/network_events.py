@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from yoyopod.events import (
+from yoyopod.core import (
     NetworkGpsFixEvent,
     NetworkGpsNoFixEvent,
     NetworkPppDownEvent,
@@ -73,7 +73,7 @@ class NetworkEventHandler:
             self.sync_network_context_from_manager()
             return
         if self.app.context is not None:
-            connection_type = self.app.context.connection_type
+            connection_type = self.app.context.network.connection_type
             if connection_type == "none":
                 connection_type = "4g"
             self.app.context.update_network_status(
@@ -89,7 +89,7 @@ class NetworkEventHandler:
             self.sync_network_context_from_manager()
             return
         if self.app.context is not None:
-            connection_type = self.app.context.connection_type
+            connection_type = self.app.context.network.connection_type
             if connection_type == "none":
                 connection_type = "4g"
             self.app.context.update_network_status(

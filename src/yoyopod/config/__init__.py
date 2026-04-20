@@ -1,6 +1,7 @@
 """Canonical config composition for YoyoPod."""
 
-from yoyopod.config.manager import ConfigManager, load_composed_app_settings
+from yoyopod.config.composition import load_composed_app_settings
+from yoyopod.config.manager import ConfigManager
 from yoyopod.config.models import (
     BackendTelemetryConfig,
     CloudBackendConfig,
@@ -15,6 +16,7 @@ from yoyopod.config.models import (
     YoyoPodConfig,
     YoyoPodRuntimeConfig,
     config_to_dict,
+    config_value,
     load_config_model_from_yaml,
 )
 
@@ -35,4 +37,5 @@ __all__ = [
     "load_composed_app_settings",
     "load_config_model_from_yaml",
     "config_to_dict",
+    "config_value",
 ]

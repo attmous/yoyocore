@@ -14,7 +14,7 @@ from typing import Annotated
 import typer
 
 from yoyopod_cli.common import REPO_ROOT
-from yoyopod.setup_contract import SETUP_TRACKED_CONFIG_FILES
+from yoyopod.core import SETUP_TRACKED_CONFIG_FILES
 
 app = typer.Typer(
     name="setup",
@@ -54,7 +54,7 @@ NATIVE_ARTIFACTS: tuple[Path, ...] = (
     / "yoyopod"
     / "communication"
     / "integrations"
-    / "liblinphone_binding"
+    / "liblinphone"
     / "native"
     / "build"
     / "libyoyopod_liblinphone_shim.so",

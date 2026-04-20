@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 
-from yoyopod.app_context import AppContext
+from yoyopod.core import AppContext
 from yoyopod.runtime.voice import (
     VoiceCommandExecutor,
     VoiceCommandOutcome,
@@ -204,7 +204,7 @@ def test_voice_command_executor_routes_call_and_updates_context() -> None:
         "Calling Mama.",
         auto_return=False,
     )
-    assert context.talk_contact_name == "Mama"
+    assert context.talk.selected_contact_name == "Mama"
     assert voip_manager.make_calls == [("sip:mama@example.com", "Mama")]
     assert context.voice.last_transcript == "call mom"
 

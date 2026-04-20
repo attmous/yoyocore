@@ -28,7 +28,7 @@ from yoyopod.ui.screens.theme import (
 )
 
 if TYPE_CHECKING:
-    from yoyopod.app_context import AppContext
+    from yoyopod.core import AppContext
     from yoyopod.audio.music.backend import MusicBackend
     from yoyopod.ui.screens import ScreenView
 
@@ -113,9 +113,11 @@ def build_now_playing_state_provider(
             artist=track.get_artist_string(),
             progress=context.get_playback_progress() if context is not None else 0.0,
             state_label=(
-                "PLAYING" if context is not None and context.playback.is_playing else "PAUSED"
+                "PLAYING"
+                if context is not None and context.media.playback.is_playing
+                else "PAUSED"
             ),
-            is_playing=bool(context is not None and context.playback.is_playing),
+            is_playing=bool(context is not None and context.media.playback.is_playing),
         )
 
     return provider
