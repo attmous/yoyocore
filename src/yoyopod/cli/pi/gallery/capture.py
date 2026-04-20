@@ -29,7 +29,7 @@ from yoyopod.cli.pi.gallery.fixtures import (
 if TYPE_CHECKING:
     from yoyopod.communication import CallHistoryStore, VoIPManager
     from yoyopod.audio.music import LocalMusicService
-    from yoyopod.people import PeopleDirectory
+    from yoyopod.people import PeopleManager
     from yoyopod.ui.display import Display
 
 
@@ -133,7 +133,7 @@ def _build_capture_specs(
     from yoyopod.ui.screens.voip.quick_call import CallScreen
 
     contacts = _build_contacts()
-    people_directory = cast("PeopleDirectory", _FakePeopleDirectory(contacts))
+    people_directory = cast("PeopleManager", _FakePeopleDirectory(contacts))
     music_service = cast("LocalMusicService", _build_music_service())
     call_history_store = cast("CallHistoryStore", _build_call_history_store())
     power_snapshot = _build_power_snapshot()
