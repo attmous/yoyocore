@@ -36,19 +36,19 @@ Canonical deploy/debug skills
 
 Current runtime summary
 - Entrypoint: `yoyopod.py` -> `yoyopy.main` -> `YoyoPodApp`
-- Main packages: `yoyopy/audio/`, `voip/`, `power/`, `ui/`, `coordinators/`
+- Main packages: `src/yoyopod/audio/`, `voip/`, `power/`, `ui/`, `coordinators/`
 - Runtime structure: split `MusicFSM` + `CallFSM`, typed `EventBus`, coordinator-driven app state
-- Production audio: mpv backend under `yoyopy/audio/music/`
-- Production VoIP: Liblinphone under `yoyopy/voip/liblinphone_binding/`
-- Production LVGL path: `yoyopy/ui/lvgl_binding/`
+- Production audio: mpv backend under `src/yoyopod/audio/music/`
+- Production VoIP: Liblinphone under `src/yoyopod/voip/liblinphone_binding/`
+- Production LVGL path: `src/yoyopod/ui/lvgl_binding/`
 - Production service templates: `deploy/systemd/`
 
 Source-of-truth files
-- `yoyopy/app.py`
-- `yoyopy/fsm.py`
-- `yoyopy/event_bus.py`
-- `yoyopy/events.py`
-- `yoyopy/coordinators/runtime.py`
+- `src/yoyopod/app.py`
+- `src/yoyopod/fsm.py`
+- `src/yoyopod/event_bus.py`
+- `src/yoyopod/events.py`
+- `src/yoyopod/coordinators/runtime.py`
 - `README.md`
 - `docs/SYSTEM_ARCHITECTURE.md`
 - `docs/POWER_MODULE.md`
@@ -68,7 +68,7 @@ Hardware modes
 
 Guardrails
 - Prefer narrow, reviewable changes.
-- Keep raw LVGL confined to `yoyopy/ui/lvgl_binding/` and display-layer code.
+- Keep raw LVGL confined to `src/yoyopod/ui/lvgl_binding/` and display-layer code.
 - Prefer `yoyoctl remote` over ad-hoc SSH sequences.
 - Current code and runtime docs beat old plan docs when they disagree.
 - `docs/archive/` is history, not truth.
