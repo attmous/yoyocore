@@ -25,6 +25,7 @@ def render_talk_contact_pil(screen: "TalkContactScreen") -> None:
     actions = screen.actions()
     action_icons = screen.get_visible_action_icons()
     button_size = screen.action_button_size()
+    selected_index = min(screen.selected_index, len(actions) - 1) if actions else 0
     bottom = draw_talk_person_header(
         screen.display,
         center_x=screen.display.WIDTH // 2,
@@ -47,12 +48,16 @@ def render_talk_contact_pil(screen: "TalkContactScreen") -> None:
             button_size=button_size,
             color=TALK.accent,
             icon=action_icons[row],
-            filled=row == screen.selected_index,
-            active=row == screen.selected_index,
+            filled=row == selected_index,
+            active=row == selected_index,
         )
 
     visible_items, _visible_subtitles, selected_visible_index = screen.get_visible_actions()
-    selected_title = visible_items[selected_visible_index] if visible_items else ""
+    if visible_items:
+        selected_visible_index = min(selected_visible_index, len(visible_items) - 1)
+        selected_title = visible_items[selected_visible_index]
+    else:
+        selected_title = ""
     title_width, title_height = screen.display.get_text_size(selected_title, 18)
     title_y = center_y + (diameter // 2) + 16
     screen.display.text(
@@ -67,7 +72,7 @@ def render_talk_contact_pil(screen: "TalkContactScreen") -> None:
         center_x=screen.display.WIDTH // 2,
         top=title_y + title_height + 16,
         total=len(actions),
-        current=screen.selected_index,
+        current=selected_index,
         color=TALK.accent,
     )
 

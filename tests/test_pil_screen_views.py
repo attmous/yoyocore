@@ -307,7 +307,7 @@ def _make_talk_contact_screen() -> object:
 
         def __init__(self) -> None:
             self.display = display
-            self.selected_index = 1
+            self.selected_index = 9
 
         def actions(self) -> list[str]:
             return ["Call", "Voice Note"]
@@ -325,7 +325,7 @@ def _make_talk_contact_screen() -> object:
             return "OW"
 
         def get_visible_actions(self) -> tuple[list[str], list[str], int]:
-            return (["Call", "Voice Note"], ["Start a voice call", "Record a short message"], 1)
+            return (["Call", "Voice Note"], ["Start a voice call", "Record a short message"], 9)
 
         def footer_text(self) -> str:
             return "Tap Next | 2x Select | Hold Back"
