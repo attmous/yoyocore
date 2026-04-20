@@ -11,13 +11,7 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.music.lvgl import LvglPlaylistView
-from yoyopod.ui.screens.theme import (
-    draw_empty_state,
-    draw_list_item,
-    render_footer,
-    render_header,
-    text_fit,
-)
+from yoyopod.ui.screens.music.playlist_pil_view import render_playlist_pil
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -169,85 +163,7 @@ class PlaylistScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        content_top = render_header(
-            self.display,
-            self.context,
-            mode="listen",
-            title="Playlists",
-            show_time=False,
-            show_mode_chip=False,
-        )
-
-        if self.loading:
-            draw_empty_state(
-                self.display,
-                mode="listen",
-                title="Loading playlists",
-                subtitle="Hold on while your mixes come in.",
-                icon="playlist",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="listen")
-            self.display.update()
-            return
-
-        if self.error_message:
-            draw_empty_state(
-                self.display,
-                mode="listen",
-                title="Music hiccup",
-                subtitle=self.error_message,
-                icon="playlist",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="listen")
-            self.display.update()
-            return
-
-        if not self.playlists:
-            draw_empty_state(
-                self.display,
-                mode="listen",
-                title="No playlists",
-                subtitle="Add local playlists to see them here.",
-                icon="playlist",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="listen")
-            self.display.update()
-            return
-
-        self._update_scroll_window()
-
-        item_height = 52
-        list_top = content_top + 8
-        for row in range(self.max_visible_items):
-            playlist_index = self.scroll_offset + row
-            if playlist_index >= len(self.playlists):
-                break
-
-            playlist = self.playlists[playlist_index]
-            y1 = list_top + (row * item_height)
-            y2 = y1 + 44
-            badge = f"{playlist.track_count}" if getattr(playlist, "track_count", 0) else None
-            draw_list_item(
-                self.display,
-                x1=18,
-                y1=y1,
-                x2=self.display.WIDTH - 18,
-                y2=y2,
-                title=text_fit(self.display, playlist.name, self.display.WIDTH - 92, 15),
-                subtitle="",
-                mode="listen",
-                selected=playlist_index == self.selected_index,
-                badge=badge,
-                icon="playlist",
-            )
-
-        help_text = f"{self.get_footer_text()} / Hold back" if self.is_one_button_mode() else self.get_footer_text()
-        render_footer(self.display, help_text, mode="listen")
-        self.display.update()
+        render_playlist_pil(self)
 
     def select_next(self) -> None:
         """Move to the next playlist."""
