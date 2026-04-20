@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Callable
 from loguru import logger
 
 from yoyopod.core import VoiceInteractionState
-from yoyopod.voice import VoiceCaptureRequest, VoiceService, VoiceSettings
+from yoyopod.voice import VoiceCaptureRequest, VoiceManager, VoiceSettings
 from yoyopod.voice.output import AlsaOutputPlayer
 
 from .executor import VoiceCommandExecutor
@@ -21,6 +21,9 @@ from .settings import VoiceCommandOutcome, VoiceSettingsResolver
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
+
+
+VoiceService = VoiceManager
 
 
 class VoiceRuntimeCoordinator:
@@ -32,7 +35,7 @@ class VoiceRuntimeCoordinator:
         context: "AppContext | None",
         settings_resolver: VoiceSettingsResolver,
         command_executor: VoiceCommandExecutor,
-        voice_service_factory: Callable[[VoiceSettings], VoiceService] | None = None,
+        voice_service_factory: Callable[[VoiceSettings], VoiceManager] | None = None,
         output_player: AlsaOutputPlayer | None = None,
     ) -> None:
         self._context = context
@@ -40,7 +43,7 @@ class VoiceRuntimeCoordinator:
         self._command_executor = command_executor
         self._voice_service_factory = voice_service_factory
         self._output_player = output_player or AlsaOutputPlayer()
-        self._cached_voice_service: VoiceService | None = None
+        self._cached_voice_service: VoiceManager | None = None
         self._state = VoiceInteractionState()
         self._active_capture_cancel: threading.Event | None = None
         self._state_listener: Callable[[VoiceInteractionState], None] | None = None
@@ -223,7 +226,7 @@ class VoiceRuntimeCoordinator:
     def _prepare_capture(
         self,
         *,
-        voice_service: VoiceService,
+        voice_service: VoiceManager,
         ptt_mode: bool = False,
     ) -> VoiceCommandOutcome | None:
         if self._context is not None and not self._context.voice.commands_enabled:
@@ -261,7 +264,7 @@ class VoiceRuntimeCoordinator:
             )
         return None
 
-    def _voice_service(self) -> VoiceService:
+    def _voice_service(self) -> VoiceManager:
         settings = self._settings_resolver.current()
         if self._voice_service_factory is not None:
             return self._voice_service_factory(settings)
@@ -279,7 +282,7 @@ class VoiceRuntimeCoordinator:
 
     def _run_listening_cycle(
         self,
-        voice_service: VoiceService,
+        voice_service: VoiceManager,
         generation: int,
         cancel_event: threading.Event,
     ) -> None:
@@ -317,7 +320,7 @@ class VoiceRuntimeCoordinator:
 
     def _run_ptt_listening_cycle(
         self,
-        voice_service: VoiceService,
+        voice_service: VoiceManager,
         generation: int,
         cancel_event: threading.Event,
     ) -> None:

@@ -13,7 +13,7 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.navigation.ask_rendering import AskScreenRenderingMixin
 from yoyopod.ui.screens.navigation.ask_voice import AskScreenVoiceMixin
-from yoyopod.voice import VoiceService, VoiceSettings
+from yoyopod.voice import VoiceManager, VoiceSettings
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -46,7 +46,7 @@ class AskScreen(AskScreenVoiceMixin, AskScreenRenderingMixin, Screen):
         unmute_action: Optional[Callable[[], bool]] = None,
         play_music_action: Optional[Callable[[], bool]] = None,
         voice_settings_provider: Optional[Callable[[], VoiceSettings]] = None,
-        voice_service_factory: Optional[Callable[[VoiceSettings], VoiceService]] = None,
+        voice_service_factory: Optional[Callable[[VoiceSettings], VoiceManager]] = None,
         voice_runtime: Optional["VoiceRuntimeCoordinator"] = None,
     ) -> None:
         super().__init__(display, context, "Ask")
