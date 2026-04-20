@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING
 
 from yoyopod.ui.screens.theme import (
     INK,
-    SUCCESS,
-    WARNING,
     draw_talk_action_button,
     draw_talk_page_dots,
     draw_talk_person_header,
@@ -23,7 +21,7 @@ if TYPE_CHECKING:
 def render_voice_note_pil(screen: "VoiceNoteScreen") -> None:
     """Render the voice-note flow through the PIL display path."""
 
-    view_model = screen._view_model()
+    view_model = screen.view_model()
     _title_text, _subtitle_text, footer_text, _icon_key = view_model.current_view_model()
     render_status_bar(screen.display, screen.context, show_time=True)
     bottom = draw_talk_person_header(
@@ -71,7 +69,7 @@ def render_voice_note_pil(screen: "VoiceNoteScreen") -> None:
             top=label_y + label_height + 14,
             total=len(items),
             current=selected_index,
-            color=SUCCESS if screen._state == "review" else WARNING,
+            color=screen.page_dot_color(),
         )
     else:
         center_y = bottom + 64

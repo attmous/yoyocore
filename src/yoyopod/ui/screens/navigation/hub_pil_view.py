@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 def render_hub_pil(screen: "HubScreen") -> None:
     """Render the selected Hub card through the PIL display path."""
 
-    cards = screen._cards()
+    cards = screen.cards()
     screen.selected_index %= len(cards)
     selected_card = cards[screen.selected_index]
     render_backdrop(screen.display, selected_card.mode)
@@ -40,7 +40,7 @@ def render_hub_pil(screen: "HubScreen") -> None:
         tile_top - glow_padding,
         tile_left + tile_size + glow_padding,
         tile_top + tile_size + glow_padding,
-        fill=screen._tile_glow_color(selected_card.mode),
+        fill=screen.tile_glow_color(selected_card.mode),
         outline=None,
         radius=24,
         shadow=False,
@@ -52,7 +52,7 @@ def render_hub_pil(screen: "HubScreen") -> None:
         tile_top,
         tile_left + tile_size,
         tile_top + tile_size,
-        fill=screen._tile_fill_color(selected_card.mode),
+        fill=screen.tile_fill_color(selected_card.mode),
         outline=None,
         radius=16,
         shadow=True,

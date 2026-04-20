@@ -67,31 +67,27 @@ def render_playlist_pil(screen: "PlaylistScreen") -> None:
         screen.display.update()
         return
 
-    screen._update_scroll_window()
+    visible_titles, visible_badges, selected_visible_index = screen.get_visible_window()
+    visible_subtitles = screen.get_visible_subtitles()
+    visible_icon_keys = screen.get_visible_icon_keys()
 
     item_height = 52
     list_top = content_top + 8
-    for row in range(screen.max_visible_items):
-        playlist_index = screen.scroll_offset + row
-        if playlist_index >= len(screen.playlists):
-            break
-
-        playlist = screen.playlists[playlist_index]
+    for row, playlist_title in enumerate(visible_titles):
         y1 = list_top + (row * item_height)
         y2 = y1 + 44
-        badge = f"{playlist.track_count}" if getattr(playlist, "track_count", 0) else None
         draw_list_item(
             screen.display,
             x1=18,
             y1=y1,
             x2=screen.display.WIDTH - 18,
             y2=y2,
-            title=text_fit(screen.display, playlist.name, screen.display.WIDTH - 92, 15),
-            subtitle="",
+            title=text_fit(screen.display, playlist_title, screen.display.WIDTH - 92, 15),
+            subtitle=visible_subtitles[row] if row < len(visible_subtitles) else "",
             mode="listen",
-            selected=playlist_index == screen.selected_index,
-            badge=badge,
-            icon="playlist",
+            selected=row == selected_visible_index,
+            badge=visible_badges[row] or None,
+            icon=visible_icon_keys[row] if row < len(visible_icon_keys) else "playlist",
         )
 
     help_text = (

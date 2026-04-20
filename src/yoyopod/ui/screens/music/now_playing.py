@@ -223,13 +223,13 @@ class NowPlayingScreen(Screen):
         return "A play | B back | X/Y tracks"
 
     @staticmethod
-    def _display_state_text(state_label: str) -> str:
+    def display_state_text(state_label: str) -> str:
         """Return the human-facing chip label for the current playback state."""
 
         return state_label.title()
 
     @staticmethod
-    def _state_visuals(state_label: str) -> dict[str, tuple[int, int, int]]:
+    def state_visuals(state_label: str) -> dict[str, tuple[int, int, int]]:
         """Return the compact now-playing palette for one playback state."""
 
         if state_label == "PAUSED":

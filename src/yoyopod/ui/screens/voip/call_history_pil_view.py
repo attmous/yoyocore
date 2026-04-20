@@ -42,19 +42,13 @@ def render_call_history_pil(screen: "CallHistoryScreen") -> None:
         screen.display.update()
         return
 
-    if screen.selected_index < screen.scroll_offset:
-        screen.scroll_offset = screen.selected_index
-    elif screen.selected_index >= screen.scroll_offset + screen.max_visible_items:
-        screen.scroll_offset = screen.selected_index - screen.max_visible_items + 1
+    visible_titles, _visible_badges, selected_visible_index = screen.get_visible_window()
+    visible_subtitles = screen.get_visible_subtitles()
+    visible_icon_keys = screen.get_visible_icon_keys()
 
     item_height = 52
     list_top = content_top + 8
-    for row in range(screen.max_visible_items):
-        entry_index = screen.scroll_offset + row
-        if entry_index >= len(screen.entries):
-            break
-
-        entry = screen.entries[entry_index]
+    for row, entry_title in enumerate(visible_titles):
         y1 = list_top + (row * item_height)
         y2 = y1 + 44
         draw_list_item(
@@ -63,13 +57,13 @@ def render_call_history_pil(screen: "CallHistoryScreen") -> None:
             y1=y1,
             x2=screen.display.WIDTH - 18,
             y2=y2,
-            title=text_fit(screen.display, entry.title, screen.display.WIDTH - 90, 15),
-            subtitle=entry.subtitle,
+            title=text_fit(screen.display, entry_title, screen.display.WIDTH - 90, 15),
+            subtitle=visible_subtitles[row] if row < len(visible_subtitles) else "",
             mode="talk",
-            selected=entry_index == screen.selected_index,
+            selected=row == selected_visible_index,
             badge=None,
-            icon="call" if entry.direction == "outgoing" else "talk",
+            icon=visible_icon_keys[row] if row < len(visible_icon_keys) else "talk",
         )
 
-    render_footer(screen.display, screen._instruction_text(), mode="talk")
+    render_footer(screen.display, screen.instruction_text(), mode="talk")
     screen.display.update()

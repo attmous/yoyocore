@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, cast
 from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
-from yoyopod.ui.screens.theme import talk_monogram
+from yoyopod.ui.screens.theme import SUCCESS, WARNING, talk_monogram
 from yoyopod.ui.screens.voip.lvgl.voice_note_view import LvglVoiceNoteView
 from yoyopod.ui.screens.voip.voice_note_models import (
     VoiceNoteAction,
@@ -94,7 +94,7 @@ class VoiceNoteScreen(Screen):
 
         return self.is_one_button_mode() and self._state in {"ready", "recording"}
 
-    def _view_model(self) -> VoiceNoteViewModel:
+    def view_model(self) -> VoiceNoteViewModel:
         """Build the pure voice-note view model for rendering."""
 
         return VoiceNoteViewModel(
@@ -167,67 +167,72 @@ class VoiceNoteScreen(Screen):
     def actions(self) -> list[VoiceNoteAction]:
         """Return the selectable actions for the current voice-note state."""
 
-        return self._view_model().actions()
+        return self.view_model().actions()
 
     def current_actions_for_view(self) -> tuple[list[str], list[str], int]:
         """Return visible action rows for the current state."""
 
-        return self._view_model().current_actions_for_view()
+        return self.view_model().current_actions_for_view()
 
     def current_action_subtitles(self) -> list[str]:
         """Return subtitles for the current action list."""
 
-        return self._view_model().current_action_subtitles()
+        return self.view_model().current_action_subtitles()
 
     def current_action_icons(self) -> list[str]:
         """Return icon keys for the current action list."""
 
-        return self._view_model().current_action_icons()
+        return self.view_model().current_action_icons()
 
     def current_action_colors(self) -> list[tuple[int, int, int]]:
         """Return the Talk action colors for the current button row."""
 
-        return self._view_model().current_action_colors()
+        return self.view_model().current_action_colors()
 
     def current_action_color_kinds(self) -> list[int]:
         """Return native LVGL color kinds for the current action row."""
 
-        return self._view_model().current_action_color_kinds()
+        return self.view_model().current_action_color_kinds()
 
     def current_primary_icon(self) -> str:
         """Return the large centered action icon for non-review states."""
 
-        return self._view_model().current_primary_icon()
+        return self.view_model().current_primary_icon()
 
     def current_primary_color(self) -> tuple[int, int, int]:
         """Return the large centered action color for non-review states."""
 
-        return self._view_model().current_primary_color()
+        return self.view_model().current_primary_color()
 
     def current_primary_color_kind(self) -> int:
         """Return the native LVGL color kind for the centered action."""
 
-        return self._view_model().current_primary_color_kind()
+        return self.view_model().current_primary_color_kind()
 
     def current_primary_status(self) -> tuple[str, tuple[int, int, int]]:
         """Return the main status label and color for non-review states."""
 
-        return self._view_model().current_primary_status()
+        return self.view_model().current_primary_status()
 
     def current_primary_status_kind(self) -> int:
         """Return the native LVGL color kind for the centered status label."""
 
-        return self._view_model().current_primary_status_kind()
+        return self.view_model().current_primary_status_kind()
 
     def current_status_chip(self) -> tuple[str | None, int]:
         """Return the current state-chip label and style kind."""
 
-        return self._view_model().current_status_chip()
+        return self.view_model().current_status_chip()
 
     def current_view_model(self) -> tuple[str, str, str, str]:
         """Return title, subtitle, footer, and icon for the current voice-note state."""
 
-        return self._view_model().current_view_model()
+        return self.view_model().current_view_model()
+
+    def page_dot_color(self) -> tuple[int, int, int]:
+        """Return the Talk page-dot color for the current voice-note state."""
+
+        return SUCCESS if self._state == "review" else WARNING
 
     def render(self) -> None:
         """Render the current voice-note flow state."""

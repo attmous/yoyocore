@@ -51,7 +51,8 @@ def render_talk_contact_pil(screen: "TalkContactScreen") -> None:
             active=row == screen.selected_index,
         )
 
-    selected_title = screen._selected_action().title
+    visible_items, _visible_subtitles, selected_visible_index = screen.get_visible_actions()
+    selected_title = visible_items[selected_visible_index] if visible_items else ""
     title_width, title_height = screen.display.get_text_size(selected_title, 18)
     title_y = center_y + (diameter // 2) + 16
     screen.display.text(
@@ -70,5 +71,5 @@ def render_talk_contact_pil(screen: "TalkContactScreen") -> None:
         color=TALK.accent,
     )
 
-    render_footer(screen.display, "Tap Next | 2x Select | Hold Back", mode="talk")
+    render_footer(screen.display, screen.footer_text(), mode="talk")
     screen.display.update()

@@ -104,7 +104,7 @@ class CallHistoryScreen(Screen):
             return None
         return self.entries[self.selected_index]
 
-    def _instruction_text(self) -> str:
+    def instruction_text(self) -> str:
         """Return compact footer hints for recents."""
         if not self.entries:
             return "Hold back" if self.is_one_button_mode() else "B back"

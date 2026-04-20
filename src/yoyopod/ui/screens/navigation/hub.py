@@ -97,7 +97,7 @@ class HubScreen(Screen):
         except Exception:
             self._playlist_count = None
 
-    def _cards(self) -> list[HubCard]:
+    def cards(self) -> list[HubCard]:
         """Build the live root-card list."""
         return [
             HubCard("Listen", self._listen_subtitle(), "listen", "listen"),
@@ -153,13 +153,13 @@ class HubScreen(Screen):
         return format_battery_compact(self.context)
 
     @staticmethod
-    def _tile_fill_color(mode: str) -> tuple[int, int, int]:
+    def tile_fill_color(mode: str) -> tuple[int, int, int]:
         """Return the main hero-tile fill for the selected hub card."""
         theme = theme_for(mode)
         return mix(theme.accent, theme.hero_end, 0.35)
 
     @staticmethod
-    def _tile_glow_color(mode: str) -> tuple[int, int, int]:
+    def tile_glow_color(mode: str) -> tuple[int, int, int]:
         """Return a soft mode glow behind the hero tile."""
         theme = theme_for(mode)
         return mix(theme.accent, BACKGROUND, 0.72)
@@ -174,11 +174,11 @@ class HubScreen(Screen):
 
     def on_advance(self, data=None) -> None:
         """Cycle to the next card."""
-        self.selected_index = (self.selected_index + 1) % len(self._cards())
+        self.selected_index = (self.selected_index + 1) % len(self.cards())
 
     def on_select(self, data=None) -> None:
         """Open the selected root card."""
-        self.request_route("select", payload=self._cards()[self.selected_index].title)
+        self.request_route("select", payload=self.cards()[self.selected_index].title)
 
     def on_back(self, data=None) -> None:
         """Open Ask in quick-command mode (hold-to-ask shortcut)."""

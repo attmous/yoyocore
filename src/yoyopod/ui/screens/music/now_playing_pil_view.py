@@ -27,9 +27,9 @@ def render_now_playing_pil(screen: "NowPlayingScreen") -> None:
     """Render the now-playing screen through the PIL display path."""
 
     state = screen.current_state()
-    state_text = screen._display_state_text(state.state_label)
+    state_text = screen.display_state_text(state.state_label)
     footer = screen.get_footer_text(is_playing=state.is_playing, state_label=state.state_label)
-    visuals = screen._state_visuals(state.state_label)
+    visuals = screen.state_visuals(state.state_label)
 
     render_backdrop(screen.display, "listen")
     render_status_bar(screen.display, screen.context, show_time=True)

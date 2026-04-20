@@ -142,6 +142,11 @@ class TalkContactScreen(Screen):
 
         return "small" if len(self.actions()) >= 3 else "medium"
 
+    def footer_text(self) -> str:
+        """Return the footer hint for the Talk contact action screen."""
+
+        return "Tap Next | 2x Select | Hold Back"
+
     def render(self) -> None:
         """Render the contact action picker."""
 

@@ -50,7 +50,7 @@ class LvglCallHistoryView:
         self.backend.binding.playlist_sync(
             title_text="Recents",
             page_text=None,
-            footer=self.screen._instruction_text(),
+            footer=self.screen.instruction_text(),
             items=visible_items,
             subtitles=visible_subtitles,
             badges=visible_badges,

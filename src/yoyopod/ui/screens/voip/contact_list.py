@@ -157,7 +157,7 @@ class ContactListScreen(Screen):
             icons.append(f"mono:{talk_monogram(self.contacts[contact_index].display_name)}")
         return icons
 
-    def _instruction_text(self) -> str:
+    def instruction_text(self) -> str:
         """Return footer hints for the current action mode."""
 
         if self.is_one_button_mode():

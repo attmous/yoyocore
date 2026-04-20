@@ -55,7 +55,7 @@ class LvglNowPlayingView:
         self.backend.binding.now_playing_sync(
             title_text=state.title,
             artist_text=state.artist,
-            state_text=self.screen._display_state_text(state.state_label),
+            state_text=self.screen.display_state_text(state.state_label),
             footer=footer,
             progress_permille=max(0, min(1000, int(state.progress * 1000))),
             voip_state=self._voip_state(context),

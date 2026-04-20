@@ -87,7 +87,7 @@ class ListenScreen(Screen):
         render_listen_pil(self)
 
     @staticmethod
-    def _item_icon_key(key: str) -> str:
+    def item_icon_key(key: str) -> str:
         """Return the icon key used for each Listen landing row."""
 
         if key == "playlists":

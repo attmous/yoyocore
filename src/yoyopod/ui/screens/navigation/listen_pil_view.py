@@ -45,7 +45,7 @@ def render_listen_pil(screen: "ListenScreen") -> None:
             subtitle=item.subtitle,
             mode="listen",
             selected=index == screen.selected_index,
-            icon=screen._item_icon_key(item.key),
+            icon=screen.item_icon_key(item.key),
         )
 
     help_text = (

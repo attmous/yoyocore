@@ -45,7 +45,7 @@ class LvglHubView:
         if not ensure_retained_view_built(self):
             return
 
-        cards = self.screen._cards()
+        cards = self.screen.cards()
         selected_card = cards[self.screen.selected_index % len(cards)]
         theme = theme_for(selected_card.mode)
         context = self.screen.context

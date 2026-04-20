@@ -43,19 +43,13 @@ def render_contact_list_pil(screen: "ContactListScreen") -> None:
         screen.display.update()
         return
 
-    if screen.selected_index < screen.scroll_offset:
-        screen.scroll_offset = screen.selected_index
-    elif screen.selected_index >= screen.scroll_offset + screen.max_visible_items:
-        screen.scroll_offset = screen.selected_index - screen.max_visible_items + 1
+    visible_titles, _visible_badges, selected_visible_index = screen.get_visible_window()
+    visible_subtitles = screen.get_visible_subtitles()
+    visible_icon_keys = screen.get_visible_icon_keys()
 
     item_height = 52
     list_top = content_top + 8
-    for row in range(screen.max_visible_items):
-        contact_index = screen.scroll_offset + row
-        if contact_index >= len(screen.contacts):
-            break
-
-        contact = screen.contacts[contact_index]
+    for row, contact_name in enumerate(visible_titles):
         y1 = list_top + (row * item_height)
         y2 = y1 + 44
         draw_list_item(
@@ -64,13 +58,15 @@ def render_contact_list_pil(screen: "ContactListScreen") -> None:
             y1=y1,
             x2=screen.display.WIDTH - 18,
             y2=y2,
-            title=text_fit(screen.display, contact.display_name, screen.display.WIDTH - 90, 15),
-            subtitle="",
+            title=text_fit(screen.display, contact_name, screen.display.WIDTH - 90, 15),
+            subtitle=visible_subtitles[row] if row < len(visible_subtitles) else "",
             mode="talk",
-            selected=contact_index == screen.selected_index,
+            selected=row == selected_visible_index,
             badge=None,
-            icon=f"mono:{talk_monogram(contact.display_name)}",
+            icon=visible_icon_keys[row]
+            if row < len(visible_icon_keys)
+            else f"mono:{talk_monogram(contact_name)}",
         )
 
-    render_footer(screen.display, screen._instruction_text(), mode="talk")
+    render_footer(screen.display, screen.instruction_text(), mode="talk")
     screen.display.update()

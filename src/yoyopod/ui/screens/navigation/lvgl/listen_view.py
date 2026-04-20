@@ -46,7 +46,7 @@ class LvglListenView:
 
         items = [item.title for item in self.screen.items[:4]]
         subtitles = [item.subtitle for item in self.screen.items[:4]]
-        icon_keys = [self.screen._item_icon_key(item.key) for item in self.screen.items[:4]]
+        icon_keys = [self.screen.item_icon_key(item.key) for item in self.screen.items[:4]]
 
         footer = (
             "Tap next / 2x open / Hold back"

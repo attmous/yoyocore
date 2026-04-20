@@ -54,16 +54,13 @@ def render_recent_tracks_pil(screen: "RecentTracksScreen") -> None:
         screen.display.update()
         return
 
-    screen._update_scroll_window()
+    visible_titles, _visible_badges, selected_visible_index = screen.get_visible_window()
+    visible_subtitles = screen.get_visible_subtitles()
+    visible_icon_keys = screen.get_visible_icon_keys()
 
     item_height = 52
     list_top = content_top + 8
-    for row in range(screen.max_visible_items):
-        track_index = screen.scroll_offset + row
-        if track_index >= len(screen.tracks):
-            break
-
-        track = screen.tracks[track_index]
+    for row, track_title in enumerate(visible_titles):
         y1 = list_top + (row * item_height)
         y2 = y1 + 44
         draw_list_item(
@@ -72,11 +69,16 @@ def render_recent_tracks_pil(screen: "RecentTracksScreen") -> None:
             y1=y1,
             x2=screen.display.WIDTH - 18,
             y2=y2,
-            title=text_fit(screen.display, track.title, screen.display.WIDTH - 48, 15),
-            subtitle=text_fit(screen.display, track.subtitle, screen.display.WIDTH - 48, 11),
+            title=text_fit(screen.display, track_title, screen.display.WIDTH - 48, 15),
+            subtitle=text_fit(
+                screen.display,
+                visible_subtitles[row] if row < len(visible_subtitles) else "",
+                screen.display.WIDTH - 48,
+                11,
+            ),
             mode="listen",
-            selected=track_index == screen.selected_index,
-            icon="music_note",
+            selected=row == selected_visible_index,
+            icon=visible_icon_keys[row] if row < len(visible_icon_keys) else "music_note",
         )
 
     help_text = (
