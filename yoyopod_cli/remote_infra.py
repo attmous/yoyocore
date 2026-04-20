@@ -36,12 +36,12 @@ def _build_rtc(action: str, *, time_iso: str, repeat_mask: int) -> str:
 def _build_service_install() -> str:
     """Shell that installs the systemd unit and writes the env file."""
     return (
-        "sudo tee /etc/default/yoyopod > /dev/null <<ENV_EOF\n"
-        'YOYOPOD_PROJECT_DIR="$PWD"\n'
-        "ENV_EOF\n"
+        "sudo tee /etc/default/yoyopod > /dev/null <<'ENV_EOF' && "
         "sudo cp deploy/systemd/yoyopod@.service /etc/systemd/system/ && "
         "sudo systemctl daemon-reload && "
-        "sudo systemctl enable --now yoyopod@$USER"
+        "sudo systemctl enable --now yoyopod@$USER\n"
+        'YOYOPOD_PROJECT_DIR="$PWD"\n'
+        "ENV_EOF"
     )
 
 

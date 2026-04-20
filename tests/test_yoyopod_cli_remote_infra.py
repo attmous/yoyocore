@@ -1,4 +1,5 @@
 """Tests for yoyopod_cli.remote_infra — power, rtc, service."""
+
 from __future__ import annotations
 
 from typer.testing import CliRunner
@@ -73,6 +74,7 @@ def test_power_cli_invokes_run_remote(monkeypatch) -> None:
 
 # --- Fix 2: checkout-local uv run for power / rtc ---
 
+
 def test_build_power_uses_uv_run_yoyopod() -> None:
     shell = _build_power()
     assert "uv run yoyopod pi power battery" in shell
@@ -87,6 +89,7 @@ def test_build_rtc_uses_uv_run_yoyopod() -> None:
 
 # --- Fix 4: service install persists env file ---
 
+
 def test_build_service_install_persists_project_dir_env_file() -> None:
     shell = _build_service_install()
     assert "/etc/default/yoyopod" in shell
@@ -96,6 +99,12 @@ def test_build_service_install_persists_project_dir_env_file() -> None:
     # Must NOT embed the systemd unit host-absolute path
     assert "/home/" not in shell
     assert "/Users/" not in shell
+
+
+def test_build_service_install_chains_env_write_with_copy_and_enable() -> None:
+    shell = _build_service_install()
+    assert "<<'ENV_EOF' && sudo cp deploy/systemd/yoyopod@.service" in shell
+    assert "sudo systemctl enable --now yoyopod@$USER" in shell
 
 
 def test_build_service_install_copies_template_and_reloads() -> None:

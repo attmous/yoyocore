@@ -7,6 +7,7 @@ from typer.testing import CliRunner
 from yoyopod_cli.remote_ops import (
     app,
     _activate_script_path,
+    _build_native_shim_refresh,
     _build_status,
     _build_restart,
     _build_logs_tail,
@@ -42,9 +43,22 @@ def test_build_restart_uses_configured_processes() -> None:
     assert "sudo systemctl start" in shell
     assert "nohup python yoyopod.py --simulate" in shell
     assert _activate_script_path(pi.venv) in shell
+    assert "'yoyopod', 'build', 'lvgl'" in shell
+    assert "'yoyopod', 'build', 'liblinphone'" in shell
     assert pi.pid_file in shell
     assert pi.log_file in shell
     assert pi.startup_marker in shell
+
+
+def test_build_native_shim_refresh_rebuilds_lvgl_and_liblinphone_when_stale() -> None:
+    pi = PiPaths(venv="venv")
+    shell = _build_native_shim_refresh(pi)
+    assert _activate_script_path(pi.venv) in shell
+    assert "libyoyopod_lvgl_shim.so" in shell
+    assert "libyoyopod_liblinphone_shim.so" in shell
+    assert "'yoyopod', 'build', 'lvgl'" in shell
+    assert "'yoyopod', 'build', 'liblinphone'" in shell
+    assert "is_stale" in shell
 
 
 def test_build_startup_verification_waits_for_pid_and_marker() -> None:

@@ -69,6 +69,61 @@ def _build_startup_verification(pi: PiPaths, *, attempts: int = 20) -> str:
     )
 
 
+def _build_native_shim_refresh(pi: PiPaths) -> str:
+    """Build the shell that rebuilds missing or stale native shims before restart."""
+    activate = shell_quote(_activate_script_path(pi.venv))
+    return (
+        "{ "
+        f"source {activate} && python - <<'PY'\n"
+        "import subprocess\n"
+        "from pathlib import Path\n"
+        "\n"
+        "\n"
+        "def newest_mtime(paths: list[Path]) -> float:\n"
+        "    newest = 0.0\n"
+        "    for path in paths:\n"
+        "        if not path.exists():\n"
+        "            continue\n"
+        "        if path.is_dir():\n"
+        "            for candidate in path.rglob('*'):\n"
+        "                if candidate.is_file():\n"
+        "                    newest = max(newest, candidate.stat().st_mtime)\n"
+        "            continue\n"
+        "        newest = max(newest, path.stat().st_mtime)\n"
+        "    return newest\n"
+        "\n"
+        "\n"
+        "def is_stale(binary: Path, sources: list[Path]) -> bool:\n"
+        "    if not binary.exists():\n"
+        "        return True\n"
+        "    return newest_mtime(sources) > binary.stat().st_mtime\n"
+        "\n"
+        "\n"
+        "jobs = [\n"
+        "    (\n"
+        "        'LVGL',\n"
+        "        Path('src/yoyopod/ui/lvgl_binding/native/build/libyoyopod_lvgl_shim.so'),\n"
+        "        [Path('src/yoyopod/ui/lvgl_binding/native')],\n"
+        "        ['uv', 'run', 'yoyopod', 'build', 'lvgl'],\n"
+        "    ),\n"
+        "    (\n"
+        "        'Liblinphone',\n"
+        "        Path('src/yoyopod/communication/integrations/liblinphone/native/build/libyoyopod_liblinphone_shim.so'),\n"
+        "        [Path('src/yoyopod/communication/integrations/liblinphone/native')],\n"
+        "        ['uv', 'run', 'yoyopod', 'build', 'liblinphone'],\n"
+        "    ),\n"
+        "]\n"
+        "\n"
+        "for label, output, sources, command in jobs:\n"
+        "    if not is_stale(output, sources):\n"
+        "        continue\n"
+        "    print(f'[pi-remote] info=rebuilding {label} native shim')\n"
+        "    subprocess.run(command, check=True)\n"
+        "PY\n"
+        "} "
+    )
+
+
 def _build_restart(pi: PiPaths) -> str:
     """Build the shell that restarts the app and waits for startup verification."""
     pid = shell_quote(pi.pid_file)
@@ -88,7 +143,9 @@ def _build_restart(pi: PiPaths) -> str:
         f"else {manual_restart}; "
         "fi"
     )
-    return " && ".join([managed_restart, _build_startup_verification(pi)])
+    return " && ".join(
+        [_build_native_shim_refresh(pi), managed_restart, _build_startup_verification(pi)]
+    )
 
 
 def _build_logs_tail(
