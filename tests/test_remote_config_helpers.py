@@ -1,9 +1,12 @@
 """Focused tests for extracted remote-config and transport helpers."""
 
+import subprocess
+import sys
 from pathlib import Path
 
-from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
+from yoyopod_cli.defaults import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod_cli.paths import load_pi_paths
+from yoyopod_cli.remote_config import DEFAULT_TEST_MUSIC_TARGET_DIR as REMOTE_CONFIG_TEST_MUSIC_DIR
 from yoyopod_cli.remote_shared import RemoteConnection, _resolve_remote_connection
 from yoyopod_cli.remote_transport import build_ssh_command
 
@@ -73,3 +76,24 @@ def test_load_pi_deploy_config_uses_tracked_defaults_without_local_override(tmp_
 
     assert pi.project_dir == "~/YoyoPod_Core"
     assert pi.test_music_target_dir == DEFAULT_TEST_MUSIC_TARGET_DIR
+    assert REMOTE_CONFIG_TEST_MUSIC_DIR == DEFAULT_TEST_MUSIC_TARGET_DIR
+
+
+def test_remote_config_imports_cleanly_in_fresh_interpreter() -> None:
+    """Remote config should expose shared defaults without importing the old pi package."""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from yoyopod_cli.remote_config import DEFAULT_TEST_MUSIC_TARGET_DIR; "
+            "print(DEFAULT_TEST_MUSIC_TARGET_DIR)",
+        ],
+        capture_output=True,
+        check=False,
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == DEFAULT_TEST_MUSIC_TARGET_DIR

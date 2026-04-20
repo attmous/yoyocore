@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 
 from yoyopod_cli.common import REPO_ROOT
+from yoyopod_cli.defaults import DEFAULT_TEST_MUSIC_TARGET_DIR
 
 
 @dataclass(frozen=True)
@@ -36,7 +37,7 @@ class PiPaths:
     error_log_file: str = "logs/yoyopod_errors.log"
     pid_file: str = "/tmp/yoyopod.pid"
     screenshot_path: str = "/tmp/yoyopod_screenshot.png"
-    test_music_target_dir: str = "~/YoyoPod_Test_Music"
+    test_music_target_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR
     startup_marker: str = "YoyoPod starting"
     kill_processes: tuple[str, ...] = ("python", "linphonec")
     rsync_exclude: tuple[str, ...] = (

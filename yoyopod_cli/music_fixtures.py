@@ -1,4 +1,4 @@
-"""Deterministic test-music library provisioning for Pi-side validation."""
+"""Deterministic validation music provisioning for playback and navigation soaks."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_TEST_MUSIC_TARGET_DIR = "~/YoyoPod_Test_Music"
+from yoyopod_cli.defaults import (
+    DEFAULT_TEST_MUSIC_TARGET_DIR as CLI_DEFAULT_TEST_MUSIC_TARGET_DIR,
+)
+
+DEFAULT_TEST_MUSIC_TARGET_DIR = CLI_DEFAULT_TEST_MUSIC_TARGET_DIR
+
 TEST_MUSIC_MANIFEST_FILENAME = ".yoyopod_test_music_manifest.json"
 TEST_MUSIC_LIBRARY_VERSION = 1
 
@@ -25,7 +30,7 @@ class TestToneSpec:
 
 @dataclass(frozen=True, slots=True)
 class TestPlaylistSpec:
-    """One generated M3U playlist for playback validation."""
+    """One deterministic M3U playlist for playback validation."""
 
     relative_path: str
     title: str
@@ -88,7 +93,10 @@ def expected_test_music_relative_paths() -> tuple[str, ...]:
     """Return the tracked asset set for the validation library."""
 
     return tuple(
-        [*(spec.relative_path for spec in TEST_TONE_SPECS), *(spec.relative_path for spec in TEST_PLAYLIST_SPECS)]
+        [
+            *(spec.relative_path for spec in TEST_TONE_SPECS),
+            *(spec.relative_path for spec in TEST_PLAYLIST_SPECS),
+        ]
     )
 
 
@@ -101,13 +109,9 @@ def provision_test_music_library(target_dir: Path) -> ProvisionedTestMusicLibrar
     manifest_path = resolved_target_dir / TEST_MUSIC_MANIFEST_FILENAME
     _remove_previously_managed_assets(resolved_target_dir, manifest_path)
 
-    track_paths = tuple(
-        _write_tone_track(resolved_target_dir, spec)
-        for spec in TEST_TONE_SPECS
-    )
+    track_paths = tuple(_write_tone_track(resolved_target_dir, spec) for spec in TEST_TONE_SPECS)
     playlist_paths = tuple(
-        _write_playlist(resolved_target_dir, spec)
-        for spec in TEST_PLAYLIST_SPECS
+        _write_playlist(resolved_target_dir, spec) for spec in TEST_PLAYLIST_SPECS
     )
 
     manifest_payload = {
@@ -186,7 +190,7 @@ def _write_playlist(target_dir: Path, spec: TestPlaylistSpec) -> Path:
     for track in spec.tracks:
         track_path = _resolve_relative_asset_path(target_dir, track.relative_path)
         lines.append(f"#EXTINF:{round(track.duration_seconds)}, {track.title}")
-        lines.append(str(track_path.relative_to(path.parent)))
+        lines.append(track_path.relative_to(path.parent).as_posix())
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -203,7 +207,9 @@ def _remove_previously_managed_assets(target_dir: Path, manifest_path: Path) -> 
     if manifest_path.exists():
         manifest_path.unlink()
 
-    for current_path in sorted(target_dir.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+    for current_path in sorted(
+        target_dir.rglob("*"), key=lambda item: len(item.parts), reverse=True
+    ):
         if current_path.is_dir():
             try:
                 current_path.rmdir()

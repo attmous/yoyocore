@@ -22,11 +22,12 @@ from yoyopod_cli._pi_validate_helpers import (
     run_navigation_soak,
 )
 from yoyopod_cli.common import REPO_ROOT, configure_logging, resolve_config_dir
+from yoyopod_cli.defaults import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod_cli.paths import load_pi_paths
 
 if TYPE_CHECKING:
-    from yoyopod.audio.test_music import ProvisionedTestMusicLibrary
     from yoyopod.config import MediaConfig
+    from yoyopod_cli.music_fixtures import ProvisionedTestMusicLibrary
 
 app = typer.Typer(
     name="validate",
@@ -1814,8 +1815,6 @@ def stability(
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
 ) -> None:
     """Run a repeated navigation and idle stability pass on the target checkout."""
-    from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
-
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR
     try:
@@ -1899,8 +1898,6 @@ def navigation(
     """Run the one-button target navigation and idle stability soak on LVGL hardware."""
     from loguru import logger
 
-    from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
-
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR
 
@@ -1970,8 +1967,6 @@ def lvgl(
 ) -> None:
     """Run a deterministic LVGL navigation and idle soak pass against YoyoPod."""
     from loguru import logger
-
-    from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
 
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR

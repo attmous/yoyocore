@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Callable, Iterator
 
 from loguru import logger
 
-from yoyopod.audio.test_music import (
+from yoyopod_cli.music_fixtures import (
     DEFAULT_TEST_MUSIC_TARGET_DIR,
     ProvisionedTestMusicLibrary,
     provision_test_music_library,
