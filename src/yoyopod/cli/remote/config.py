@@ -9,8 +9,8 @@ from typing import Sequence
 
 import yaml
 
-from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod.cli.common import REPO_ROOT
+from yoyopod.cli.defaults import DEFAULT_TEST_MUSIC_TARGET_DIR
 
 DEPLOY_CONFIG_PATH = REPO_ROOT / "deploy" / "pi-deploy.yaml"
 LOCAL_DEPLOY_CONFIG_PATH = REPO_ROOT / "deploy" / "pi-deploy.local.yaml"

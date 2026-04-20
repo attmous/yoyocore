@@ -1,5 +1,7 @@
 """Focused tests for extracted remote-config and transport helpers."""
 
+import subprocess
+import sys
 from pathlib import Path
 
 from yoyopod.cli.remote.config import (
@@ -74,3 +76,23 @@ def test_load_pi_deploy_config_uses_tracked_defaults_without_local_override(tmp_
     assert config.user == "pi"
     assert config.project_dir == "~/YoyoPod_Core"
     assert config.test_music_target_dir == DEFAULT_TEST_MUSIC_TARGET_DIR
+
+
+def test_remote_config_imports_cleanly_in_fresh_interpreter() -> None:
+    """Remote config should not depend on the CLI pi package import side effects."""
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from yoyopod.cli.remote.config import DEFAULT_TEST_MUSIC_TARGET_DIR; "
+            "print(DEFAULT_TEST_MUSIC_TARGET_DIR)",
+        ],
+        capture_output=True,
+        check=False,
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == DEFAULT_TEST_MUSIC_TARGET_DIR

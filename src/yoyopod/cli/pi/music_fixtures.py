@@ -1,4 +1,4 @@
-"""Deterministic test-music library provisioning for Pi-side validation."""
+"""Deterministic validation music provisioning for playback and navigation soaks."""
 
 from __future__ import annotations
 
@@ -8,7 +8,12 @@ import wave
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_TEST_MUSIC_TARGET_DIR = "~/YoyoPod_Test_Music"
+from yoyopod.cli.defaults import (
+    DEFAULT_TEST_MUSIC_TARGET_DIR as CLI_DEFAULT_TEST_MUSIC_TARGET_DIR,
+)
+
+DEFAULT_TEST_MUSIC_TARGET_DIR = CLI_DEFAULT_TEST_MUSIC_TARGET_DIR
+
 TEST_MUSIC_MANIFEST_FILENAME = ".yoyopod_test_music_manifest.json"
 TEST_MUSIC_LIBRARY_VERSION = 1
 
@@ -25,7 +30,7 @@ class TestToneSpec:
 
 @dataclass(frozen=True, slots=True)
 class TestPlaylistSpec:
-    """One generated M3U playlist for playback validation."""
+    """One deterministic M3U playlist for playback validation."""
 
     relative_path: str
     title: str
