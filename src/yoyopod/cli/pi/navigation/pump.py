@@ -28,7 +28,7 @@ class _RuntimePump:
             time.sleep(min(0.05, max(0.01, self._app._voip_iterate_interval_seconds)))
             monotonic_now = time.monotonic()
             current_time = time.time()
-            iteration_started_at = time.monotonic()
+            iteration_started_at = monotonic_now
             self._last_screen_update = self._app.runtime_loop.run_iteration(
                 monotonic_now=monotonic_now,
                 current_time=current_time,
@@ -41,9 +41,11 @@ class _RuntimePump:
                 iteration_duration_ms,
             )
 
-            current_screen = self._app.screen_manager.get_current_screen()
-            if current_screen is not None and current_screen.route_name is not None:
-                self._stats.visited_screens.add(current_screen.route_name)
+            screen_manager = self._app.screen_manager
+            if screen_manager is not None:
+                current_screen = screen_manager.get_current_screen()
+                if current_screen is not None and current_screen.route_name is not None:
+                    self._stats.visited_screens.add(current_screen.route_name)
 
             snapshot = self._app.runtime_loop.timing_snapshot(now=monotonic_now)
             self._stats.observe_snapshot(snapshot)

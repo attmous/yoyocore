@@ -9,6 +9,9 @@ class NavigationSoakFailure(RuntimeError):
     """Raised when the navigation soak cannot complete its expected path."""
 
 
+type TimingSnapshotValue = float | int | str | bool | None
+
+
 @dataclass(slots=True)
 class NavigationSoakStats:
     """Accumulate compact soak diagnostics for the final summary."""
@@ -25,7 +28,7 @@ class NavigationSoakStats:
     playback_verified: bool = False
     sleep_wake_status: str = "skipped"
 
-    def observe_snapshot(self, snapshot: dict[str, float | int | None]) -> None:
+    def observe_snapshot(self, snapshot: dict[str, TimingSnapshotValue]) -> None:
         """Record high-level loop timing from one runtime snapshot."""
 
         runtime_iteration = snapshot.get("runtime_iteration_seconds")

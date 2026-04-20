@@ -96,9 +96,7 @@ def register_navigation_command(validate_app: typer.Typer) -> None:
         skip_sleep: Annotated[
             bool, typer.Option("--skip-sleep", help="Skip the final sleep/wake exercise.")
         ] = False,
-        verbose: Annotated[
-            bool, typer.Option("--verbose", help="Enable DEBUG logging.")
-        ] = False,
+        verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
     ) -> None:
         """Run the one-button target navigation and idle stability soak on LVGL hardware."""
 

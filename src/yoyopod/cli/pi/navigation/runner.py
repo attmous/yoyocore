@@ -2,27 +2,45 @@
 
 from __future__ import annotations
 
+import os
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Iterator
 
 from loguru import logger
 
-from yoyopod.audio.test_music import DEFAULT_TEST_MUSIC_TARGET_DIR, provision_test_music_library
-from yoyopod.events import UserActivityEvent
-from yoyopod.ui.input import InputAction, InteractionProfile
-from yoyopod.cli.pi.navigation.env import _temporary_env_var
+from yoyopod.audio.test_music import provision_test_music_library
+from yoyopod.cli.pi.navigation.exercises import _NavigationExercises
 from yoyopod.cli.pi.navigation.pump import _RuntimePump
 from yoyopod.cli.pi.navigation.stats import NavigationSoakFailure, NavigationSoakStats
+from yoyopod.ui.input import InteractionProfile
 
 if TYPE_CHECKING:
     from yoyopod.app import YoyoPodApp
 
 
+@contextmanager
+def _temporary_env_var(name: str, value: str | None) -> Iterator[None]:
+    """Temporarily override one environment variable."""
+
+    previous = os.environ.get(name)
+    if value is None:
+        yield
+        return
+
+    os.environ[name] = value
+    try:
+        yield
+    finally:
+        if previous is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = previous
+
+
 class NavigationSoakRunner:
     """Exercise the target one-button UI with repeatable action-driven flows."""
-
-    _PLAYBACK_TIMEOUT_SECONDS = 8.0
 
     def __init__(
         self,
@@ -50,6 +68,7 @@ class NavigationSoakRunner:
         self.stats = NavigationSoakStats()
         self._app: YoyoPodApp | None = None
         self._pump: _RuntimePump | None = None
+        self._exercises = _NavigationExercises(self)
 
     def run(self) -> tuple[bool, str]:
         """Run the full soak and return success plus one-line details."""
@@ -72,9 +91,7 @@ class NavigationSoakRunner:
                 try:
                     app.stop()
                 except Exception:
-                    logger.exception(
-                        "Navigation soak cleanup failed after unsuccessful app setup"
-                    )
+                    logger.exception("Navigation soak cleanup failed after unsuccessful app setup")
                 return False, "app setup failed"
 
             try:
@@ -90,17 +107,17 @@ class NavigationSoakRunner:
                 self._pump = _RuntimePump(app, self.stats)
                 self._pump.run_for(self.hold_seconds)
 
-                self._require_screen("hub")
+                self._exercises.require_screen("hub")
                 for cycle_number in range(1, self.cycles + 1):
                     logger.info(
                         "Navigation soak cycle {}/{}",
                         cycle_number,
                         self.cycles,
                     )
-                    self._exercise_cycle()
+                    self._exercises.exercise_cycle()
 
-                self._idle_phase("hub_tail_idle", self.tail_idle_seconds)
-                self._exercise_sleep_wake()
+                self._exercises.idle_phase("hub_tail_idle", self.tail_idle_seconds)
+                self._exercises.exercise_sleep_wake()
             except NavigationSoakFailure as exc:
                 return False, str(exc)
             finally:
@@ -149,353 +166,3 @@ class NavigationSoakRunner:
             f"max_voip_delay_ms={self.stats.max_voip_schedule_delay_ms:.1f}, "
             f"heaviest_span={blocking_span}, sleep_wake={self.stats.sleep_wake_status}"
         )
-
-    def _current_screen_name(self) -> str:
-        """Return the active route name."""
-
-        current_screen = self.app.screen_manager.get_current_screen()
-        route_name = None if current_screen is None else current_screen.route_name
-        return route_name or "unknown"
-
-    def _require_screen(self, expected_screen: str) -> None:
-        """Assert the active route name matches the expected screen."""
-
-        actual_screen = self._current_screen_name()
-        if actual_screen != expected_screen:
-            raise NavigationSoakFailure(f"expected screen {expected_screen}, got {actual_screen}")
-
-    def _simulate_action(
-        self,
-        action: InputAction,
-        *,
-        expected_screen: str | None = None,
-        label: str,
-        settle_seconds: float | None = None,
-    ) -> None:
-        """Send one semantic action through the real input dispatcher."""
-
-        logger.info(
-            "Navigation soak action: {} on {}",
-            label,
-            self._current_screen_name(),
-        )
-        self.app.input_manager.simulate_action(action)
-        self.stats.actions += 1
-        self.pump.run_for(self.hold_seconds if settle_seconds is None else settle_seconds)
-
-        if expected_screen is not None:
-            actual_screen = self._current_screen_name()
-            if actual_screen != expected_screen:
-                raise NavigationSoakFailure(
-                    f"{label} expected {expected_screen}, got {actual_screen}"
-                )
-
-    def _idle_phase(self, label: str, duration_seconds: float) -> None:
-        """Leave the app idle for one explicit dwell period."""
-
-        if duration_seconds <= 0:
-            return
-
-        logger.info(
-            "Navigation soak idle: {} for {:.1f}s on {}",
-            label,
-            duration_seconds,
-            self._current_screen_name(),
-        )
-        self.stats.explicit_idle_seconds += duration_seconds
-        self.pump.run_for(duration_seconds)
-
-    def _advance_until(
-        self,
-        *,
-        expected_screen: str,
-        target_value: str,
-        current_value: Callable[[], str],
-        label: str,
-        max_steps: int,
-    ) -> None:
-        """Advance through one carousel or list until the requested item is selected."""
-
-        for _ in range(max_steps):
-            if current_value() == target_value:
-                return
-            self._simulate_action(
-                InputAction.ADVANCE,
-                expected_screen=expected_screen,
-                label=label,
-            )
-
-        raise NavigationSoakFailure(f"could not reach {target_value} on {expected_screen}")
-
-    def _hub_mode(self) -> str:
-        """Return the selected hub card mode."""
-
-        self._require_screen("hub")
-        hub_screen = self.app.screen_manager.get_current_screen()
-        cards = [] if hub_screen is None else hub_screen._cards()
-        if not cards:
-            raise NavigationSoakFailure("hub has no cards to navigate")
-        return cards[hub_screen.selected_index % len(cards)].mode
-
-    def _listen_item_key(self) -> str:
-        """Return the selected Listen landing item key."""
-
-        self._require_screen("listen")
-        listen_screen = self.app.screen_manager.get_current_screen()
-        items = [] if listen_screen is None else getattr(listen_screen, "items", [])
-        if not items:
-            raise NavigationSoakFailure("listen screen has no items to navigate")
-        return items[listen_screen.selected_index % len(items)].key
-
-    def _move_hub_to(self, mode: str) -> None:
-        """Advance the hub carousel until one mode is selected."""
-
-        self._advance_until(
-            expected_screen="hub",
-            target_value=mode,
-            current_value=self._hub_mode,
-            label=f"hub advance to {mode}",
-            max_steps=8,
-        )
-
-    def _move_listen_to(self, key: str) -> None:
-        """Advance the Listen landing screen until one item is selected."""
-
-        self._advance_until(
-            expected_screen="listen",
-            target_value=key,
-            current_value=self._listen_item_key,
-            label=f"listen advance to {key}",
-            max_steps=8,
-        )
-
-    def _current_track_name(self) -> str | None:
-        """Return the current track name when playback is active."""
-
-        music_backend = self.app.music_backend
-        if music_backend is None or not music_backend.is_connected:
-            return None
-        current_track = music_backend.get_current_track()
-        if current_track is None:
-            return None
-        return current_track.name
-
-    def _wait_for_playback_started(self, context_label: str) -> None:
-        """Wait until playback produces one current track snapshot."""
-
-        if not self.with_playback:
-            return
-
-        deadline = time.monotonic() + self._PLAYBACK_TIMEOUT_SECONDS
-        while time.monotonic() < deadline:
-            current_track_name = self._current_track_name()
-            if current_track_name is not None:
-                self.stats.playback_verified = True
-                self.stats.last_track_name = current_track_name
-                return
-            self.pump.run_for(0.2)
-
-        raise NavigationSoakFailure(
-            f"{context_label} did not produce a playable track within "
-            f"{self._PLAYBACK_TIMEOUT_SECONDS:.1f}s"
-        )
-
-    def _wait_for_track_change(
-        self,
-        *,
-        previous_track_name: str | None,
-        context_label: str,
-    ) -> None:
-        """Wait until the current track changes after a skip action."""
-
-        deadline = time.monotonic() + self._PLAYBACK_TIMEOUT_SECONDS
-        while time.monotonic() < deadline:
-            current_track_name = self._current_track_name()
-            if current_track_name is not None and current_track_name != previous_track_name:
-                self.stats.last_track_name = current_track_name
-                self.stats.playback_verified = True
-                return
-            self.pump.run_for(0.2)
-
-        raise NavigationSoakFailure(
-            f"{context_label} did not change the current track within "
-            f"{self._PLAYBACK_TIMEOUT_SECONDS:.1f}s"
-        )
-
-    def _exercise_now_playing(self, *, phase_label: str, back_target: str) -> None:
-        """Exercise idle, play/pause, and next-track on Now Playing."""
-
-        self._require_screen("now_playing")
-        self._wait_for_playback_started(phase_label)
-        self._idle_phase(f"{phase_label}_idle", self.idle_seconds)
-
-        self._simulate_action(
-            InputAction.PLAY_PAUSE,
-            expected_screen="now_playing",
-            label=f"{phase_label} pause",
-        )
-        self.pump.run_for(self.hold_seconds)
-        self._simulate_action(
-            InputAction.PLAY_PAUSE,
-            expected_screen="now_playing",
-            label=f"{phase_label} resume",
-        )
-
-        previous_track_name = self._current_track_name()
-        self._simulate_action(
-            InputAction.NEXT_TRACK,
-            expected_screen="now_playing",
-            label=f"{phase_label} next track",
-        )
-        self._wait_for_track_change(
-            previous_track_name=previous_track_name,
-            context_label=phase_label,
-        )
-        self._idle_phase(f"{phase_label}_post_next_idle", self.idle_seconds)
-        self._simulate_action(
-            InputAction.BACK,
-            expected_screen=back_target,
-            label=f"{phase_label} back",
-        )
-
-    def _exercise_listen_branch(self) -> None:
-        """Exercise Listen, playlists, recent, and playback-related navigation."""
-
-        self._move_hub_to("listen")
-        self._simulate_action(
-            InputAction.SELECT,
-            expected_screen="listen",
-            label="open Listen",
-        )
-        self._idle_phase("listen_landing", self.idle_seconds)
-
-        self._move_listen_to("playlists")
-        self._simulate_action(
-            InputAction.SELECT,
-            expected_screen="playlists",
-            label="open Playlists",
-        )
-        self._idle_phase("playlists_idle", self.idle_seconds)
-
-        if self.with_playback:
-            playlist_screen = self.app.screen_manager.get_current_screen()
-            playlists = [] if playlist_screen is None else getattr(playlist_screen, "playlists", [])
-            if not playlists:
-                raise NavigationSoakFailure(
-                    "playlists screen is empty; disable playback or provision test music"
-                )
-            self._simulate_action(
-                InputAction.SELECT,
-                expected_screen="now_playing",
-                label="load validation playlist",
-            )
-            self._exercise_now_playing(
-                phase_label="playlist_playback",
-                back_target="playlists",
-            )
-
-        self._simulate_action(
-            InputAction.BACK,
-            expected_screen="listen",
-            label="back to Listen from Playlists",
-        )
-
-        self._move_listen_to("recent")
-        self._simulate_action(
-            InputAction.SELECT,
-            expected_screen="recent_tracks",
-            label="open Recent",
-        )
-        self._idle_phase("recent_tracks_idle", self.idle_seconds)
-        self._simulate_action(
-            InputAction.BACK,
-            expected_screen="listen",
-            label="back to Listen from Recent",
-        )
-
-        if self.with_playback:
-            self._move_listen_to("shuffle")
-            self._simulate_action(
-                InputAction.SELECT,
-                expected_screen="now_playing",
-                label="shuffle local music",
-            )
-            self._exercise_now_playing(
-                phase_label="shuffle_playback",
-                back_target="listen",
-            )
-
-        self._simulate_action(
-            InputAction.BACK,
-            expected_screen="hub",
-            label="back to Hub from Listen",
-        )
-
-    def _exercise_simple_hub_branch(
-        self,
-        *,
-        mode: str,
-        target_screen: str,
-        idle_label: str,
-    ) -> None:
-        """Open one hub card, idle briefly, and return."""
-
-        self._move_hub_to(mode)
-        self._simulate_action(
-            InputAction.SELECT,
-            expected_screen=target_screen,
-            label=f"open {mode}",
-        )
-        self._idle_phase(idle_label, self.idle_seconds)
-        self._simulate_action(
-            InputAction.BACK,
-            expected_screen="hub",
-            label=f"back from {target_screen}",
-        )
-
-    def _exercise_cycle(self) -> None:
-        """Run one full navigation cycle."""
-
-        self._exercise_listen_branch()
-        self._exercise_simple_hub_branch(
-            mode="talk",
-            target_screen="call",
-            idle_label="talk_idle",
-        )
-        self._exercise_simple_hub_branch(
-            mode="ask",
-            target_screen="ask",
-            idle_label="ask_idle",
-        )
-        self._exercise_simple_hub_branch(
-            mode="setup",
-            target_screen="power",
-            idle_label="power_idle",
-        )
-        self._move_hub_to("listen")
-
-    def _exercise_sleep_wake(self) -> None:
-        """Force one sleep/wake cycle when screen timeout is enabled."""
-
-        if self.skip_sleep:
-            self.stats.sleep_wake_status = "skipped"
-            return
-
-        timeout_seconds = float(self.app._screen_timeout_seconds or 0.0)
-        if timeout_seconds <= 0.0:
-            self.stats.sleep_wake_status = "timeout_disabled"
-            return
-
-        self.app._last_user_activity_at = time.monotonic() - timeout_seconds - 1.0
-        self.pump.run_for(max(0.35, self.hold_seconds))
-        if self.app.context is None or self.app.context.screen.awake:
-            raise NavigationSoakFailure("screen did not enter sleep during navigation soak")
-
-        self.app.event_bus.publish(UserActivityEvent(action_name="navigation_soak"))
-        self.pump.run_for(max(0.35, self.hold_seconds))
-        if self.app.context is None or not self.app.context.screen.awake:
-            raise NavigationSoakFailure(
-                "screen did not wake after simulated navigation activity"
-            )
-
-        self.stats.sleep_wake_status = "ok"
