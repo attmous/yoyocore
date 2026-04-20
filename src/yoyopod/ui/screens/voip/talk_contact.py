@@ -120,7 +120,7 @@ class TalkContactScreen(Screen):
         subtitles = [action.subtitle for action in actions]
         if not titles:
             return titles, subtitles, 0
-        selected_index = min(self.selected_index, len(titles) - 1)
+        selected_index = self._selected_action_index(actions)
         return titles, subtitles, selected_index
 
     def get_visible_action_icons(self) -> list[str]:
@@ -161,7 +161,12 @@ class TalkContactScreen(Screen):
         """Return the active action row."""
 
         actions = self.actions()
-        return actions[self.selected_index % len(actions)]
+        return actions[self._selected_action_index(actions)]
+
+    def _selected_action_index(self, actions: list[TalkAction]) -> int:
+        """Map the raw cursor to a visible Talk action index."""
+
+        return min(self.selected_index, len(actions) - 1)
 
     def _start_call(self) -> None:
         """Call the selected contact immediately."""
