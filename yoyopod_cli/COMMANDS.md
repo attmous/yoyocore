@@ -26,11 +26,11 @@ For live help, use `yoyopod <cmd> --help`.
 | `yoyopod remote rtc` | Inspect or control PiSugar RTC remotely. |
 | `yoyopod remote screenshot` | Capture the display shadow buffer from the Pi and copy it locally. |
 | `yoyopod remote service` | Manage the yoyopod@<user> systemd unit on the Pi. |
-| `yoyopod remote setup` | Run full Pi setup remotely. |
+| `yoyopod remote setup` | Run full Pi setup remotely. Flags forward to `yoyopod setup pi` on the target. |
 | `yoyopod remote status` | Show repo SHA, processes, and log tail on the Pi. |
 | `yoyopod remote sync` | Fetch + hard-reset branch on the Pi and restart the app (fast deploy). |
 | `yoyopod remote validate` | Run staged Pi validation. Pass --with-* to add optional stages. |
-| `yoyopod remote verify-setup` | Verify Pi setup remotely. |
+| `yoyopod remote verify-setup` | Verify Pi setup remotely. Flags forward to `yoyopod setup verify-pi` on the target. |
 
 ## `yoyopod pi` - on the Pi
 

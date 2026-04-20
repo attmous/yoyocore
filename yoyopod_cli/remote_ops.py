@@ -55,7 +55,7 @@ def _build_logs_tail(
         # Always single-quote the pattern so grep receives it verbatim on the remote.
         # POSIX escape for a single quote inside single-quoted string: '\''
         escaped = filter_pattern.replace("'", "'\\''")
-        cmd += f" | grep '{escaped}'"
+        cmd += f" | grep -- '{escaped}'"
     return cmd
 
 

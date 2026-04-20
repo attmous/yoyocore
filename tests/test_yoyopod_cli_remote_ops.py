@@ -36,14 +36,22 @@ def test_build_logs_tail_follow_errors_filter() -> None:
     shell = _build_logs_tail(pi, lines=20, follow=True, errors=True, filter_pattern="ERROR")
     assert "tail -n 20 -f" in shell
     assert pi.error_log_file in shell
-    assert "grep 'ERROR'" in shell
+    assert "grep -- 'ERROR'" in shell
+
+
+def test_build_logs_tail_filter_starting_with_dash_does_not_trip_grep_flags() -> None:
+    """A filter like `-ERR` must be passed AFTER `--` so grep treats it as data."""
+    pi = PiPaths()
+    shell = _build_logs_tail(pi, lines=50, follow=False, errors=False, filter_pattern="-ERR")
+    # -- must separate options from pattern; otherwise grep thinks `-ERR` is a flag
+    assert "grep -- '-ERR'" in shell
 
 
 def test_build_logs_tail_filter_with_apostrophe_uses_posix_escape() -> None:
     pi = PiPaths()
     shell = _build_logs_tail(pi, lines=50, follow=False, errors=False, filter_pattern="O'Brien")
-    # Must produce grep 'O'\''Brien' — not 'O'''Brien'
-    assert "grep 'O'\\''Brien'" in shell
+    # Must produce grep -- 'O'\''Brien' — not 'O'''Brien'
+    assert "grep -- 'O'\\''Brien'" in shell
     # Regression guard: no triple-single-quote malformed escape
     assert "'''" not in shell
 
