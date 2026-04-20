@@ -6,6 +6,9 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import yoyopod.main as main_module
+import yoyopod.runtime.diagnostics as diagnostics_module
+import yoyopod.runtime.screenshot as screenshot_module
+from yoyopod.runtime import ResponsivenessWatchdogDecision
 from yoyopod.core import RUNTIME_REQUIRED_CONFIG_FILES
 
 
@@ -74,7 +77,7 @@ def test_capture_screenshot_prefers_readback_and_falls_back_to_shadow() -> None:
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    result = main_module._capture_screenshot(
+    result = screenshot_module._capture_screenshot(
         adapter=Adapter(),
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -95,7 +98,7 @@ def test_capture_screenshot_handles_missing_adapter() -> None:
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    result = main_module._capture_screenshot(
+    result = screenshot_module._capture_screenshot(
         adapter=None,
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -150,9 +153,9 @@ def test_request_screenshot_capture_queues_main_loop_callback(monkeypatch) -> No
         )
         return True
 
-    monkeypatch.setattr(main_module, "_capture_screenshot", fake_capture_screenshot)
+    monkeypatch.setattr(screenshot_module, "_capture_screenshot", fake_capture_screenshot)
 
-    main_module._request_screenshot_capture(
+    screenshot_module._request_screenshot_capture(
         app=App(),
         screenshot_path="/tmp/test.png",
         app_log=fake_log,
@@ -185,7 +188,7 @@ def test_log_signal_snapshot_serializes_runtime_state() -> None:
         }
     )
 
-    main_module._log_signal_snapshot(
+    diagnostics_module._log_signal_snapshot(
         app=app,
         app_log=fake_log,
         signal_name="SIGUSR1",
@@ -210,7 +213,7 @@ def test_log_setup_failure_guidance_uses_shared_runtime_config_contract() -> Non
         error=lambda *args: logs.append(args),
     )
 
-    main_module._log_setup_failure_guidance(fake_log)
+    diagnostics_module._log_setup_failure_guidance(fake_log)
 
     for relative_path in RUNTIME_REQUIRED_CONFIG_FILES:
         assert (f"  - {relative_path.as_posix()} exists",) in logs
@@ -239,14 +242,12 @@ def test_capture_responsiveness_watchdog_evidence_writes_artifacts(
             recorded.append(kwargs)
 
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "dump_traceback",
-        lambda *, file, all_threads: file.write(
-            f"TRACEBACK all_threads={all_threads}\n"
-        ),
+        lambda *, file, all_threads: file.write(f"TRACEBACK all_threads={all_threads}\n"),
     )
 
-    decision = main_module.ResponsivenessWatchdogDecision(
+    decision = ResponsivenessWatchdogDecision(
         reason="coordinator_stall_after_input",
         suspected_scope="input_to_runtime_handoff",
         summary="input kept moving but the coordinator stalled",
@@ -259,7 +260,7 @@ def test_capture_responsiveness_watchdog_evidence_writes_artifacts(
         "handled_input_activity_age_seconds": 6.2,
     }
 
-    main_module._capture_responsiveness_watchdog_evidence(
+    diagnostics_module._capture_responsiveness_watchdog_evidence(
         app=App(),
         app_log=fake_log,
         error_log_path=tmp_path / "yoyopod_errors.log",
@@ -282,6 +283,56 @@ def test_capture_responsiveness_watchdog_evidence_writes_artifacts(
     assert logs[-1][0] == "Responsiveness watchdog captured evidence: {}"
 
 
+def test_capture_responsiveness_watchdog_evidence_reuses_single_capture_timestamp(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """Snapshot payload and artifact stem should come from the same timestamp."""
+
+    first_capture_at = datetime(2026, 4, 20, 21, 6, 7, tzinfo=timezone.utc)
+    now_calls: list[timezone] = []
+    capture_dir = tmp_path / "captures"
+
+    class FakeDateTime:
+        @classmethod
+        def now(cls, tz):
+            now_calls.append(tz)
+            return first_capture_at
+
+    class App:
+        app_settings = SimpleNamespace(
+            diagnostics=SimpleNamespace(responsiveness_capture_dir=str(capture_dir))
+        )
+
+    monkeypatch.setattr(diagnostics_module, "datetime", FakeDateTime)
+    monkeypatch.setattr(
+        diagnostics_module.faulthandler,
+        "dump_traceback",
+        lambda *, file, all_threads: file.write(f"TRACEBACK all_threads={all_threads}\n"),
+    )
+
+    diagnostics_module._capture_responsiveness_watchdog_evidence(
+        app=App(),
+        app_log=SimpleNamespace(error=lambda *args: None, warning=lambda *args: None),
+        error_log_path=tmp_path / "yoyopod_errors.log",
+        decision=ResponsivenessWatchdogDecision(
+            reason="coordinator_stall_after_input",
+            suspected_scope="input_to_runtime_handoff",
+            summary="input kept moving but the coordinator stalled",
+        ),
+        status={"state": "menu"},
+    )
+
+    snapshot_path = next(capture_dir.glob("*.json"))
+    payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+
+    assert now_calls == [timezone.utc]
+    assert payload["captured_at"] == first_capture_at.isoformat()
+    assert snapshot_path.stem == (
+        f"{first_capture_at.strftime('%Y%m%dT%H%M%SZ')}-coordinator_stall_after_input"
+    )
+
+
 def test_install_traceback_dump_handlers_registers_faulthandler_chain(
     monkeypatch,
     tmp_path,
@@ -293,14 +344,14 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
     logs: list[tuple[str, tuple[object, ...]]] = []
 
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "register",
         lambda signum, *, file, all_threads, chain: register_calls.append(
             (signum, all_threads, chain)
         ),
     )
     monkeypatch.setattr(
-        main_module.faulthandler,
+        diagnostics_module.faulthandler,
         "unregister",
         lambda signum: unregister_calls.append(signum),
     )
@@ -309,7 +360,7 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
         warning=lambda *args: logs.append(("warning", args)),
     )
 
-    dump_stream, installed = main_module._install_traceback_dump_handlers(
+    dump_stream, installed = diagnostics_module._install_traceback_dump_handlers(
         signals=(signal.SIGUSR1, signal.SIGUSR2),
         dump_path=tmp_path / "yoyopod_errors.log",
         app_log=fake_log,
@@ -323,13 +374,99 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
     assert dump_stream is not None
     assert dump_stream.closed is False
 
-    main_module._uninstall_traceback_dump_handlers(
+    diagnostics_module._uninstall_traceback_dump_handlers(
         signals=installed,
         dump_stream=dump_stream,
     )
 
     assert unregister_calls == [signal.SIGUSR1, signal.SIGUSR2]
     assert dump_stream.closed is True
+
+
+def test_main_restores_previous_signal_handlers_before_stop(monkeypatch) -> None:
+    """Main should restore SIGTERM and screenshot handlers during teardown."""
+
+    events: list[tuple[object, ...]] = []
+    previous_handlers = {
+        signal.SIGTERM: object(),
+        signal.SIGUSR1: object(),
+        signal.SIGUSR2: object(),
+    }
+    current_handlers = dict(previous_handlers)
+
+    class FakeApp:
+        app_settings = SimpleNamespace(
+            diagnostics=SimpleNamespace(responsiveness_watchdog_enabled=False)
+        )
+
+        def __init__(self, *, config_dir: str, simulate: bool) -> None:
+            assert config_dir == "config"
+            assert simulate is False
+
+        def setup(self) -> bool:
+            return True
+
+        def get_status(self, refresh_output_volume: bool = False) -> dict[str, object]:
+            return {
+                "auto_resume": False,
+                "voip_available": True,
+                "music_available": True,
+            }
+
+        def run(self) -> None:
+            events.append(("run",))
+
+        def stop(self) -> None:
+            events.append(("stop",))
+
+    def fake_getsignal(signum: int) -> object:
+        return current_handlers[signum]
+
+    def fake_signal(signum: int, handler: object) -> None:
+        events.append(("signal", signum, handler))
+        current_handlers[signum] = handler
+
+    monkeypatch.setattr(
+        main_module,
+        "configure_logger",
+        lambda: SimpleNamespace(pid_file="/tmp/yoyopod.pid", error_log_file="/tmp/errors.log"),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "get_subsystem_logger",
+        lambda _name: SimpleNamespace(
+            info=lambda *args: None,
+            error=lambda *args: None,
+            warning=lambda *args: None,
+        ),
+    )
+    monkeypatch.setattr(main_module, "write_pid_file", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main_module, "log_startup", lambda **_kwargs: None)
+    monkeypatch.setattr(main_module, "log_shutdown", lambda **_kwargs: None)
+    monkeypatch.setattr(main_module, "remove_pid_file", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main_module, "YoyoPodApp", FakeApp)
+    monkeypatch.setattr(main_module.signal, "getsignal", fake_getsignal)
+    monkeypatch.setattr(main_module.signal, "signal", fake_signal)
+    monkeypatch.setattr(
+        main_module,
+        "_install_traceback_dump_handlers",
+        lambda **_kwargs: (None, (signal.SIGUSR1, signal.SIGUSR2)),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "_uninstall_traceback_dump_handlers",
+        lambda **_kwargs: events.append(("uninstall_traceback_handlers",)),
+    )
+
+    assert main_module.main() == 0
+
+    signal_calls = [event for event in events if event[:1] == ("signal",)]
+    assert signal_calls[-3:] == [
+        ("signal", signal.SIGTERM, previous_handlers[signal.SIGTERM]),
+        ("signal", signal.SIGUSR1, previous_handlers[signal.SIGUSR1]),
+        ("signal", signal.SIGUSR2, previous_handlers[signal.SIGUSR2]),
+    ]
+    assert events.index(signal_calls[-1]) < events.index(("stop",))
 
 
 def test_main_setup_failure_mentions_network_config_file(monkeypatch) -> None:
