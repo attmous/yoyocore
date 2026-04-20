@@ -6,6 +6,13 @@ from typer.testing import CliRunner
 from yoyopod_cli.remote_validate import app, _build_validate, _build_preflight_steps
 
 
+def _collect_option_names(click_cmd: object) -> set[str]:
+    names: set[str] = set()
+    for param in getattr(click_cmd, "params", []):
+        names.update(getattr(param, "opts", []))
+    return names
+
+
 def test_build_preflight_steps_include_git_and_quality() -> None:
     steps = _build_preflight_steps()
     assert any("git diff" in " ".join(argv) for _, argv in steps)
@@ -41,11 +48,11 @@ def test_preflight_help() -> None:
     assert result.exit_code == 0
 
 
-def test_validate_help_shows_flags() -> None:
-    runner = CliRunner(env={'COLUMNS': '200'})
-    result = runner.invoke(app, ["validate", "--help"])
-    assert result.exit_code == 0
-    assert "--with-music" in result.output
-    assert "--with-voip" in result.output
-    assert "--with-lvgl-soak" in result.output
-    assert "--with-navigation" in result.output
+def test_validate_has_all_with_flags() -> None:
+    import typer.main
+
+    click_cmd = typer.main.get_command(app)
+    validate_cmd = click_cmd.commands["validate"]  # type: ignore[attr-defined]
+    names = _collect_option_names(validate_cmd)
+    for flag in ("--with-music", "--with-voip", "--with-lvgl-soak", "--with-navigation"):
+        assert flag in names
