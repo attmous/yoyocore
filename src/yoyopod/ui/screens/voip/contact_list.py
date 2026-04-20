@@ -9,14 +9,8 @@ from loguru import logger
 from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
-from yoyopod.ui.screens.theme import (
-    draw_empty_state,
-    draw_list_item,
-    render_footer,
-    render_header,
-    talk_monogram,
-    text_fit,
-)
+from yoyopod.ui.screens.theme import talk_monogram
+from yoyopod.ui.screens.voip.contact_list_pil_view import render_contact_list_pil
 from yoyopod.ui.screens.voip.lvgl import LvglContactListView
 
 if TYPE_CHECKING:
@@ -114,61 +108,7 @@ class ContactListScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        content_top = render_header(
-            self.display,
-            self.context,
-            mode="talk",
-            title=self.title_text,
-            page_text=None,
-            show_time=False,
-            show_mode_chip=False,
-        )
-
-        if not self.contacts:
-            draw_empty_state(
-                self.display,
-                mode="talk",
-                title=self.empty_title,
-                subtitle=self.empty_subtitle,
-                icon="talk",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="talk")
-            self.display.update()
-            return
-
-        if self.selected_index < self.scroll_offset:
-            self.scroll_offset = self.selected_index
-        elif self.selected_index >= self.scroll_offset + self.max_visible_items:
-            self.scroll_offset = self.selected_index - self.max_visible_items + 1
-
-        item_height = 52
-        list_top = content_top + 8
-        for row in range(self.max_visible_items):
-            contact_index = self.scroll_offset + row
-            if contact_index >= len(self.contacts):
-                break
-
-            contact = self.contacts[contact_index]
-            y1 = list_top + (row * item_height)
-            y2 = y1 + 44
-            draw_list_item(
-                self.display,
-                x1=18,
-                y1=y1,
-                x2=self.display.WIDTH - 18,
-                y2=y2,
-                title=text_fit(self.display, contact.display_name, self.display.WIDTH - 90, 15),
-                subtitle="",
-                mode="talk",
-                selected=contact_index == self.selected_index,
-                badge=None,
-                icon=f"mono:{talk_monogram(contact.display_name)}",
-            )
-
-        render_footer(self.display, self._instruction_text(), mode="talk")
-        self.display.update()
+        render_contact_list_pil(self)
 
     def get_page_text(self) -> str | None:
         """Contact lists now intentionally omit page counters."""
@@ -217,7 +157,7 @@ class ContactListScreen(Screen):
             icons.append(f"mono:{talk_monogram(self.contacts[contact_index].display_name)}")
         return icons
 
-    def _instruction_text(self) -> str:
+    def instruction_text(self) -> str:
         """Return footer hints for the current action mode."""
 
         if self.is_one_button_mode():

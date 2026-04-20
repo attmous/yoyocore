@@ -9,13 +9,7 @@ from loguru import logger
 from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
-from yoyopod.ui.screens.theme import (
-    draw_empty_state,
-    draw_list_item,
-    render_footer,
-    render_header,
-    text_fit,
-)
+from yoyopod.ui.screens.voip.call_history_pil_view import render_call_history_pil
 from yoyopod.ui.screens.voip.lvgl.call_history_view import LvglCallHistoryView
 
 if TYPE_CHECKING:
@@ -110,7 +104,7 @@ class CallHistoryScreen(Screen):
             return None
         return self.entries[self.selected_index]
 
-    def _instruction_text(self) -> str:
+    def instruction_text(self) -> str:
         """Return compact footer hints for recents."""
         if not self.entries:
             return "Hold back" if self.is_one_button_mode() else "B back"
@@ -124,61 +118,7 @@ class CallHistoryScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        content_top = render_header(
-            self.display,
-            self.context,
-            mode="talk",
-            title="Recents",
-            page_text=None,
-            show_time=False,
-            show_mode_chip=False,
-        )
-
-        if not self.entries:
-            draw_empty_state(
-                self.display,
-                mode="talk",
-                title="No recent calls",
-                subtitle="Calls will show up here after the first one.",
-                icon="talk",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="talk")
-            self.display.update()
-            return
-
-        if self.selected_index < self.scroll_offset:
-            self.scroll_offset = self.selected_index
-        elif self.selected_index >= self.scroll_offset + self.max_visible_items:
-            self.scroll_offset = self.selected_index - self.max_visible_items + 1
-
-        item_height = 52
-        list_top = content_top + 8
-        for row in range(self.max_visible_items):
-            entry_index = self.scroll_offset + row
-            if entry_index >= len(self.entries):
-                break
-
-            entry = self.entries[entry_index]
-            y1 = list_top + (row * item_height)
-            y2 = y1 + 44
-            draw_list_item(
-                self.display,
-                x1=18,
-                y1=y1,
-                x2=self.display.WIDTH - 18,
-                y2=y2,
-                title=text_fit(self.display, entry.title, self.display.WIDTH - 90, 15),
-                subtitle=entry.subtitle,
-                mode="talk",
-                selected=entry_index == self.selected_index,
-                badge=None,
-                icon="call" if entry.direction == "outgoing" else "talk",
-            )
-
-        render_footer(self.display, self._instruction_text(), mode="talk")
-        self.display.update()
+        render_call_history_pil(self)
 
     def get_visible_window(self) -> tuple[list[str], list[str], int]:
         """Return the visible recent-call titles for the shared LVGL list scene."""

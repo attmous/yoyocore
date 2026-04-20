@@ -9,6 +9,7 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
 from yoyopod.ui.screens.music.lvgl import LvglNowPlayingView
+from yoyopod.ui.screens.music.now_playing_pil_view import render_now_playing_pil
 from yoyopod.ui.screens.theme import (
     BACKGROUND,
     ERROR,
@@ -17,14 +18,7 @@ from yoyopod.ui.screens.theme import (
     MUTED,
     MUTED_DIM,
     SURFACE_RAISED,
-    draw_icon,
     mix,
-    render_backdrop,
-    render_footer,
-    render_status_bar,
-    rounded_panel,
-    text_fit,
-    wrap_text,
 )
 
 if TYPE_CHECKING:
@@ -217,113 +211,7 @@ class NowPlayingScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        state = self.current_state()
-        state_text = self._display_state_text(state.state_label)
-        footer = self.get_footer_text(is_playing=state.is_playing, state_label=state.state_label)
-        visuals = self._state_visuals(state.state_label)
-
-        render_backdrop(self.display, "listen")
-        render_status_bar(self.display, self.context, show_time=True)
-
-        halo_width = 92
-        halo_height = 66
-        halo_left = (self.display.WIDTH - halo_width) // 2
-        halo_top = self.display.STATUS_BAR_HEIGHT + 16
-        rounded_panel(
-            self.display,
-            halo_left,
-            halo_top,
-            halo_left + halo_width,
-            halo_top + halo_height,
-            fill=visuals["icon_fill"],
-            outline=visuals["icon_outline"],
-            radius=20,
-        )
-        draw_icon(
-            self.display,
-            "music_note",
-            halo_left + 24,
-            halo_top + 13,
-            42,
-            visuals["icon_color"],
-        )
-
-        title_y = halo_top + halo_height + 18
-        title_lines = wrap_text(
-            self.display,
-            state.title,
-            self.display.WIDTH - 32,
-            18,
-            max_lines=2,
-        ) or [text_fit(self.display, state.title, self.display.WIDTH - 32, 18)]
-        title_line_height = self.display.get_text_size("Ag", 18)[1]
-        for index, line in enumerate(title_lines):
-            title_width, _ = self.display.get_text_size(line, 18)
-            self.display.text(
-                line,
-                (self.display.WIDTH - title_width) // 2,
-                title_y + (index * title_line_height),
-                color=INK,
-                font_size=18,
-            )
-
-        title_bottom = title_y + (len(title_lines) * title_line_height)
-        artist_y = title_bottom + 8
-        artist_text = text_fit(self.display, state.artist, self.display.WIDTH - 36, 11)
-        artist_width, _ = self.display.get_text_size(artist_text, 11)
-        self.display.text(
-            artist_text,
-            (self.display.WIDTH - artist_width) // 2,
-            artist_y,
-            color=MUTED,
-            font_size=11,
-        )
-
-        state_width, state_height = self.display.get_text_size(state_text, 10)
-        chip_width = state_width + 26
-        chip_left = (self.display.WIDTH - chip_width) // 2
-        chip_top = artist_y + 22
-        rounded_panel(
-            self.display,
-            chip_left,
-            chip_top,
-            chip_left + chip_width,
-            chip_top + state_height + 10,
-            fill=visuals["chip_fill"],
-            outline=None,
-            radius=12,
-        )
-        self.display.text(
-            state_text,
-            (self.display.WIDTH - state_width) // 2,
-            chip_top + 4,
-            color=visuals["chip_text"],
-            font_size=10,
-        )
-
-        progress_width = 168
-        progress_x = (self.display.WIDTH - progress_width) // 2
-        progress_y = min(self.display.HEIGHT - 52, chip_top + state_height + 18)
-        self.display.rectangle(
-            progress_x,
-            progress_y,
-            progress_x + progress_width,
-            progress_y + 8,
-            fill=mix(BACKGROUND, SURFACE_RAISED, 0.5),
-        )
-        fill_width = max(0, min(progress_width, int(progress_width * state.progress)))
-        if fill_width > 0:
-            self.display.rectangle(
-                progress_x,
-                progress_y,
-                progress_x + fill_width,
-                progress_y + 8,
-                fill=visuals["progress_fill"],
-            )
-
-        render_footer(self.display, footer, mode="listen")
-        self.display.update()
+        render_now_playing_pil(self)
 
     def get_footer_text(self, *, is_playing: bool, state_label: str | None = None) -> str:
         """Return the gesture hint for the active playback state."""
@@ -335,13 +223,13 @@ class NowPlayingScreen(Screen):
         return "A play | B back | X/Y tracks"
 
     @staticmethod
-    def _display_state_text(state_label: str) -> str:
+    def display_state_text(state_label: str) -> str:
         """Return the human-facing chip label for the current playback state."""
 
         return state_label.title()
 
     @staticmethod
-    def _state_visuals(state_label: str) -> dict[str, tuple[int, int, int]]:
+    def state_visuals(state_label: str) -> dict[str, tuple[int, int, int]]:
         """Return the compact now-playing palette for one playback state."""
 
         if state_label == "PAUSED":

@@ -9,16 +9,8 @@ from loguru import logger
 from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
+from yoyopod.ui.screens.voip.incoming_call_pil_view import render_incoming_call_pil
 from yoyopod.ui.screens.voip.lvgl import LvglIncomingCallView
-from yoyopod.ui.screens.theme import (
-    INK,
-    TALK,
-    draw_talk_large_card,
-    draw_talk_status_chip,
-    render_footer,
-    render_status_bar,
-    talk_monogram,
-)
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -80,37 +72,7 @@ class IncomingCallScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        render_status_bar(self.display, self.context, show_time=True)
-        card_top = self.display.STATUS_BAR_HEIGHT + 42
-        card_left = (self.display.WIDTH - 112) // 2
-        draw_talk_large_card(
-            self.display,
-            left=card_left,
-            top=card_top,
-            size=112,
-            color=TALK.accent,
-            label=talk_monogram(self.caller_name or "Unknown"),
-        )
-        self.ring_animation_frame += 1
-
-        display_name = self.caller_name or "Unknown"
-        if len(display_name) > 14:
-            display_name = f"{display_name[:13]}..."
-        name_width, name_height = self.display.get_text_size(display_name, 20)
-        title_y = card_top + 126
-        self.display.text(display_name, (self.display.WIDTH - name_width) // 2, title_y, color=INK, font_size=20)
-        draw_talk_status_chip(
-            self.display,
-            center_x=self.display.WIDTH // 2,
-            top=title_y + name_height + 10,
-            text="INCOMING CALL",
-            color=TALK.accent,
-        )
-
-        footer = "Tap = Answer | Hold = Decline" if self.is_one_button_mode() else "A answer | B reject"
-        render_footer(self.display, footer, mode="talk")
-        self.display.update()
+        render_incoming_call_pil(self)
 
     def _answer_call(self) -> None:
         """Answer the incoming call."""

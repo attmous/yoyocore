@@ -9,17 +9,11 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.navigation.lvgl import LvglHubView
+from yoyopod.ui.screens.navigation.hub_pil_view import render_hub_pil
 from yoyopod.ui.screens.theme import (
     BACKGROUND,
-    FOOTER_BAR,
-    INK,
-    MUTED_DIM,
-    draw_icon,
     format_battery_compact,
     mix,
-    render_backdrop,
-    render_status_bar,
-    rounded_panel,
     text_fit,
     theme_for,
 )
@@ -103,7 +97,7 @@ class HubScreen(Screen):
         except Exception:
             self._playlist_count = None
 
-    def _cards(self) -> list[HubCard]:
+    def cards(self) -> list[HubCard]:
         """Build the live root-card list."""
         return [
             HubCard("Listen", self._listen_subtitle(), "listen", "listen"),
@@ -159,13 +153,13 @@ class HubScreen(Screen):
         return format_battery_compact(self.context)
 
     @staticmethod
-    def _tile_fill_color(mode: str) -> tuple[int, int, int]:
+    def tile_fill_color(mode: str) -> tuple[int, int, int]:
         """Return the main hero-tile fill for the selected hub card."""
         theme = theme_for(mode)
         return mix(theme.accent, theme.hero_end, 0.35)
 
     @staticmethod
-    def _tile_glow_color(mode: str) -> tuple[int, int, int]:
+    def tile_glow_color(mode: str) -> tuple[int, int, int]:
         """Return a soft mode glow behind the hero tile."""
         theme = theme_for(mode)
         return mix(theme.accent, BACKGROUND, 0.72)
@@ -176,93 +170,15 @@ class HubScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        cards = self._cards()
-        self.selected_index %= len(cards)
-        selected_card = cards[self.selected_index]
-        render_backdrop(self.display, selected_card.mode)
-        render_status_bar(self.display, self.context, show_time=True)
-
-        tile_size = 96
-        tile_left = (self.display.WIDTH - tile_size) // 2
-        tile_top = self.display.STATUS_BAR_HEIGHT + 30
-        glow_padding = 10
-
-        rounded_panel(
-            self.display,
-            tile_left - glow_padding,
-            tile_top - glow_padding,
-            tile_left + tile_size + glow_padding,
-            tile_top + tile_size + glow_padding,
-            fill=self._tile_glow_color(selected_card.mode),
-            outline=None,
-            radius=24,
-            shadow=False,
-        )
-
-        rounded_panel(
-            self.display,
-            tile_left,
-            tile_top,
-            tile_left + tile_size,
-            tile_top + tile_size,
-            fill=self._tile_fill_color(selected_card.mode),
-            outline=None,
-            radius=16,
-            shadow=True,
-        )
-
-        draw_icon(
-            self.display,
-            selected_card.icon,
-            tile_left + 20,
-            tile_top + 20,
-            56,
-            INK,
-        )
-
-        title_y = tile_top + tile_size + 24
-        title_text = selected_card.title
-        title_width, title_height = self.display.get_text_size(title_text, 22)
-        self.display.text(
-            title_text,
-            (self.display.WIDTH - title_width) // 2,
-            title_y,
-            color=INK,
-            font_size=22,
-        )
-
-        dots_y = title_y + title_height + 30
-        dot_gap = 10
-        dots_width = ((len(cards) - 1) * dot_gap) + 4
-        dots_x = (self.display.WIDTH - dots_width) // 2
-        inactive_dot = mix(INK, BACKGROUND, 0.8)
-        for index in range(len(cards)):
-            dot_color = INK if index == self.selected_index else inactive_dot
-            self.display.circle(dots_x + (index * dot_gap), dots_y, 2, fill=dot_color)
-
-        footer_top = self.display.HEIGHT - 32
-        self.display.rectangle(
-            0, footer_top, self.display.WIDTH, self.display.HEIGHT, fill=FOOTER_BAR
-        )
-        footer_text = "Tap = Next \u00b7 2\u00d7 = Open \u00b7 Hold = Ask"
-        footer_width, footer_height = self.display.get_text_size(footer_text, 10)
-        self.display.text(
-            footer_text,
-            (self.display.WIDTH - footer_width) // 2,
-            footer_top + ((32 - footer_height) // 2) - 1,
-            color=MUTED_DIM,
-            font_size=10,
-        )
-        self.display.update()
+        render_hub_pil(self)
 
     def on_advance(self, data=None) -> None:
         """Cycle to the next card."""
-        self.selected_index = (self.selected_index + 1) % len(self._cards())
+        self.selected_index = (self.selected_index + 1) % len(self.cards())
 
     def on_select(self, data=None) -> None:
         """Open the selected root card."""
-        self.request_route("select", payload=self._cards()[self.selected_index].title)
+        self.request_route("select", payload=self.cards()[self.selected_index].title)
 
     def on_back(self, data=None) -> None:
         """Open Ask in quick-command mode (hold-to-ask shortcut)."""

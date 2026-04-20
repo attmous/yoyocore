@@ -9,11 +9,7 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
 from yoyopod.ui.screens.navigation.lvgl import LvglListenView
-from yoyopod.ui.screens.theme import (
-    draw_list_item,
-    render_footer,
-    render_header,
-)
+from yoyopod.ui.screens.navigation.listen_pil_view import render_listen_pil
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -88,48 +84,10 @@ class ListenScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        content_top = render_header(
-            self.display,
-            self.context,
-            mode="listen",
-            title="Your Music",
-            subtitle="Local library",
-            show_time=False,
-            show_mode_chip=False,
-        )
-
-        list_top = content_top + 8
-        item_height = 76
-        for index, item in enumerate(self.items):
-            y1 = list_top + (index * item_height)
-            y2 = y1 + 68
-            if y2 > self.display.HEIGHT - 38:
-                break
-
-            draw_list_item(
-                self.display,
-                x1=18,
-                y1=y1,
-                x2=self.display.WIDTH - 18,
-                y2=y2,
-                title=item.title,
-                subtitle=item.subtitle,
-                mode="listen",
-                selected=index == self.selected_index,
-                icon=self._item_icon_key(item.key),
-            )
-
-        help_text = (
-            "Tap = Next  ·  2× Tap = Open  ·  Hold = Back"
-            if self.is_one_button_mode()
-            else "A open | B back | X/Y move"
-        )
-        render_footer(self.display, help_text, mode="listen")
-        self.display.update()
+        render_listen_pil(self)
 
     @staticmethod
-    def _item_icon_key(key: str) -> str:
+    def item_icon_key(key: str) -> str:
         """Return the icon key used for each Listen landing row."""
 
         if key == "playlists":

@@ -10,17 +10,9 @@ from loguru import logger
 from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
-from yoyopod.ui.screens.theme import (
-    INK,
-    TALK,
-    draw_talk_action_button,
-    draw_talk_page_dots,
-    draw_talk_person_header,
-    render_footer,
-    render_status_bar,
-    talk_monogram,
-)
+from yoyopod.ui.screens.theme import talk_monogram
 from yoyopod.ui.screens.voip.lvgl.talk_contact_view import LvglTalkContactView
+from yoyopod.ui.screens.voip.talk_contact_pil_view import render_talk_contact_pil
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -124,11 +116,12 @@ class TalkContactScreen(Screen):
         """Return visible action rows for the LVGL scene."""
 
         actions = self.actions()
-        return (
-            [action.title for action in actions],
-            [action.subtitle for action in actions],
-            self.selected_index,
-        )
+        titles = [action.title for action in actions]
+        subtitles = [action.subtitle for action in actions]
+        if not titles:
+            return titles, subtitles, 0
+        selected_index = self._selected_action_index(actions)
+        return titles, subtitles, selected_index
 
     def get_visible_action_icons(self) -> list[str]:
         """Return the visible icon key for each action row."""
@@ -150,6 +143,11 @@ class TalkContactScreen(Screen):
 
         return "small" if len(self.actions()) >= 3 else "medium"
 
+    def footer_text(self) -> str:
+        """Return the footer hint for the Talk contact action screen."""
+
+        return "Tap Next | 2x Select | Hold Back"
+
     def render(self) -> None:
         """Render the contact action picker."""
 
@@ -157,64 +155,18 @@ class TalkContactScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        render_status_bar(self.display, self.context, show_time=True)
-        actions = self.actions()
-        action_icons = self.get_visible_action_icons()
-        button_size = self.action_button_size()
-        bottom = draw_talk_person_header(
-            self.display,
-            center_x=self.display.WIDTH // 2,
-            top=self.display.STATUS_BAR_HEIGHT + 28,
-            name=self.current_contact_name(),
-            label=self.current_contact_monogram(),
-        )
-
-        diameter = 64 if button_size == "medium" else 56
-        gap = 16 if button_size == "medium" else 12
-        center_y = bottom + 54
-        row_width = (len(actions) * diameter) + (max(0, len(actions) - 1) * gap)
-        start_center = ((self.display.WIDTH - row_width) // 2) + (diameter // 2)
-
-        for row, _action in enumerate(actions):
-            draw_talk_action_button(
-                self.display,
-                center_x=start_center + (row * (diameter + gap)),
-                center_y=center_y,
-                button_size=button_size,
-                color=TALK.accent,
-                icon=action_icons[row],
-                filled=row == self.selected_index,
-                active=row == self.selected_index,
-            )
-
-        selected_title = self._selected_action().title
-        title_width, title_height = self.display.get_text_size(selected_title, 18)
-        title_y = center_y + (diameter // 2) + 16
-        self.display.text(
-            selected_title,
-            (self.display.WIDTH - title_width) // 2,
-            title_y,
-            color=INK,
-            font_size=18,
-        )
-        draw_talk_page_dots(
-            self.display,
-            center_x=self.display.WIDTH // 2,
-            top=title_y + title_height + 16,
-            total=len(actions),
-            current=self.selected_index,
-            color=TALK.accent,
-        )
-
-        render_footer(self.display, "Tap Next | 2x Select | Hold Back", mode="talk")
-        self.display.update()
+        render_talk_contact_pil(self)
 
     def _selected_action(self) -> TalkAction:
         """Return the active action row."""
 
         actions = self.actions()
-        return actions[self.selected_index % len(actions)]
+        return actions[self._selected_action_index(actions)]
+
+    def _selected_action_index(self, actions: list[TalkAction]) -> int:
+        """Map the raw cursor to a visible Talk action index."""
+
+        return min(self.selected_index, len(actions) - 1)
 
     def _start_call(self) -> None:
         """Call the selected contact immediately."""

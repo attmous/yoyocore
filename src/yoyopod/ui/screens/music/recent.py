@@ -11,13 +11,7 @@ from yoyopod.ui.display import Display
 from yoyopod.ui.screens.base import Screen
 from yoyopod.ui.screens.lvgl_lifecycle import current_retained_view
 from yoyopod.ui.screens.music.lvgl import LvglPlaylistView
-from yoyopod.ui.screens.theme import (
-    draw_empty_state,
-    draw_list_item,
-    render_footer,
-    render_header,
-    text_fit,
-)
+from yoyopod.ui.screens.music.recent_pil_view import render_recent_tracks_pil
 
 if TYPE_CHECKING:
     from yoyopod.core import AppContext
@@ -164,70 +158,7 @@ class RecentTracksScreen(Screen):
         if lvgl_view is not None:
             lvgl_view.sync()
             return
-
-        content_top = render_header(
-            self.display,
-            self.context,
-            mode="listen",
-            title="Recent",
-            show_time=False,
-            show_mode_chip=False,
-        )
-
-        if self.error_message:
-            draw_empty_state(
-                self.display,
-                mode="listen",
-                title="Music hiccup",
-                subtitle=self.error_message,
-                icon="playlist",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="listen")
-            self.display.update()
-            return
-
-        if not self.tracks:
-            draw_empty_state(
-                self.display,
-                mode="listen",
-                title="No recent tracks",
-                subtitle="Play local music to fill this list.",
-                icon="playlist",
-                top=content_top,
-            )
-            render_footer(self.display, "Hold back", mode="listen")
-            self.display.update()
-            return
-
-        self._update_scroll_window()
-
-        item_height = 52
-        list_top = content_top + 8
-        for row in range(self.max_visible_items):
-            track_index = self.scroll_offset + row
-            if track_index >= len(self.tracks):
-                break
-
-            track = self.tracks[track_index]
-            y1 = list_top + (row * item_height)
-            y2 = y1 + 44
-            draw_list_item(
-                self.display,
-                x1=18,
-                y1=y1,
-                x2=self.display.WIDTH - 18,
-                y2=y2,
-                title=text_fit(self.display, track.title, self.display.WIDTH - 48, 15),
-                subtitle=text_fit(self.display, track.subtitle, self.display.WIDTH - 48, 11),
-                mode="listen",
-                selected=track_index == self.selected_index,
-                icon="music_note",
-            )
-
-        help_text = f"{self.get_footer_text()} / Hold back" if self.is_one_button_mode() else self.get_footer_text()
-        render_footer(self.display, help_text, mode="listen")
-        self.display.update()
+        render_recent_tracks_pil(self)
 
     def on_select(self, data=None) -> None:
         """Load and play the selected recent track."""

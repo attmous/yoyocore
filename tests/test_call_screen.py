@@ -231,6 +231,58 @@ def test_talk_contact_screen_adds_play_note_action_when_latest_note_exists(
     assert voip_manager.seen_contacts == ["sip:alice@example.com"]
 
 
+def test_talk_contact_screen_keeps_rendered_selection_and_on_select_aligned(
+    display: Display,
+) -> None:
+    """Shrinking actions should keep the highlighted and executed Talk action aligned."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    voip_manager = FakeVoIPManager()
+    voip_manager.latest_notes["sip:alice@example.com"] = VoIPMessageRecord(
+        id="note-1",
+        peer_sip_address="sip:alice@example.com",
+        sender_sip_address="sip:alice@example.com",
+        recipient_sip_address="sip:kid@example.com",
+        kind=MessageKind.VOICE_NOTE,
+        direction=MessageDirection.INCOMING,
+        delivery_state=MessageDeliveryState.DELIVERED,
+        created_at="2026-04-06T00:00:00+00:00",
+        updated_at="2026-04-06T00:00:00+00:00",
+        local_file_path="data/voice_notes/incoming.wav",
+        duration_ms=2100,
+        unread=True,
+    )
+    screen = TalkContactScreen(display, context, voip_manager=voip_manager)
+
+    screen.selected_index = 2
+    del voip_manager.latest_notes["sip:alice@example.com"]
+
+    _titles, _subtitles, selected_index = screen.get_visible_actions()
+    screen.on_select()
+
+    assert selected_index == 1
+    assert context.talk.active_voice_note.recipient_name == "Mama"
+    assert context.talk.active_voice_note.recipient_address == "sip:alice@example.com"
+    assert screen.consume_navigation_request() == NavigationRequest.route("voice_note")
+
+
+def test_talk_contact_screen_clamps_visible_action_index(display: Display) -> None:
+    """Visible Talk actions should clamp stale selection indices."""
+
+    context = AppContext()
+    context.set_talk_contact(name="Mama", sip_address="sip:alice@example.com")
+    screen = TalkContactScreen(display, context, voip_manager=FakeVoIPManager())
+
+    screen.selected_index = 9
+
+    titles, subtitles, selected_index = screen.get_visible_actions()
+
+    assert titles == ["Call", "Voice Note"]
+    assert subtitles == ["Start a voice call", "Record a short message"]
+    assert selected_index == 1
+
+
 def test_voice_note_screen_records_reviews_and_sends(display: Display) -> None:
     """Voice notes should move through record, review, and sending states."""
 
