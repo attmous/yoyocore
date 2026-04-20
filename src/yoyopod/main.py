@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 import os
 import signal
 import sys
@@ -18,6 +19,7 @@ from yoyopod.runtime.diagnostics import (
     _install_traceback_dump_handlers,
     _log_setup_failure_guidance,
     _log_signal_snapshot,
+    _signal_name,
     _uninstall_traceback_dump_handlers,
 )
 from yoyopod.runtime.screenshot import _request_screenshot_capture
@@ -31,6 +33,8 @@ from yoyopod.utils.logger import (
     remove_pid_file,
     write_pid_file,
 )
+
+SignalHandler = Callable[[int, FrameType | None], object] | int | signal.Handlers | None
 
 
 def load_app_settings(config_dir: str = "config") -> YoyoPodConfig:
@@ -55,13 +59,6 @@ def configure_logger(config_dir: str = "config") -> LoggingRuntimeConfig:
     )
 
 
-def _signal_name(signum: int) -> str:
-    try:
-        return signal.Signals(signum).name
-    except ValueError:
-        return str(signum)
-
-
 def main() -> int:
     logging_config = configure_logger()
     app_log = get_subsystem_logger("app")
@@ -72,6 +69,7 @@ def main() -> int:
     traceback_dump_stream: TextIO | None = None
     registered_traceback_signals: tuple[int, ...] = ()
     responsiveness_watchdog: ResponsivenessWatchdog | None = None
+    previous_screenshot_handlers: dict[int, SignalHandler] = {}
 
     write_pid_file(logging_config.pid_file, pid)
 
@@ -139,7 +137,7 @@ def main() -> int:
         )
 
         def handle_shutdown_signal(signum: int, _frame: FrameType | None) -> None:
-            signal_name = signal.Signals(signum).name
+            signal_name = _signal_name(signum)
             app_log.info(f"Received {signal_name}, shutting down...")
             raise KeyboardInterrupt
 
@@ -150,6 +148,10 @@ def main() -> int:
         sigusr1 = getattr(signal, "SIGUSR1", None)
         sigusr2 = getattr(signal, "SIGUSR2", None)
         if sigusr1 is not None and sigusr2 is not None:
+            previous_screenshot_handlers = {
+                sigusr1: signal.getsignal(sigusr1),
+                sigusr2: signal.getsignal(sigusr2),
+            }
 
             def handle_screenshot_default(_signum: int, _frame: FrameType | None) -> None:
                 _log_signal_snapshot(
@@ -221,13 +223,15 @@ def main() -> int:
             logger.exception("Unhandled exception escaped the YoyoPod main loop")
             exit_code = 1
         finally:
+            signal.signal(signal.SIGTERM, previous_sigterm)
+            for signum, previous_handler in previous_screenshot_handlers.items():
+                signal.signal(signum, previous_handler)
             if responsiveness_watchdog is not None:
                 responsiveness_watchdog.stop()
             _uninstall_traceback_dump_handlers(
                 signals=registered_traceback_signals,
                 dump_stream=traceback_dump_stream,
             )
-            signal.signal(signal.SIGTERM, previous_sigterm)
             app.stop()
 
         app_log.info("Goodbye!")

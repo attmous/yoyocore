@@ -47,6 +47,7 @@ def _build_runtime_snapshot_payload(
     app: object,
     source: str,
     trigger: str,
+    captured_at: datetime | None = None,
     capture_mode: str | None = None,
     reason: str | None = None,
     suspected_scope: str | None = None,
@@ -56,7 +57,7 @@ def _build_runtime_snapshot_payload(
     """Build one JSON-safe runtime snapshot payload for logs or evidence files."""
 
     payload: dict[str, object] = {
-        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_at": (captured_at or datetime.now(timezone.utc)).isoformat(),
         "source": source,
         "trigger": trigger,
     }
@@ -164,10 +165,12 @@ def _capture_responsiveness_watchdog_evidence(
 ) -> None:
     """Persist one automatic responsiveness capture and announce where it landed."""
 
+    captured_at = datetime.now(timezone.utc)
     payload = _build_runtime_snapshot_payload(
         app=app,
         source="responsiveness_watchdog",
         trigger=decision.reason,
+        captured_at=captured_at,
         reason=decision.reason,
         suspected_scope=decision.suspected_scope,
         summary=decision.summary,
@@ -176,8 +179,8 @@ def _capture_responsiveness_watchdog_evidence(
     capture_dir = _resolve_responsiveness_capture_dir(app)
     capture_dir.mkdir(parents=True, exist_ok=True)
 
-    captured_at = payload["captured_at"]
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    captured_at_iso = payload["captured_at"]
+    timestamp = captured_at.strftime("%Y%m%dT%H%M%SZ")
     stem = f"{timestamp}-{decision.reason}"
     snapshot_path = capture_dir / f"{stem}.json"
     snapshot_path.write_text(
@@ -190,7 +193,7 @@ def _capture_responsiveness_watchdog_evidence(
         dump_path=traceback_path,
         app_log=app_log,
         header=(
-            f"=== Responsiveness watchdog capture at {captured_at} "
+            f"=== Responsiveness watchdog capture at {captured_at_iso} "
             f"reason={decision.reason} scope={decision.suspected_scope} ==="
         ),
     )
@@ -214,7 +217,7 @@ def _capture_responsiveness_watchdog_evidence(
         "Responsiveness watchdog captured evidence: {}",
         json.dumps(
             {
-                "captured_at": captured_at,
+                "captured_at": captured_at_iso,
                 "reason": decision.reason,
                 "suspected_scope": decision.suspected_scope,
                 "summary": decision.summary,
