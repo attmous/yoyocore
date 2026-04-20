@@ -102,3 +102,19 @@ remote_app.command(name="verify-setup")(_remote_setup.verify_setup)
 remote_app.add_typer(_remote_config.app, name="config")
 
 app.add_typer(remote_app, name="remote")
+
+# --- pi group (commands that run on the Pi directly)
+from yoyopod_cli import (
+    pi_network as _pi_network,
+    pi_power as _pi_power,
+    pi_validate as _pi_validate,
+    pi_voip as _pi_voip,
+)
+
+pi_app = typer.Typer(name="pi", help="Commands that run on the Raspberry Pi.", no_args_is_help=True)
+pi_app.add_typer(_pi_validate.app, name="validate")
+pi_app.add_typer(_pi_voip.app, name="voip")
+pi_app.add_typer(_pi_power.app, name="power")
+pi_app.add_typer(_pi_network.app, name="network")
+
+app.add_typer(pi_app, name="pi")
