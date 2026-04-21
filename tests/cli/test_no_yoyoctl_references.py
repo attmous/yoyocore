@@ -8,7 +8,7 @@ import subprocess
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Paths that are allowed to keep historical mentions of the old binary name —
 # these describe the migration itself and should not be scrubbed.
@@ -19,7 +19,7 @@ ALLOWED_PATHS = (
     ".github/",  # workflow history
     # The guard test itself references the old name in assertion messages and
     # documentation strings, so it must be excluded from its own check.
-    "tests/test_no_yoyoctl_references.py",
+        "tests/cli/test_no_yoyoctl_references.py",
 )
 
 # The old binary name we're guarding against re-introduction of.

@@ -1,4 +1,4 @@
-"""tests/test_cli.py — yoyopod CLI smoke tests."""
+"""CLI smoke tests."""
 
 import re
 

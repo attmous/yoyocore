@@ -153,6 +153,26 @@ The app layer should import from domain seams such as:
 It should not reach arbitrarily into domain internals unless the app is the
 explicit owner of that internal boundary.
 
+## Canonical Test Layout
+
+The test tree should mirror the same ownership split as `src/yoyopod/`.
+
+- `tests/core/`
+  - core primitives and cross-cutting runtime helpers
+- `tests/integrations/`
+  - domain-level tests for `integrations/`
+- `tests/backends/`
+  - adapter-level tests for `backends/`
+- `tests/config/`
+  - typed config loading, composition, and validation
+- `tests/cli/`
+  - `yoyopod_cli/` command and helper coverage
+- `tests/fixtures/`
+  - shared fakes, builders, and reusable test helpers
+
+The remaining flat tests under `tests/` are migration debt and should keep
+moving into these buckets as their ownership becomes clearer.
+
 ## Exemplar: Call + Contacts
 
 The call + contacts cut establishes:

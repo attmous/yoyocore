@@ -139,7 +139,7 @@ Then add any focused commands relevant to your area, for example:
 ```bash
 python -m compileall src/yoyopod tests demos scripts
 uv run pytest -q tests/test_app_orchestration.py
-uv run pytest -q tests/test_setup_cli.py tests/test_pi_remote.py tests/test_cli.py
+uv run pytest -q tests/cli/test_setup_cli.py tests/cli/test_cli.py
 ```
 
 If your change is outside the currently gated surface, say so plainly in the PR instead of pretending CI covered more than it did.
