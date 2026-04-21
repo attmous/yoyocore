@@ -116,10 +116,13 @@ from yoyopod.integrations.cloud.models import (
 )
 from yoyopod.integrations.voice import VoiceCaptureRequest as IntegrationVoiceCaptureRequest
 from yoyopod.integrations.voice import VoiceCaptureResult as IntegrationVoiceCaptureResult
+from yoyopod.integrations.voice import VoiceCommandIntent as IntegrationVoiceCommandIntent
+from yoyopod.integrations.voice import VoiceCommandMatch as IntegrationVoiceCommandMatch
 from yoyopod.integrations.voice import VoiceManager as IntegrationVoiceManager
 from yoyopod.integrations.voice import VoiceService as IntegrationVoiceService
 from yoyopod.integrations.voice import VoiceSettings as IntegrationVoiceSettings
 from yoyopod.integrations.voice import VoiceTranscript as IntegrationVoiceTranscript
+from yoyopod.integrations.voice import match_voice_command as integration_match_voice_command
 from yoyopod.runtime_state import PlaybackQueue as RuntimeStatePlaybackQueue
 from yoyopod.runtime_state import Track as RuntimeStateTrack
 from yoyopod.event_bus import EventBus, EventHandler
@@ -183,6 +186,9 @@ from yoyopod.voice import VoiceSettings as LegacyVoiceSettings
 from yoyopod.voice.capture import (
     SubprocessAudioCaptureBackend as LegacySubprocessAudioCaptureBackend,
 )
+from yoyopod.voice.commands import VoiceCommandIntent as LegacyVoiceCommandIntent
+from yoyopod.voice.commands import VoiceCommandMatch as LegacyVoiceCommandMatch
+from yoyopod.voice.commands import match_voice_command as legacy_match_voice_command
 from yoyopod.voice.models import VoiceCaptureRequest as LegacyVoiceCaptureRequest
 from yoyopod.voice.models import VoiceCaptureResult as LegacyVoiceCaptureResult
 from yoyopod.voice.models import VoiceTranscript as LegacyVoiceTranscript
@@ -349,6 +355,9 @@ def test_legacy_voice_import_paths_resolve_to_relocated_symbols() -> None:
     assert LegacyVoiceService is IntegrationVoiceService
     assert LegacyVoiceSettings is IntegrationVoiceSettings
     assert LegacyVoiceTranscript is IntegrationVoiceTranscript
+    assert LegacyVoiceCommandIntent is IntegrationVoiceCommandIntent
+    assert LegacyVoiceCommandMatch is IntegrationVoiceCommandMatch
+    assert legacy_match_voice_command is integration_match_voice_command
     assert LegacySubprocessAudioCaptureBackend is BackendSubprocessAudioCaptureBackend
     assert LegacyAlsaOutputPlayer is BackendAlsaOutputPlayer
     assert LegacyVoskSpeechToTextBackend is BackendVoskSpeechToTextBackend

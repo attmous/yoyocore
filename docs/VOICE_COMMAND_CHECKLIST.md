@@ -121,7 +121,7 @@ Files to add:
   - `../src/yoyopod/voice/stt.py`
   - `../src/yoyopod/voice/tts.py`
   - `../src/yoyopod/voice/service.py`
-  - `../src/yoyopod/voice/commands.py`
+  - `../src/yoyopod/integrations/voice/commands.py`
 
 Checklist:
 
@@ -164,7 +164,7 @@ Notes:
 
 Files:
 
-- [src/yoyopod/voice/commands.py](../src/yoyopod/voice/commands.py)
+- [src/yoyopod/integrations/voice/commands.py](../src/yoyopod/integrations/voice/commands.py)
 - [src/yoyopod/config/manager.py](../src/yoyopod/config/manager.py)
 - [config/contacts.yaml](../config/contacts.yaml)
 

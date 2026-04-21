@@ -5,6 +5,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from yoyopod.integrations.voice.commands import (
+        VOICE_COMMAND_GRAMMAR,
+        VoiceCommandIntent,
+        VoiceCommandMatch,
+        VoiceCommandTemplate,
+        match_voice_command,
+    )
     from yoyopod.integrations.voice.manager import VoiceManager, VoiceService
     from yoyopod.integrations.voice.models import (
         VoiceCaptureRequest,
@@ -15,12 +22,17 @@ if TYPE_CHECKING:
 
 
 _PUBLIC_EXPORTS = {
+    "VOICE_COMMAND_GRAMMAR": ("yoyopod.integrations.voice.commands", "VOICE_COMMAND_GRAMMAR"),
     "VoiceCaptureRequest": ("yoyopod.integrations.voice.models", "VoiceCaptureRequest"),
     "VoiceCaptureResult": ("yoyopod.integrations.voice.models", "VoiceCaptureResult"),
+    "VoiceCommandIntent": ("yoyopod.integrations.voice.commands", "VoiceCommandIntent"),
+    "VoiceCommandMatch": ("yoyopod.integrations.voice.commands", "VoiceCommandMatch"),
+    "VoiceCommandTemplate": ("yoyopod.integrations.voice.commands", "VoiceCommandTemplate"),
     "VoiceManager": ("yoyopod.integrations.voice.manager", "VoiceManager"),
     "VoiceService": ("yoyopod.integrations.voice.manager", "VoiceService"),
     "VoiceSettings": ("yoyopod.integrations.voice.models", "VoiceSettings"),
     "VoiceTranscript": ("yoyopod.integrations.voice.models", "VoiceTranscript"),
+    "match_voice_command": ("yoyopod.integrations.voice.commands", "match_voice_command"),
 }
 
 
@@ -37,10 +49,15 @@ def __getattr__(name: str) -> Any:
 
 
 __all__ = [
+    "VOICE_COMMAND_GRAMMAR",
     "VoiceCaptureRequest",
     "VoiceCaptureResult",
+    "VoiceCommandIntent",
+    "VoiceCommandMatch",
+    "VoiceCommandTemplate",
     "VoiceManager",
     "VoiceService",
     "VoiceSettings",
     "VoiceTranscript",
+    "match_voice_command",
 ]

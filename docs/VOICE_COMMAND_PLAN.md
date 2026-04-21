@@ -164,7 +164,7 @@ Suggested implementation structure:
 
 - `src/yoyopod/voice/stt.py`
 - `src/yoyopod/voice/tts.py`
-- `src/yoyopod/voice/commands.py`
+- `src/yoyopod/integrations/voice/commands.py`
 - `src/yoyopod/voice/service.py`
 - `src/yoyopod/voice/models.py`
 

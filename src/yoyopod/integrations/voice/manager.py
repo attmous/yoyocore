@@ -18,7 +18,7 @@ from yoyopod.integrations.voice.models import (
     VoiceSettings,
     VoiceTranscript,
 )
-from yoyopod.voice.commands import VoiceCommandMatch, match_voice_command
+from yoyopod.integrations.voice.commands import VoiceCommandMatch, match_voice_command
 
 
 class VoiceManager:

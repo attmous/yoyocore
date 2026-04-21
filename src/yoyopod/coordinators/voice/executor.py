@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
 
-from yoyopod.voice.commands import VoiceCommandIntent, match_voice_command
+from yoyopod.integrations.voice import VoiceCommandIntent, match_voice_command
 
 from .settings import VoiceCommandOutcome
 

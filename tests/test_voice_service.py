@@ -18,14 +18,12 @@ from yoyopod.backends.voice import (
     VoskSpeechToTextBackend,
 )
 from yoyopod.integrations.voice import (
+    VOICE_COMMAND_GRAMMAR,
     VoiceCaptureRequest,
+    VoiceCommandIntent,
     VoiceService,
     VoiceSettings,
     VoiceTranscript,
-)
-from yoyopod.voice.commands import (
-    VOICE_COMMAND_GRAMMAR,
-    VoiceCommandIntent,
     match_voice_command,
 )
 
