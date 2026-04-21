@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 if False:  # pragma: no cover - runtime import only for typing.
-    from yoyopod.power.models import PowerSnapshot
+    from yoyopod.integrations.power.models import PowerSnapshot
 
 
 def _format_battery(snapshot: "PowerSnapshot") -> str:

@@ -140,44 +140,11 @@ class LiblinphoneBinding:
             candidates.append(Path(env_override))
 
         base_dir = Path(__file__).resolve().parent
-        legacy_integrations_dir = (
-            base_dir.parents[1] / "communication" / "integrations"
-        )
         candidates.extend(
             [
                 base_dir / "shim_native" / "build" / "libyoyopod_liblinphone_shim.so",
                 base_dir / "shim_native" / "build" / "yoyopod_liblinphone_shim.dll",
                 base_dir / "shim_native" / "build" / "libyoyopod_liblinphone_shim.dylib",
-                legacy_integrations_dir
-                / "liblinphone"
-                / "native"
-                / "build"
-                / "libyoyopod_liblinphone_shim.so",
-                legacy_integrations_dir
-                / "liblinphone"
-                / "native"
-                / "build"
-                / "yoyopod_liblinphone_shim.dll",
-                legacy_integrations_dir
-                / "liblinphone"
-                / "native"
-                / "build"
-                / "libyoyopod_liblinphone_shim.dylib",
-                legacy_integrations_dir
-                / "liblinphone_binding"
-                / "native"
-                / "build"
-                / "libyoyopod_liblinphone_shim.so",
-                legacy_integrations_dir
-                / "liblinphone_binding"
-                / "native"
-                / "build"
-                / "yoyopod_liblinphone_shim.dll",
-                legacy_integrations_dir
-                / "liblinphone_binding"
-                / "native"
-                / "build"
-                / "libyoyopod_liblinphone_shim.dylib",
                 Path.cwd() / "build" / "liblinphone" / "libyoyopod_liblinphone_shim.so",
             ]
         )

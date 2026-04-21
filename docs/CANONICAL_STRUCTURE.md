@@ -4,7 +4,7 @@
 **Status:** Current migration reference
 
 This document defines the reusable structure pattern established by the
-communication + people exemplar migration.
+call + contacts hard cut and the remaining Phase A cleanup work.
 
 ## Goals
 
@@ -140,10 +140,9 @@ Frozen canonical package homes:
 
 Temporary migration buckets are not part of the canonical target:
 
-- `src/yoyopod/runtime/`
 - `src/yoyopod/coordinators/`
-- legacy facades such as `communication/`, `network/`, `power/`, `voice/`, `cloud/`, `people/`
-- old generic hardware/package homes such as `device/`
+- `src/yoyopod/audio/`
+- thin root compatibility wrappers such as `events.py`, `event_bus.py`, `fsm.py`, and `runtime_state.py`
 
 The app layer should import from domain seams such as:
 
@@ -156,16 +155,16 @@ The app layer should import from domain seams such as:
 It should not reach arbitrarily into domain internals unless the app is the
 explicit owner of that internal boundary.
 
-## Exemplar: Communication + People
+## Exemplar: Call + Contacts
 
-The communication exemplar establishes:
+The call + contacts cut establishes:
 
-- communication code under `src/yoyopod/communication/`
 - public call-domain ownership under `src/yoyopod/integrations/call/`
 - contacts under `src/yoyopod/integrations/contacts/`
 - communication config separated from mutable people data
 - runtime people data seeded into `data/people/contacts.yaml` from
   `config/people/contacts.seed.yaml` only when needed
+- the historical facade packages (`communication/`, `people/`) removed from `src/yoyopod/`
 
 Contacts are not communication config. The tracked people config file only says
 where the mutable address book lives and which seed file can bootstrap it.
@@ -181,11 +180,8 @@ The call migration follows the same cutover shape:
   call-history, and voice-note seam
 - `src/yoyopod/backends/voip/` is the canonical owner of the concrete
   Liblinphone and mock backend adapters plus protocol/binding types
-- `src/yoyopod/communication/calling/`, `src/yoyopod/communication/messaging/`,
-  `src/yoyopod/communication/models.py`, `src/yoyopod/core/fsm/call.py`, and
-  `src/yoyopod/fsm.py` are retained as compatibility shims
-- app/runtime composition depends on `yoyopod.integrations.call` instead of
-  reaching through `yoyopod.communication.calling.*` for public call services
+- app/runtime composition depends on `yoyopod.integrations.call` instead of historical
+  communication-package import paths
 
 ## Voice Migration Pattern
 
@@ -210,8 +206,6 @@ The network migration follows the same cutover shape:
 - `ConfigManager.get_network_settings()` as the typed runtime seam
 - `src/yoyopod/integrations/network/` as the canonical owner of the public
   manager/models seam
-- `src/yoyopod/network/` retained only as compatibility shims for historical
-  imports
 - app/runtime composition depending on `yoyopod.integrations.network.NetworkManager`
   instead of reading network state from app-shell config
 
@@ -237,13 +231,11 @@ The power migration follows the same cutover shape:
 - `ConfigManager.get_power_settings()` as the typed runtime seam
 - `src/yoyopod/integrations/power/` as the canonical owner of the public
   manager/models/events/policies seam
-- `src/yoyopod/power/` retained only as compatibility shims
 - app/runtime composition depending on `yoyopod.integrations.power.PowerManager`
   and `PowerManager.from_config_manager()`
   instead of reading power state from app-shell config
 - power polling and PiSugar watchdog cadence owned by the power domain via
-  `src/yoyopod/runtime/power_service.py`, while app/runtime composition still owns
-  scheduling and shutdown orchestration
+  `src/yoyopod/integrations/power/service.py`
 
 ## Template For Future Migrations
 

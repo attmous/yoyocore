@@ -35,11 +35,15 @@ FILE_FORMAT = (
     "{message}"
 )
 _SUBSYSTEM_OVERRIDES = {
-    "yoyopod.communication": "comm",
+    "yoyopod.integrations.call": "comm",
+    "yoyopod.backends.voip": "comm",
     "yoyopod.audio": "music",
+    "yoyopod.integrations.music": "music",
+    "yoyopod.backends.music": "music",
     "yoyopod.coordinators": "coord",
     "yoyopod.ui": "ui",
-    "yoyopod.power": "power",
+    "yoyopod.integrations.power": "power",
+    "yoyopod.backends.power": "power",
     "yoyopod.config": "config",
 }
 

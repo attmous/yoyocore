@@ -29,10 +29,10 @@ Main files:
 - `src/yoyopod/integrations/power/manager.py`
 - `src/yoyopod/integrations/power/events.py`
 - `src/yoyopod/integrations/power/policies.py`
+- `src/yoyopod/integrations/power/service.py`
 - `src/yoyopod/integrations/power/__init__.py`
 - `src/yoyopod/backends/power/pisugar.py`
 - `src/yoyopod/backends/power/watchdog.py`
-- `src/yoyopod/runtime/power_service.py`
 - `src/yoyopod/coordinators/power.py`
 - `src/yoyopod/ui/screens/system/power_screen.py`
 - `src/yoyopod/cli/pi/power.py` (`yoyopod pi power battery`, `yoyopod pi power rtc`)
@@ -60,8 +60,7 @@ or UI behavior from those events.
 
 `src/yoyopod/integrations/power/` is now the canonical public ownership seam for
 the power manager, typed models, power-domain events, and safety policy.
-`src/yoyopod/power/` stays in place only as a compatibility package for
-historical imports.
+The historical top-level `src/yoyopod/power/` facade has been removed.
 
 ## Backends And Transports
 

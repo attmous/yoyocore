@@ -564,7 +564,7 @@ class _FakeVoiceService:
         return VoiceTranscript(text=self.transcript, confidence=0.92)
 
     def match_command(self, transcript: str):
-        from yoyopod.voice.commands import match_voice_command
+        from yoyopod.integrations.voice.commands import match_voice_command
 
         return match_voice_command(transcript)
 

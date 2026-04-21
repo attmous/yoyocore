@@ -59,12 +59,6 @@ def test_importing_core_bootstrap_keeps_feature_screens_unloaded() -> None:
     assert _loaded_screen_modules_for("yoyopod.core.bootstrap") == []
 
 
-def test_importing_runtime_boot_compat_keeps_feature_screens_unloaded() -> None:
-    """Importing the legacy runtime boot shim should stay as lazy as the canonical path."""
-
-    assert _loaded_screen_modules_for("yoyopod.runtime.boot") == []
-
-
 def test_importing_app_keeps_feature_screens_unloaded() -> None:
     """Importing the app shell should not eagerly import screen feature modules."""
 

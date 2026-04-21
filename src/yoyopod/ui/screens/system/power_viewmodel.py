@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from yoyopod.power.manager import PowerManager
-    from yoyopod.power.models import PowerSnapshot
+    from yoyopod.integrations.power import PowerManager
+    from yoyopod.integrations.power.models import PowerSnapshot
 
 
 @dataclass(frozen=True, slots=True)

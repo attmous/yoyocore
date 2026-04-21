@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from yoyopod.core import AppContext
 from yoyopod.core import VoiceState
-from yoyopod.power.models import (
+from yoyopod.integrations.power.models import (
     BatteryState,
     PowerDeviceInfo,
     PowerSnapshot,

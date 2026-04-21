@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -48,87 +46,6 @@ def lookup_contact_name(sip_address: str | None) -> str:
     if sip_address == "sip:mom@example.com":
         return "Mom"
     return "Unknown"
-
-
-def test_calling_package_reexports_iterate_metrics() -> None:
-    """The calling package should expose iterate metrics without backend imports."""
-
-    from yoyopod.communication.calling import VoIPIterateMetrics
-
-    assert VoIPIterateMetrics().drained_events == 0
-
-
-def test_backend_compat_shim_imports_mock_without_liblinphone() -> None:
-    """Mock-only imports should not pull in the production Liblinphone backend."""
-
-    repo_root = Path(__file__).resolve().parents[1]
-    script = """
-import sys
-
-from yoyopod.communication.calling.backend import MockVoIPBackend
-
-assert "yoyopod.communication.integrations.liblinphone.backend" not in sys.modules
-assert "yoyopod.backends.voip.liblinphone" not in sys.modules
-assert "yoyopod.backends.voip.mock_backend" in sys.modules
-assert MockVoIPBackend.__name__ == "MockVoIPBackend"
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=repo_root,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr or result.stdout
-
-
-def test_backend_compat_module_reexports_protocol_types() -> None:
-    """calling.backend should remain a stable import path for protocol types."""
-
-    from yoyopod.communication.calling.backend import VoIPBackend, VoIPIterateMetrics
-    from yoyopod.backends.voip.protocol import (
-        VoIPBackend as BackendProtocol,
-        VoIPIterateMetrics as IterateMetrics,
-    )
-
-    assert VoIPBackend is BackendProtocol
-    assert VoIPIterateMetrics is IterateMetrics
-
-
-def test_calling_messaging_compat_module_reexports_messaging_service() -> None:
-    """calling.messaging should remain a stable import path for MessagingService."""
-
-    from yoyopod.communication.calling.messaging import MessagingService as LegacyMessagingService
-
-    assert LegacyMessagingService is MessagingService
-
-
-def test_liblinphone_binding_compat_alias_reexports_binding_types() -> None:
-    """The legacy Liblinphone binding path should forward to the relocated module."""
-
-    from yoyopod.backends.voip.binding import (
-        LiblinphoneBinding as RelocatedBinding,
-        LiblinphoneBindingError as RelocatedBindingError,
-        LiblinphoneNativeEvent as RelocatedNativeEvent,
-    )
-    from yoyopod.communication.integrations.liblinphone_binding import (
-        LiblinphoneBinding as CompatBinding,
-        LiblinphoneBindingError as CompatBindingError,
-        LiblinphoneNativeEvent as CompatNativeEvent,
-    )
-    from yoyopod.communication.integrations.liblinphone_binding.binding import (
-        LiblinphoneBinding as CompatModuleBinding,
-        LiblinphoneBindingError as CompatModuleBindingError,
-        LiblinphoneNativeEvent as CompatModuleNativeEvent,
-    )
-
-    assert CompatBinding is RelocatedBinding
-    assert CompatBindingError is RelocatedBindingError
-    assert CompatNativeEvent is RelocatedNativeEvent
-    assert CompatModuleBinding is RelocatedBinding
-    assert CompatModuleBindingError is RelocatedBindingError
-    assert CompatModuleNativeEvent is RelocatedNativeEvent
 
 
 def test_messaging_service_normalizes_rcs_voice_note_envelope(tmp_path: Path) -> None:

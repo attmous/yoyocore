@@ -39,8 +39,9 @@ The frozen end state is:
 - `src/yoyopod/backends/`: external adapters only
 - `src/yoyopod/ui/`: display, input, and screens
 
-`src/yoyopod/runtime/` and `src/yoyopod/coordinators/` are migration scaffolding
-that should disappear before the hard merge.
+`src/yoyopod/runtime/` and the legacy domain-facade packages are now gone.
+`src/yoyopod/coordinators/` and `src/yoyopod/audio/` are the remaining
+transition buckets that should disappear before the hard merge.
 
 ## Startup And Bootstrap Flow
 
@@ -182,13 +183,11 @@ yoyopod.py / yoyopod.main
 - `src/yoyopod/app_context.py`: compatibility wrapper over focused shared runtime state
 - `src/yoyopod/runtime_state.py`: focused runtime state objects owned by `AppContext`
 - `src/yoyopod/core/bootstrap/`: boot-time composition and manager wiring
-- `src/yoyopod/runtime/boot/`: compatibility shims for the historical boot import path
 - `src/yoyopod/core/loop.py`: coordinator-loop scheduling and queued main-thread work
-- `src/yoyopod/runtime/loop.py`: compatibility shim for the historical loop import path
-- `src/yoyopod/runtime/recovery.py`: backend recovery supervision
+- `src/yoyopod/core/recovery.py`: backend recovery supervision and retry services
 - `src/yoyopod/integrations/display/service.py`: screen wake/sleep policy and power overlays
-- `src/yoyopod/runtime/shutdown.py`: shutdown countdowns, hooks, and lifecycle cleanup
-- `src/yoyopod/runtime/power_service.py`: power polling and watchdog cadence
+- `src/yoyopod/core/shutdown.py`: shutdown countdowns, hooks, and lifecycle cleanup
+- `src/yoyopod/integrations/power/service.py`: power polling and watchdog cadence
 
 ### Coordinators
 
@@ -203,31 +202,22 @@ yoyopod.py / yoyopod.main
 - `src/yoyopod/integrations/music/`: canonical music seam
 - `src/yoyopod/integrations/music/events.py`: music-domain typed events
 - `src/yoyopod/backends/music/`: concrete mpv adapters
-- `src/yoyopod/communication/__init__.py`: compatibility facade for historical communication imports
 - `src/yoyopod/integrations/call/`: canonical public call manager, session FSM/policy, lifecycle tracker, messaging service, models, message store, history, and voice-note seam
 - `src/yoyopod/integrations/call/events.py`: call-domain typed events
 - `src/yoyopod/backends/voip/`: canonical Liblinphone adapter, protocol types, mock backend, and native shim binding
-- `src/yoyopod/communication/calling/`: legacy compatibility shims plus remaining call helper modules
-- `src/yoyopod/communication/messaging/`: compatibility shim for the historical message-store path
-- `src/yoyopod/communication/models.py`: compatibility shim for the historical call-model import path
 - `src/yoyopod/core/fsm/call.py`: compatibility shim for the historical core-owned call FSM path
-- `src/yoyopod/communication/integrations/liblinphone/` and `liblinphone_binding/`: compatibility aliases for historical VoIP import paths
 - `src/yoyopod/integrations/contacts/`: mutable contacts/address-book domain
-- `src/yoyopod/people/`: compatibility shims for the historical contacts import path
 - `config/communication/integrations/liblinphone_factory.conf`: repo-managed Liblinphone factory config for media, codec, and network defaults
 
 ### Power, Network, Voice, and Display
 
 - `src/yoyopod/integrations/power/`: canonical power manager, models, and scaffold integration ownership
-- `src/yoyopod/power/`: compatibility shims plus the remaining power-specific events and safety policy code
 - `src/yoyopod/integrations/network/`: canonical network manager, modem models, and scaffold integration ownership
 - `src/yoyopod/integrations/network/events.py`: modem / PPP / signal events
-- `src/yoyopod/network/`: compatibility shims for the historical network import path
 - `src/yoyopod/integrations/location/`: canonical GPS/location seam
 - `src/yoyopod/integrations/location/events.py`: GPS fix/no-fix events
 - `src/yoyopod/integrations/voice/`: canonical voice manager, service alias, and typed voice models
 - `src/yoyopod/backends/voice/`: concrete capture, playback, STT, and TTS adapters
-- `src/yoyopod/voice/`: compatibility shims plus the remaining command-matching code
 - `src/yoyopod/integrations/display/`: canonical display awake/sleep/brightness/timeout seam, including the live screen-power helper
 
 ### UI Layer
@@ -361,10 +351,14 @@ For current behavior, trust these files over older notes or demos:
 - `src/yoyopod/coordinators/registry.py`
 - `src/yoyopod/backends/music/`
 - `src/yoyopod/integrations/music/`
-- `src/yoyopod/communication/`
+- `src/yoyopod/backends/voip/`
+- `src/yoyopod/integrations/call/`
+- `src/yoyopod/integrations/power/`
 - `src/yoyopod/integrations/contacts/`
 - `src/yoyopod/integrations/network/`
 - `src/yoyopod/integrations/voice/`
+- `src/yoyopod/core/bootstrap/`
+- `src/yoyopod/core/loop.py`
 - `src/yoyopod/ui/display/`
 - `src/yoyopod/ui/input/`
 - `src/yoyopod/ui/screens/`

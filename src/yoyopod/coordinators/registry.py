@@ -22,8 +22,8 @@ if TYPE_CHECKING:
     from yoyopod.backends.music import MusicBackend
     from yoyopod.config import ConfigManager
     from yoyopod.core import AppContext
-    from yoyopod.power.manager import PowerManager
-    from yoyopod.power.models import PowerSnapshot
+    from yoyopod.integrations.power import PowerManager
+    from yoyopod.integrations.power.models import PowerSnapshot
     from yoyopod.ui.screens.manager import ScreenManager
     from yoyopod.ui.screens.music.now_playing import NowPlayingScreen
     from yoyopod.ui.screens.system.power import PowerScreen

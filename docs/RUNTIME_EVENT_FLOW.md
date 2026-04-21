@@ -57,7 +57,6 @@ This is where the app decides which backend signals become typed runtime events.
 
 Canonical owner:
 - `src/yoyopod/core/bootstrap/`
-- `src/yoyopod/runtime/boot/` is now a compatibility shim only
 
 ### `RuntimeLoopService`
 
@@ -74,7 +73,6 @@ work keeps the loop on a 10 ms cadence instead of collapsing into a zero-sleep s
 
 Canonical owner:
 - `src/yoyopod/core/loop.py`
-- `src/yoyopod/runtime/loop.py` is now a compatibility shim only
 
 ### `CoordinatorRuntime`
 
@@ -129,13 +127,15 @@ It reacts to `ScreenChangedEvent`, `UserActivityEvent`, and low-battery events, 
 
 Canonical owner:
 - `src/yoyopod/integrations/display/service.py`
-- `src/yoyopod/runtime/screen_power.py` is now a compatibility shim only
 
 ### `RuntimeRecoveryService`
 
 Owns:
 - backend recovery attempts
 - publishing recovery completion events
+
+Canonical owner:
+- `src/yoyopod/core/recovery.py`
 
 ### `integrations.power.PowerRuntimeService`
 
@@ -357,8 +357,10 @@ If ordering looks inconsistent, this is usually the first place to check.
 ## Source files to trust
 
 - `src/yoyopod/app.py`
+- `src/yoyopod/core/application.py`
 - `src/yoyopod/core/bootstrap/`
 - `src/yoyopod/core/loop.py`
+- `src/yoyopod/core/recovery.py`
 - `src/yoyopod/coordinators/registry.py`
 - `src/yoyopod/coordinators/call.py`
 - `src/yoyopod/coordinators/playback.py`
