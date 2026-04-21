@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 import threading
 from typing import Callable
 
@@ -23,6 +24,8 @@ class YoyoPodAppShell:
         self.log_buffer: LogBuffer[dict[str, object]] = LogBuffer(maxlen=log_buffer_size)
         self.states = States(self.bus)
         self.services = Services(self.bus, diagnostics_log=self.log_buffer)
+        self.config: object | None = None
+        self.integrations: dict[str, object] = {}
         self.running = False
         self._ui_tick_callback: Callable[[], None] | None = None
 
@@ -53,3 +56,20 @@ class YoyoPodAppShell:
         if self._ui_tick_callback is not None:
             self._ui_tick_callback()
         return processed
+
+    def run(self, *, sleep_seconds: float = 0.01, max_iterations: int | None = None) -> int:
+        """Run the scaffold main loop until stopped or iteration-limited."""
+
+        iterations = 0
+        total_processed = 0
+        if not self.running:
+            self.start()
+
+        while self.running:
+            total_processed += self.tick()
+            iterations += 1
+            if max_iterations is not None and iterations >= max_iterations:
+                break
+            time.sleep(sleep_seconds)
+
+        return total_processed

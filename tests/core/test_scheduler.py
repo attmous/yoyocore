@@ -29,3 +29,15 @@ def test_scheduler_queues_background_work_until_drain() -> None:
     assert scheduler.pending_count() == 1
     assert scheduler.drain() == 1
     assert seen == ["queued"]
+
+
+def test_scheduler_post_queues_main_thread_work_until_drain() -> None:
+    scheduler = MainThreadScheduler()
+    seen: list[str] = []
+
+    scheduler.post(lambda: seen.append("queued"))
+
+    assert seen == []
+    assert scheduler.pending_count() == 1
+    assert scheduler.drain() == 1
+    assert seen == ["queued"]

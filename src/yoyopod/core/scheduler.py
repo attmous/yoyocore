@@ -20,6 +20,11 @@ class MainThreadScheduler:
         if threading.get_ident() == self.main_thread_id:
             fn()
             return
+        self.post(fn)
+
+    def post(self, fn: Callable[[], None]) -> None:
+        """Queue one callback for the main thread to run on a later drain."""
+
         self._queue.put(fn)
 
     def drain(self, limit: int | None = None) -> int:
