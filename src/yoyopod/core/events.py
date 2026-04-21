@@ -58,7 +58,7 @@ class UserActivityEvent:
 class RecoveryAttemptCompletedEvent:
     """Published when a background backend recovery attempt finishes."""
 
-    manager: Literal["music"]
+    manager: Literal["music", "network"]
     recovered: bool
     recovery_now: float
 

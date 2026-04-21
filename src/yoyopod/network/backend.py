@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
@@ -21,6 +22,7 @@ class NetworkBackend(Protocol):
 
     def probe(self) -> bool: ...
     def get_state(self) -> ModemState: ...
+    def is_online(self) -> bool: ...
 
 
 class Sim7600Backend:
@@ -50,6 +52,24 @@ class Sim7600Backend:
 
     def get_state(self) -> ModemState:
         return self._state
+
+    def is_online(self) -> bool:
+        """Return True when the active PPP session still looks healthy."""
+
+        if self._state.phase != ModemPhase.ONLINE:
+            return False
+
+        if not self._ppp.is_alive():
+            self._state.phase = ModemPhase.REGISTERED
+            self._state.error = "PPP process exited"
+            return False
+
+        if not Path("/sys/class/net/ppp0").exists():
+            self._state.phase = ModemPhase.REGISTERED
+            self._state.error = "PPP interface down"
+            return False
+
+        return True
 
     def open(self) -> None:
         self._transport.open()
@@ -98,16 +118,29 @@ class Sim7600Backend:
         if self._config.gps_enabled:
             self._at.enable_gps()
 
-    def start_ppp(self) -> bool:
+    def start_ppp(self, *, wait_for_link: bool = True) -> bool:
         self._state.phase = ModemPhase.PPP_STARTING
-        self._at.configure_pdp(self._config.apn)
+        apn = str(self._config.apn or "").strip()
+        if apn:
+            self._at.configure_pdp(apn)
+        else:
+            logger.warning("Network APN is empty; leaving modem PDP context unchanged")
 
         if not self._ppp.spawn():
             self._state.phase = ModemPhase.REGISTERED
             self._state.error = "PPP failed to start"
             return False
 
-        if not self._ppp.wait_for_link(timeout=self._config.ppp_timeout):
+        if not wait_for_link:
+            return True
+
+        return self.wait_for_ppp_link(timeout=self._config.ppp_timeout)
+
+    def wait_for_ppp_link(self, timeout: float | None = None) -> bool:
+        """Wait for the spawned PPP session to expose ppp0."""
+
+        effective_timeout = self._config.ppp_timeout if timeout is None else timeout
+        if not self._ppp.wait_for_link(timeout=effective_timeout):
             self._ppp.kill()
             self._state.phase = ModemPhase.REGISTERED
             self._state.error = "PPP negotiation timed out"
