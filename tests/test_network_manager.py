@@ -356,6 +356,41 @@ def test_manager_stop_cancels_ppp_start_after_post_init_events() -> None:
     assert not any(isinstance(event, NetworkPppUpEvent) for event in published)
 
 
+def test_manager_stop_suppresses_ppp_up_event_after_ppp_link_ready() -> None:
+    """stop() should suppress stale PPP-up publish if teardown lands after link-up."""
+
+    config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
+    backend = FakeBackend()
+    backend.state.phase = ModemPhase.REGISTERING
+    backend.health_online = False
+    manager = NetworkManager(config=config, backend=backend)
+    published: list[object] = []
+    original_start_ppp = manager._start_ppp
+    stop_requested = False
+
+    def intercept_publish(event: object) -> None:
+        published.append(event)
+
+    def stop_after_ppp(*, expected_generation: int | None = None) -> bool:
+        nonlocal stop_requested
+        result = original_start_ppp(expected_generation=expected_generation)
+        if result and not stop_requested:
+            stop_requested = True
+            manager.stop()
+        return result
+
+    manager._publish = intercept_publish
+    manager._start_ppp = stop_after_ppp
+
+    recovered = manager.recover()
+
+    assert recovered is False
+    assert backend.closed is True
+    assert backend.ppp_started is True
+    assert any(isinstance(event, NetworkPppDownEvent) for event in published)
+    assert not any(isinstance(event, NetworkPppUpEvent) for event in published)
+
+
 def test_manager_from_config_manager_uses_domain_owned_network_settings(tmp_path) -> None:
     """from_config_manager() should read the canonical network domain file."""
 

@@ -99,6 +99,9 @@ class NetworkManager:
                     logger.debug("Initial GPS query failed: {}", exc)
 
             if self._start_ppp(expected_generation=expected_generation):
+                if not self._lifecycle_generation_matches(expected_generation):
+                    logger.info("Skipping PPP-up publish after concurrent lifecycle change")
+                    return False
                 self._publish(NetworkPppUpEvent(connection_type="4g"))
         else:
             logger.error("Modem init failed: {}", state.error)
