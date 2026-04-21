@@ -170,7 +170,8 @@ These are good places to be extra careful:
 
 - `src/yoyopod/core/bootstrap/`
 - `src/yoyopod/core/application.py`
-- `src/yoyopod/core/event_bus.py`
+- `src/yoyopod/core/bus.py`
+- `src/yoyopod/core/scheduler.py`
 - `src/yoyopod/core/app_context.py`
 - duplicated domain/state models that drift across layers
 - setup/docs wording that can overstate what the new commands guarantee

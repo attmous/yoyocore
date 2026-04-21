@@ -180,7 +180,7 @@ class ComponentsBoot:
             self.app.screen_manager = self.screen_manager_cls(
                 display,
                 self.app.input_manager,
-                action_scheduler=self.app.runtime_loop.queue_main_thread_callback,
+                action_scheduler=self.app.scheduler.run_on_main,
             )
             return True
         except Exception:

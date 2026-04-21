@@ -23,7 +23,6 @@ _PUBLIC_EXPORTS = {
     "CallStateChangedEvent": ("yoyopod.core.events", "CallStateChangedEvent"),
     "CoordinatorRuntime": ("yoyopod.core.ui_state", "CoordinatorRuntime"),
     "DiagnosticsRuntime": ("yoyopod.core.diagnostics", "DiagnosticsRuntime"),
-    "EventBus": ("yoyopod.core.event_bus", "EventBus"),
     "EventLogWriter": ("yoyopod.core.diagnostics", "EventLogWriter"),
     "FocusController": ("yoyopod.core.focus", "FocusController"),
     "IncomingCallEvent": ("yoyopod.core.events", "IncomingCallEvent"),

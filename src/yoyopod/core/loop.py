@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from queue import Empty
 from typing import TYPE_CHECKING, Any, Callable, Optional, TypeVar
 
 from loguru import logger
@@ -49,44 +48,30 @@ _T = TypeVar("_T")
 class _MainThreadDrainResult:
     """Snapshot one coordinator-thread queue drain so backlog pressure is visible."""
 
-    callbacks_processed: int = 0
+    scheduled_tasks_processed: int = 0
     events_processed: int = 0
-    callbacks_deferred: int = 0
+    scheduled_tasks_deferred: int = 0
     events_deferred: int = 0
-    callback_budget: int | None = None
-    event_budget: int | None = None
+    scheduler_budget: int | None = None
+    bus_budget: int | None = None
 
     @property
     def total_processed(self) -> int:
         """Return the total amount of generic queue work advanced in one drain."""
 
-        return self.callbacks_processed + self.events_processed
+        return self.scheduled_tasks_processed + self.events_processed
 
     @property
-    def callback_budget_hit(self) -> bool:
-        """Return whether queued callbacks were deferred by the per-iteration budget."""
+    def scheduler_budget_hit(self) -> bool:
+        """Return whether queued scheduler tasks were deferred by the per-iteration budget."""
 
-        return self.callback_budget is not None and self.callbacks_deferred > 0
+        return self.scheduler_budget is not None and self.scheduled_tasks_deferred > 0
 
     @property
-    def event_budget_hit(self) -> bool:
+    def bus_budget_hit(self) -> bool:
         """Return whether queued typed events were deferred by the per-iteration budget."""
 
-        return self.event_budget is not None and self.events_deferred > 0
-
-
-@dataclass(frozen=True, slots=True)
-class _CallbackDrainResult:
-    """Track ordinary and safety callback drain counts for one coordinator step."""
-
-    regular_callbacks_processed: int = 0
-    safety_callbacks_processed: int = 0
-
-    @property
-    def total_processed(self) -> int:
-        """Return the total number of callbacks advanced in one drain."""
-
-        return self.regular_callbacks_processed + self.safety_callbacks_processed
+        return self.bus_budget is not None and self.events_deferred > 0
 
 
 def _queue_depth(queue_obj: object) -> int | None:
@@ -118,8 +103,8 @@ class RuntimeLoopService:
     _PENDING_WORK_LOOP_INTERVAL_SECONDS = 0.01
     _RELAXED_IDLE_INTERVAL_SECONDS = 0.05
     _SCREEN_SLEEP_IDLE_INTERVAL_SECONDS = 0.1
-    _MAIN_THREAD_CALLBACK_DRAIN_BUDGET = 4
-    _EVENT_BUS_DRAIN_BUDGET = 8
+    _SCHEDULER_DRAIN_BUDGET = 4
+    _BUS_DRAIN_BUDGET = 8
     _DRAIN_BUDGET_LOG_INTERVAL_SECONDS = 1.0
     _LATENCY_SENSITIVE_STATES = frozenset(
         {
@@ -147,14 +132,14 @@ class RuntimeLoopService:
         self._last_runtime_blocking_span_name: str | None = None
         self._last_runtime_blocking_span_seconds = 0.0
         self._last_runtime_blocking_span_recorded_at = 0.0
-        self._last_main_thread_callbacks_drained = 0
-        self._last_event_bus_events_drained = 0
-        self._last_main_thread_callbacks_deferred = 0
-        self._last_event_bus_events_deferred = 0
-        self._last_main_thread_callback_budget_hit = False
-        self._last_event_bus_event_budget_hit = False
-        self._last_main_thread_callback_drain_budget: int | None = None
-        self._last_event_bus_drain_budget: int | None = None
+        self._last_scheduler_tasks_drained = 0
+        self._last_bus_events_drained = 0
+        self._last_scheduler_tasks_deferred = 0
+        self._last_bus_events_deferred = 0
+        self._last_scheduler_budget_hit = False
+        self._last_bus_event_budget_hit = False
+        self._last_scheduler_drain_budget: int | None = None
+        self._last_bus_drain_budget: int | None = None
         self._last_drain_budget_log_at = 0.0
         self._voip_timing_window = _VoipTimingWindow()
         self._current_cadence_mode = "startup"
@@ -204,17 +189,17 @@ class RuntimeLoopService:
         _sync_background_voip_timing_sample_impl(self)
 
     def process_pending_main_thread_actions(self, limit: Optional[int] = None) -> int:
-        """Drain queued typed events scheduled by worker threads."""
+        """Drain queued scheduler tasks and typed events."""
         started_at = time.monotonic()
-        callback_result = self._drain_pending_main_thread_callbacks(limit)
+        scheduled_tasks_processed = self._drain_scheduler_tasks(limit)
         remaining_limit = (
             None
             if limit is None
-            else max(0, limit - callback_result.regular_callbacks_processed)
+            else max(0, limit - scheduled_tasks_processed)
         )
-        events_processed = self.app.event_bus.drain(remaining_limit)
+        events_processed = self.app.bus.drain(remaining_limit)
         result = self._snapshot_main_thread_drain_result(
-            callbacks_processed=callback_result.total_processed,
+            scheduled_tasks_processed=scheduled_tasks_processed,
             events_processed=events_processed,
         )
         self._record_main_thread_drain_result(result)
@@ -230,14 +215,14 @@ class RuntimeLoopService:
         """Advance generic queue work with hard per-iteration fairness budgets."""
 
         started_at = time.monotonic()
-        callback_budget = self._main_thread_callback_drain_budget()
-        event_budget = self._event_bus_drain_budget()
-        callback_result = self._drain_pending_main_thread_callbacks(callback_budget)
+        scheduler_budget = self._scheduler_drain_budget()
+        bus_budget = self._bus_drain_budget()
+        scheduled_tasks_processed = self._drain_scheduler_tasks(scheduler_budget)
         result = self._snapshot_main_thread_drain_result(
-            callbacks_processed=callback_result.total_processed,
-            events_processed=self.app.event_bus.drain(event_budget),
-            callback_budget=callback_budget,
-            event_budget=event_budget,
+            scheduled_tasks_processed=scheduled_tasks_processed,
+            events_processed=self.app.bus.drain(bus_budget),
+            scheduler_budget=scheduler_budget,
+            bus_budget=bus_budget,
         )
         self._record_main_thread_drain_result(result)
         self._maybe_log_main_thread_drain_budget_hit(result)
@@ -249,15 +234,15 @@ class RuntimeLoopService:
         )
         return result.total_processed
 
-    def _main_thread_callback_drain_budget(self) -> int:
-        """Return the maximum callback count the coordinator should drain per iteration."""
+    def _scheduler_drain_budget(self) -> int:
+        """Return the maximum scheduler task count the coordinator should drain per iteration."""
 
-        return max(1, int(self._MAIN_THREAD_CALLBACK_DRAIN_BUDGET))
+        return max(1, int(self._SCHEDULER_DRAIN_BUDGET))
 
-    def _event_bus_drain_budget(self) -> int:
+    def _bus_drain_budget(self) -> int:
         """Return the maximum typed event count the coordinator should drain per iteration."""
 
-        return max(1, int(self._EVENT_BUS_DRAIN_BUDGET))
+        return max(1, int(self._BUS_DRAIN_BUDGET))
 
     def _pending_work_loop_sleep_seconds(self) -> float:
         """Return the coordinator sleep used while generic queue work is backlogged."""
@@ -266,99 +251,68 @@ class RuntimeLoopService:
         # between iterations instead of tracking the faster VoIP cadence.
         return self._PENDING_WORK_LOOP_INTERVAL_SECONDS
 
-    def _drain_pending_main_thread_callbacks(
+    def _drain_scheduler_tasks(
         self,
-        limit: int | None = None,
-    ) -> _CallbackDrainResult:
-        """Run safety callbacks ahead of ordinary queue work."""
-
-        safety_callbacks_processed = self._drain_callback_queue(
-            self.app._pending_safety_main_thread_callbacks
-        )
-        regular_callbacks_processed = self._drain_callback_queue(
-            self.app._pending_main_thread_callbacks,
-            limit=limit,
-        )
-        return _CallbackDrainResult(
-            regular_callbacks_processed=regular_callbacks_processed,
-            safety_callbacks_processed=safety_callbacks_processed,
-        )
-
-    def _drain_callback_queue(
-        self,
-        queue_obj: Any,
-        *,
         limit: int | None = None,
     ) -> int:
-        """Run queued coordinator-thread callbacks with an optional hard count limit."""
+        """Run queued scheduler tasks with an optional hard count limit."""
 
-        processed = 0
-        while limit is None or processed < limit:
-            try:
-                callback = queue_obj.get_nowait()
-            except Empty:
-                break
-
-            try:
-                callback()
-            except Exception as exc:
-                logger.error(f"Error handling scheduled main-thread callback: {exc}")
-            processed += 1
-
-        return processed
+        return self.app.scheduler.drain(limit)
 
     def _snapshot_main_thread_drain_result(
         self,
         *,
-        callbacks_processed: int,
+        scheduled_tasks_processed: int,
         events_processed: int,
-        callback_budget: int | None = None,
-        event_budget: int | None = None,
+        scheduler_budget: int | None = None,
+        bus_budget: int | None = None,
     ) -> _MainThreadDrainResult:
         """Capture drain totals and remaining backlog after one coordinator drain."""
 
-        callback_backlog = self.app._pending_main_thread_callback_count()
-        # Deferred callback count is best-effort: queues without qsize support degrade
+        scheduler_backlog = self.app.scheduler.pending_count()
+        # Deferred scheduler count is best-effort: queues without qsize support degrade
         # to 0 here rather than paying extra coordinator work to derive a stronger estimate.
         return _MainThreadDrainResult(
-            callbacks_processed=callbacks_processed,
+            scheduled_tasks_processed=scheduled_tasks_processed,
             events_processed=events_processed,
-            callbacks_deferred=max(0, callback_backlog) if callback_backlog is not None else 0,
-            events_deferred=max(0, self.app.event_bus.pending_count()),
-            callback_budget=callback_budget,
-            event_budget=event_budget,
+            scheduled_tasks_deferred=(
+                max(0, scheduler_backlog) if scheduler_backlog is not None else 0
+            ),
+            events_deferred=max(0, self.app.bus.pending_count()),
+            scheduler_budget=scheduler_budget,
+            bus_budget=bus_budget,
         )
 
     def _record_main_thread_drain_result(self, result: _MainThreadDrainResult) -> None:
         """Persist the latest queue-drain snapshot for diagnostics and status output."""
 
-        self._last_main_thread_callbacks_drained = result.callbacks_processed
-        self._last_event_bus_events_drained = result.events_processed
-        self._last_main_thread_callbacks_deferred = result.callbacks_deferred
-        self._last_event_bus_events_deferred = result.events_deferred
-        self._last_main_thread_callback_budget_hit = result.callback_budget_hit
-        self._last_event_bus_event_budget_hit = result.event_budget_hit
-        self._last_main_thread_callback_drain_budget = result.callback_budget
-        self._last_event_bus_drain_budget = result.event_budget
+        self._last_scheduler_tasks_drained = result.scheduled_tasks_processed
+        self._last_bus_events_drained = result.events_processed
+        self._last_scheduler_tasks_deferred = result.scheduled_tasks_deferred
+        self._last_bus_events_deferred = result.events_deferred
+        self._last_scheduler_budget_hit = result.scheduler_budget_hit
+        self._last_bus_event_budget_hit = result.bus_budget_hit
+        self._last_scheduler_drain_budget = result.scheduler_budget
+        self._last_bus_drain_budget = result.bus_budget
 
     def _main_thread_drain_detail(self, result: _MainThreadDrainResult) -> str:
         """Format one queue-drain snapshot for warnings and debug logs."""
 
-        callback_budget = (
-            "all" if result.callback_budget is None else str(result.callback_budget)
+        scheduler_budget = (
+            "all" if result.scheduler_budget is None else str(result.scheduler_budget)
         )
-        event_budget = "all" if result.event_budget is None else str(result.event_budget)
+        bus_budget = "all" if result.bus_budget is None else str(result.bus_budget)
         return (
-            f"callbacks={result.callbacks_processed}/{callback_budget} "
-            f"events={result.events_processed}/{event_budget} "
-            f"deferred_callbacks={result.callbacks_deferred} "
+            f"scheduler_tasks={result.scheduled_tasks_processed}/{scheduler_budget} "
+            f"events={result.events_processed}/{bus_budget} "
+            f"deferred_scheduler_tasks={result.scheduled_tasks_deferred} "
             f"deferred_events={result.events_deferred}"
         )
 
     def _maybe_log_main_thread_drain_budget_hit(self, result: _MainThreadDrainResult) -> None:
         """Surface queue-budget pressure without logging on every hot-loop iteration."""
 
-        if not (result.callback_budget_hit or result.event_budget_hit):
+        if not (result.scheduler_budget_hit or result.bus_budget_hit):
             return
 
         now = time.monotonic()
@@ -373,14 +327,14 @@ class RuntimeLoopService:
         self._last_drain_budget_log_at = now
         coord_logger.warning(
             "Main-thread drain budget hit: "
-            "callbacks_drained={} callback_budget={} callbacks_deferred={} "
-            "events_drained={} event_budget={} events_deferred={} "
+            "scheduler_tasks_drained={} scheduler_budget={} scheduler_tasks_deferred={} "
+            "events_drained={} bus_budget={} events_deferred={} "
             "cadence_mode={} cadence_reason={} screen={} state={}",
-            result.callbacks_processed,
-            result.callback_budget,
-            result.callbacks_deferred,
+            result.scheduled_tasks_processed,
+            result.scheduler_budget,
+            result.scheduled_tasks_deferred,
             result.events_processed,
-            result.event_budget,
+            result.bus_budget,
             result.events_deferred,
             self._current_cadence_mode,
             self._current_cadence_reason,
@@ -395,11 +349,8 @@ class RuntimeLoopService:
         safety: bool = False,
     ) -> None:
         """Schedule a callback to run on the coordinator thread."""
-        if safety:
-            # Safety completions must bypass the ordinary per-iteration fairness cap.
-            self.app._pending_safety_main_thread_callbacks.put(callback)
-            return
-        self.app._pending_main_thread_callbacks.put(callback)
+        del safety
+        self.app.scheduler.post(callback)
 
     def queue_lvgl_input_action(self, action: Any, _data: Optional[Any] = None) -> None:
         """Queue semantic actions for LVGL from input polling threads."""
@@ -508,7 +459,7 @@ class RuntimeLoopService:
                 "interval_ms={:.1f} configured_interval_ms={:.1f} "
                 "native_iterate_ms={:.1f} event_drain_ms={:.1f} "
                 "native_events={} cadence_mode={} cadence_reason={} "
-                "pending_callbacks={} pending_events={} screen={} state={}",
+                "pending_scheduler_tasks={} pending_events={} screen={} state={}",
                 schedule_delay_seconds * 1000.0,
                 iterate_duration_seconds * 1000.0,
                 since_last_iterate_seconds * 1000.0,
@@ -519,8 +470,8 @@ class RuntimeLoopService:
                 native_events,
                 self._current_cadence_mode,
                 self._current_cadence_reason,
-                self.app._pending_main_thread_callback_count(),
-                self.app.event_bus.pending_count(),
+                self.app.scheduler.pending_count(),
+                self.app.bus.pending_count(),
                 self._current_screen_name(),
                 self._runtime_state_name(),
             )
@@ -667,10 +618,10 @@ class RuntimeLoopService:
             ):
                 coord_logger.warning(
                     "Runtime iteration slow: "
-                    "iteration_ms={:.1f} pending_callbacks={} pending_events={} screen={} state={}",
+                    "iteration_ms={:.1f} pending_scheduler_tasks={} pending_events={} screen={} state={}",
                     self._last_runtime_iteration_duration_seconds * 1000.0,
-                    self.app._pending_main_thread_callback_count(),
-                    self.app.event_bus.pending_count(),
+                    self.app.scheduler.pending_count(),
+                    self.app.bus.pending_count(),
                     self._current_screen_name(),
                     self._runtime_state_name(),
                 )
@@ -847,18 +798,18 @@ class RuntimeLoopService:
             "voip_effective_iterate_interval_seconds": (
                 self._current_voip_iterate_interval_seconds
             ),
-            "runtime_main_thread_callbacks_drained": self._last_main_thread_callbacks_drained,
-            "runtime_event_bus_events_drained": self._last_event_bus_events_drained,
-            "runtime_main_thread_callbacks_deferred": self._last_main_thread_callbacks_deferred,
-            "runtime_event_bus_events_deferred": self._last_event_bus_events_deferred,
-            "runtime_main_thread_callback_drain_budget": (
-                self._last_main_thread_callback_drain_budget
+            "runtime_scheduler_tasks_drained": self._last_scheduler_tasks_drained,
+            "runtime_bus_events_drained": self._last_bus_events_drained,
+            "runtime_scheduler_tasks_deferred": self._last_scheduler_tasks_deferred,
+            "runtime_bus_events_deferred": self._last_bus_events_deferred,
+            "runtime_scheduler_drain_budget": (
+                self._last_scheduler_drain_budget
             ),
-            "runtime_event_bus_drain_budget": self._last_event_bus_drain_budget,
-            "runtime_main_thread_callback_budget_hit": (
-                self._last_main_thread_callback_budget_hit
+            "runtime_bus_drain_budget": self._last_bus_drain_budget,
+            "runtime_scheduler_budget_hit": (
+                self._last_scheduler_budget_hit
             ),
-            "runtime_event_bus_event_budget_hit": self._last_event_bus_event_budget_hit,
+            "runtime_bus_event_budget_hit": self._last_bus_event_budget_hit,
             "runtime_blocking_span_name": self._last_runtime_blocking_span_name,
             "runtime_blocking_span_seconds": (
                 self._last_runtime_blocking_span_seconds
@@ -929,13 +880,13 @@ class RuntimeLoopService:
         coord_logger.warning(
             "Runtime loop blocked: "
             "gap_ms={:.1f} interval_ms={:.1f} cadence_mode={} cadence_reason={} "
-            "pending_callbacks={} pending_events={} screen={} state={}",
+            "pending_scheduler_tasks={} pending_events={} screen={} state={}",
             loop_gap_seconds * 1000.0,
             self._effective_voip_iterate_interval_seconds() * 1000.0,
             self._current_cadence_mode,
             self._current_cadence_reason,
-            self.app._pending_main_thread_callback_count(),
-            self.app.event_bus.pending_count(),
+            self.app.scheduler.pending_count(),
+            self.app.bus.pending_count(),
             self._current_screen_name(),
             self._runtime_state_name(),
         )

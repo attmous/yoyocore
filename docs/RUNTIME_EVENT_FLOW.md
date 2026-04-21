@@ -13,24 +13,22 @@ The runtime has one coordinator thread, centered on `YoyoPodApp`.
 
 Background or device-facing code does not usually mutate UI state directly. Instead, it either:
 
-1. publishes a typed event onto `EventBus`, or
-2. queues a main-thread callback through `RuntimeLoopService`
+1. schedules a main-thread task through `MainThreadScheduler`, or
+2. publishes a typed event onto `Bus` from already-main-thread code.
 
-`RuntimeLoopService.run_iteration()` then drains that work on the coordinator thread and lets the extracted coordinators update FSM state, screens, and shared context.
+`RuntimeLoopService.run_iteration()` then drains scheduler tasks first, drains bus events second, and lets the extracted coordinators update FSM state, screens, and shared context.
 
 ## Dispatch rules
 
-`EventBus.publish()` is synchronous when called on the coordinator thread and queued when called off-thread.
+`Bus.publish()` is main-thread-only.
 
-That means event timing depends on the publisher:
+That means background timing follows one rule:
 
-- power events published during coordinator-loop polling dispatch inline
-- screen-change events published from `ScreenManager` dispatch inline
-- VoIP call and registration events dispatch inline because Liblinphone iterate runs on the coordinator thread
-- mpv events queue because mpv callbacks arrive on background IPC threads
-- music recovery completion queues because it is published from a worker thread
+- backend callbacks schedule their handling through `MainThreadScheduler`
+- scheduled handlers may then publish typed events onto `Bus`
+- the next coordinator iteration drains scheduler tasks before it drains bus events
 
-This difference is real current behavior, not an implementation detail to ignore while debugging.
+This is the real current behavior, not an implementation detail to ignore while debugging.
 
 ## Ownership map
 
@@ -38,7 +36,8 @@ This difference is real current behavior, not an implementation detail to ignore
 
 Owns:
 - process-wide composition root
-- the single `EventBus`
+- the single `Bus`
+- the shared `MainThreadScheduler`
 - shared managers, screens, FSM instances, and runtime services
 - app-level event handlers that still write directly into `AppContext`
 - the coordinator-thread loop through `RuntimeLoopService`
@@ -51,7 +50,7 @@ Owns:
 - boot-time wiring
 - constructing `CoordinatorRuntime`
 - binding backend callbacks to event publishers
-- binding extracted coordinators to the `EventBus`
+- binding extracted coordinators to the `Bus`
 
 This is where the app decides which backend signals become typed runtime events.
 
@@ -62,12 +61,12 @@ Canonical owner:
 
 Owns:
 - loop cadence
-- draining queued callbacks and typed events
+- draining queued scheduler tasks and typed events
 - calling recovery, power-runtime, shutdown, LVGL, and periodic screen refresh work in a stable order
 
 This service is the bridge between queued background work and deterministic main-thread handling.
 Current fairness protections are intentionally local to this service: each coordinator
-iteration drains at most 4 queued callbacks and 8 queued `EventBus` items before it
+iteration drains at most 4 queued scheduler tasks and 8 queued `Bus` items before it
 continues into protected VoIP, LVGL, watchdog, and power spans, and pending generic
 work keeps the loop on a 10 ms cadence instead of collapsing into a zero-sleep spin.
 
@@ -163,20 +162,21 @@ Examples:
 - input hardware reports user activity
 - `NetworkManager` publishes PPP, signal, or GPS events
 
-## 2. The producer publishes onto `EventBus`
+## 2. The producer schedules onto main and publishes onto `Bus`
 
 The common pattern is:
 - boot wiring registers backend callbacks in `RuntimeBootService`
-- those callbacks call `publish_*()` methods on a coordinator or service
-- `EventBus.publish()` dispatches immediately on the main thread or queues when called from another thread
+- those callbacks schedule handling through `app.scheduler.run_on_main(...)`
+- the scheduled handler calls `publish_*()` methods on a coordinator or service
+- those handlers publish typed events onto `Bus` from the coordinator thread
 
 This means background threads can report state changes without touching UI objects directly.
 
 ## 3. `RuntimeLoopService` drains work on the coordinator thread
 
 `RuntimeLoopService.process_pending_main_thread_actions()` does two things in order:
-- drains explicit queued callbacks from `_pending_main_thread_callbacks`
-- drains queued typed events from `EventBus`
+- drains queued scheduler tasks from `MainThreadScheduler`
+- drains queued typed events from `Bus`
 
 Inside `run_iteration()`, that same drain step is fairness-bounded instead of trying to
 empty every queue in one pass: the coordinator processes up to 4 queued callbacks and
@@ -197,8 +197,8 @@ Handlers live in two places today:
 ### Incoming call flow
 
 1. `VoIPManager` invokes the callback registered by `RuntimeBootService.setup_voip_callbacks()`.
-2. That callback calls `CallCoordinator.publish_incoming_call()`.
-3. `CallCoordinator` publishes `IncomingCallEvent` onto `EventBus`.
+2. That callback schedules `CallCoordinator.publish_incoming_call()` onto the main thread.
+3. `CallCoordinator` publishes `IncomingCallEvent` onto `Bus`.
 4. `RuntimeLoopService` drains the event on the coordinator thread.
 5. `CallCoordinator.handle_incoming_call()`:
    - guards against duplicate handling
@@ -224,7 +224,7 @@ Notable ownership detail: `CallCoordinator` directly decides music pause/resume 
 
 1. `MpvBackend` invokes callbacks registered in `RuntimeBootService.setup_music_callbacks()`.
 2. `PlaybackCoordinator.publish_track_change()` or `publish_playback_state_change()` publishes the music-domain events now owned by `src/yoyopod/integrations/music/events.py`.
-3. Those callbacks arrive from the mpv IPC dispatch thread, so the `EventBus` queues them for the coordinator thread.
+3. Those callbacks arrive from the mpv IPC dispatch thread, so boot wiring schedules them onto the main thread before they publish onto `Bus`.
 4. The coordinator-thread drain calls `PlaybackCoordinator.handle_track_change()` or `handle_playback_state_change()`.
 5. `PlaybackCoordinator` updates `MusicFSM`, re-derives app state, records recents, and refreshes the now-playing screen.
 
@@ -260,7 +260,7 @@ Ownership: route-change bookkeeping is split. `ScreenManager` knows when the rou
 
 ### Network status flow
 
-1. `NetworkManager` publishes the typed network/location events from `src/yoyopod/integrations/network/events.py` and `src/yoyopod/integrations/location/events.py` directly to `EventBus`.
+1. `NetworkManager` uses the app-provided event publisher to schedule the typed network/location events from `src/yoyopod/integrations/network/events.py` and `src/yoyopod/integrations/location/events.py` onto the main thread and publish them to `Bus`.
 2. `YoyoPodApp` subscribes to those events in its constructor.
 3. App handlers call `_sync_network_context_from_manager()` or update `AppContext` directly.
 
@@ -271,10 +271,9 @@ Ownership: network state is still app-owned, not coordinator-owned. This is one 
 1. `RuntimeLoopService` calls `RuntimeRecoveryService.attempt_manager_recovery()`.
 2. VoIP recovery runs inline because it is a direct manager restart attempt.
 3. Music recovery starts a background worker so mpv reconnect work does not block the coordinator loop.
-4. That worker publishes `RecoveryAttemptCompletedEvent`.
-5. The event queues onto `EventBus` because it was published off-thread.
-6. The next coordinator drain calls `RuntimeRecoveryService.handle_recovery_attempt_completed()`.
-7. Recovery backoff state is finalized on the coordinator thread.
+4. Those workers schedule completion callbacks back onto the main thread.
+5. The next coordinator drain runs the scheduled completion.
+6. Recovery backoff state is finalized on the coordinator thread.
 
 ## Where state actually lives
 
@@ -318,7 +317,7 @@ The app shell is thinner than before, but it still directly owns:
 - screen-change event fan-out
 - compatibility wrappers for older call sites
 - voice-note update paths
-- the root `EventBus`
+- the root `Bus`
 
 That makes it easy to reason about wiring, but it also means the app remains a hotspot.
 
@@ -344,15 +343,15 @@ This works, but it is not especially obvious. A future cleanup probably wants ei
 
 `PowerCoordinator` owns telemetry application and safety-policy evaluation, while `ScreenPowerService` owns overlays and `core.shutdown.ShutdownLifecycleService` owns actual shutdown execution. The division is workable, but a reader must cross service boundaries to understand the full low-battery path.
 
-### 6. Event timing depends on the source thread
+### 6. Event timing depends on scheduler backlog, not mixed bus semantics
 
-The same `EventBus` is used for both inline and deferred dispatch.
+All off-thread producers now go through the same `scheduler -> bus` handoff.
 
-- VoIP and power flows are mostly synchronous once they enter the coordinator loop
-- mpv and recovery flows are deferred until the next event drain
-- screen actions may run directly or through the LVGL action scheduler before the route-change event is published
+- background callbacks queue scheduler work
+- scheduler work may publish typed events onto `Bus`
+- bus events dispatch only after the scheduler slice for that iteration
 
-If ordering looks inconsistent, this is usually the first place to check.
+If ordering looks inconsistent, check scheduler backlog first and bus backlog second.
 
 ## Source files to trust
 
@@ -366,7 +365,8 @@ If ordering looks inconsistent, this is usually the first place to check.
 - `src/yoyopod/integrations/music/coordinator.py`
 - `src/yoyopod/integrations/power/coordinator.py`
 - `src/yoyopod/ui/screens/coordinator.py`
-- `src/yoyopod/core/event_bus.py`
+- `src/yoyopod/core/bus.py`
+- `src/yoyopod/core/scheduler.py`
 - `src/yoyopod/core/events.py`
 - `src/yoyopod/integrations/network/manager.py`
 

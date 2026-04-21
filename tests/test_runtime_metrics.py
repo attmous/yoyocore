@@ -2,24 +2,9 @@
 
 from __future__ import annotations
 
-from queue import Queue
 from types import SimpleNamespace
 
 from yoyopod.core.status import RuntimeMetricsStore
-
-
-def test_runtime_metrics_store_tracks_queue_backlog() -> None:
-    """Queue snapshots should combine regular and safety callback backlog."""
-
-    store = RuntimeMetricsStore()
-    callbacks: Queue[object] = Queue()
-    safety_callbacks: Queue[object] = Queue()
-
-    callbacks.put(object())
-    callbacks.put(object())
-    safety_callbacks.put(object())
-
-    assert store.pending_main_thread_callback_count(callbacks, safety_callbacks) == 3
 
 
 def test_runtime_metrics_store_records_input_and_capture_markers() -> None:

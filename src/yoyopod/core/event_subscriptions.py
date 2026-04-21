@@ -1,4 +1,4 @@
-"""Typed EventBus subscription wiring for core-owned runtime helpers."""
+"""Typed bus subscription wiring for core-owned runtime helpers."""
 
 from __future__ import annotations
 
@@ -25,49 +25,49 @@ if TYPE_CHECKING:
 
 
 class RuntimeEventSubscriptions:
-    """Register typed runtime event handlers on the shared EventBus."""
+    """Register typed runtime event handlers on the shared bus."""
 
     def __init__(self, app: "YoyoPodApp") -> None:
         self.app = app
 
     def register(self) -> None:
-        """Subscribe runtime services and handlers to the shared EventBus."""
+        """Subscribe runtime services and handlers to the shared bus."""
 
-        event_bus = self.app.event_bus
-        event_bus.subscribe(
+        bus = self.app.bus
+        bus.subscribe(
             ScreenChangedEvent,
             self.app.screen_power_service.handle_screen_changed_event,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             UserActivityEvent,
             self.app.screen_power_service.handle_user_activity_event,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             LowBatteryWarningRaised,
             self.app.screen_power_service.handle_low_battery_warning_event,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             GracefulShutdownRequested,
             self.app.shutdown_service.handle_graceful_shutdown_requested_event,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             GracefulShutdownCancelled,
             self.app.shutdown_service.handle_graceful_shutdown_cancelled_event,
         )
-        event_bus.subscribe(NetworkPppUpEvent, self.app.network_events.handle_network_ppp_up)
-        event_bus.subscribe(
+        bus.subscribe(NetworkPppUpEvent, self.app.network_events.handle_network_ppp_up)
+        bus.subscribe(
             NetworkSignalUpdateEvent,
             self.app.network_events.handle_network_signal_update,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             NetworkGpsFixEvent,
             self.app.network_events.handle_network_gps_fix,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             NetworkGpsNoFixEvent,
             self.app.network_events.handle_network_gps_no_fix,
         )
-        event_bus.subscribe(
+        bus.subscribe(
             NetworkPppDownEvent,
             self.app.network_events.handle_network_ppp_down,
         )

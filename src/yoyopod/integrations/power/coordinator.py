@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Callable
 from loguru import logger
 
 from yoyopod.core import AppContext
-from yoyopod.core import EventBus
+from yoyopod.core import Bus
 from yoyopod.core.ui_state import CoordinatorRuntime
 from yoyopod.integrations.power.models import PowerSnapshot
 from yoyopod.integrations.power.policies import PowerSafetyPolicy
@@ -38,11 +38,11 @@ class PowerCoordinator:
         power_config = runtime.power_manager.config if runtime.power_manager is not None else None
         self.policy = PowerSafetyPolicy(power_config) if power_config is not None else None
         self.now_provider = now_provider or time.monotonic
-        self._event_bus: EventBus | None = None
+        self._bus: Bus | None = None
 
-    def bind(self, event_bus: EventBus) -> None:
+    def bind(self, event_bus: Bus) -> None:
         """Retain the legacy bind hook while direct handlers own power updates."""
-        self._event_bus = event_bus
+        self._bus = event_bus
 
     def publish_snapshot(self, snapshot: PowerSnapshot) -> None:
         """Compatibility wrapper over the direct snapshot handler."""
@@ -82,11 +82,11 @@ class PowerCoordinator:
                     now=self.now_provider(),
                 )
 
-        if self.policy is None or self._event_bus is None:
+        if self.policy is None or self._bus is None:
             return
 
         for event in self.policy.evaluate(snapshot, now=self.now_provider()):
-            self._event_bus.publish(event)
+            self._bus.publish(event)
 
     def handle_availability_change(self, available: bool, reason: str) -> None:
         """Track power backend reachability for the runtime."""

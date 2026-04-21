@@ -69,21 +69,37 @@ class CallbacksBoot:
             self.logger.warning("  PlaybackCoordinator not available, skipping music callbacks")
             return
 
-        self.app.music_backend.on_track_change(playback_coordinator.handle_track_change)
+        self.app.music_backend.on_track_change(
+            lambda track: self.app.scheduler.run_on_main(
+                lambda: playback_coordinator.handle_track_change(track)
+            )
+        )
         self.app.music_backend.on_playback_state_change(
-            playback_coordinator.handle_playback_state_change
+            lambda playback_state: self.app.scheduler.run_on_main(
+                lambda: playback_coordinator.handle_playback_state_change(playback_state)
+            )
         )
         if self.app.audio_volume_controller is not None:
             self.app.music_backend.on_connection_change(
-                self.app.audio_volume_controller.sync_output_volume_on_music_connect
+                lambda available, reason: self.app.scheduler.run_on_main(
+                    lambda: self.app.audio_volume_controller.sync_output_volume_on_music_connect(
+                        available,
+                        reason,
+                    )
+                )
             )
         self.app.music_backend.on_connection_change(
-            playback_coordinator.handle_availability_change
+            lambda available, reason: self.app.scheduler.run_on_main(
+                lambda: playback_coordinator.handle_availability_change(
+                    available,
+                    reason,
+                )
+            )
         )
         self.logger.info("  Music callbacks registered")
 
     def bind_coordinator_events(self) -> None:
-        """Bind coordinator-level event handlers to the EventBus."""
+        """Bind coordinator-level event handlers to the shared bus."""
 
         self.logger.info("Setting up event subscriptions...")
         call_coordinator = self.app.call_coordinator
@@ -97,7 +113,7 @@ class CallbacksBoot:
             self.logger.warning("  Coordinators not available, skipping event subscriptions")
             return
 
-        call_coordinator.bind(self.app.event_bus)
-        playback_coordinator.bind(self.app.event_bus)
-        power_coordinator.bind(self.app.event_bus)
+        call_coordinator.bind(self.app.bus)
+        playback_coordinator.bind(self.app.bus)
+        power_coordinator.bind(self.app.bus)
         self.logger.info("  Event subscriptions registered")

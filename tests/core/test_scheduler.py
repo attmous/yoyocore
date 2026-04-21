@@ -41,3 +41,14 @@ def test_scheduler_post_queues_main_thread_work_until_drain() -> None:
     assert scheduler.pending_count() == 1
     assert scheduler.drain() == 1
     assert seen == ["queued"]
+
+
+def test_scheduler_logs_and_continues_after_task_failure() -> None:
+    scheduler = MainThreadScheduler()
+    seen: list[str] = []
+
+    scheduler.post(lambda: (_ for _ in ()).throw(RuntimeError("boom")))
+    scheduler.post(lambda: seen.append("after"))
+
+    assert scheduler.drain() == 2
+    assert seen == ["after"]

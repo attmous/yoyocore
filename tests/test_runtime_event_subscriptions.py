@@ -1,4 +1,4 @@
-"""Tests for typed runtime EventBus subscription wiring."""
+"""Tests for typed runtime bus subscription wiring."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def test_runtime_event_subscriptions_register_all_runtime_handlers() -> None:
 
     subscriptions: list[tuple[type[object], object]] = []
     app = SimpleNamespace(
-        event_bus=SimpleNamespace(
+        bus=SimpleNamespace(
             subscribe=lambda event_type, handler: subscriptions.append((event_type, handler))
         ),
         screen_power_service=SimpleNamespace(

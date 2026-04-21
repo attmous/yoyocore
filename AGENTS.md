@@ -37,7 +37,7 @@ Canonical deploy/debug skills
 Current runtime summary
 - Entrypoint: `yoyopod.py` -> `yoyopod.main` -> `YoyoPodApp`
 - Main packages: `src/yoyopod/core/`, `src/yoyopod/integrations/`, `src/yoyopod/backends/`, `src/yoyopod/ui/`, `src/yoyopod/config/`
-- Runtime structure: canonical `YoyoPodApp` in `src/yoyopod/core/application.py`, boot in `src/yoyopod/core/bootstrap/`, loop in `src/yoyopod/core/loop.py`, and remaining live dual-bus/runtime-state seams under `src/yoyopod/core/`
+- Runtime structure: canonical `YoyoPodApp` in `src/yoyopod/core/application.py`, boot in `src/yoyopod/core/bootstrap/`, loop in `src/yoyopod/core/loop.py`, and the shared `scheduler -> bus -> ui` runtime seam under `src/yoyopod/core/`
 - Production audio: mpv backend under `src/yoyopod/backends/music/`
 - Production VoIP: Liblinphone under `src/yoyopod/backends/voip/`
 - Production LVGL path: `src/yoyopod/ui/lvgl_binding/`
@@ -48,7 +48,8 @@ Source-of-truth files
 - `src/yoyopod/core/application.py`
 - `src/yoyopod/core/bootstrap/`
 - `src/yoyopod/core/loop.py`
-- `src/yoyopod/core/event_bus.py`
+- `src/yoyopod/core/bus.py`
+- `src/yoyopod/core/scheduler.py`
 - `src/yoyopod/core/events.py`
 - `src/yoyopod/core/ui_state.py`
 - `src/yoyopod/integrations/`

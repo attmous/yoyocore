@@ -6,6 +6,8 @@ import threading
 from queue import Empty, Queue
 from typing import Any, Callable, Protocol
 
+from loguru import logger
+
 
 class _DiagnosticsLog(Protocol):
     def append(self, entry: Any) -> None:
@@ -58,7 +60,7 @@ class MainThreadScheduler:
                             "exc": f"{exc.__class__.__name__}: {exc}",
                         }
                     )
-                raise
+                logger.exception("Error running scheduled main-thread task")
             processed += 1
         return processed
 

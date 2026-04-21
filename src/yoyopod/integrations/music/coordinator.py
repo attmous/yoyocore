@@ -7,7 +7,7 @@ from __future__ import annotations
 from loguru import logger
 
 from yoyopod.backends.music import Track
-from yoyopod.core import EventBus
+from yoyopod.core import Bus
 from yoyopod.core.ui_state import AppRuntimeState, CoordinatorRuntime
 from yoyopod.integrations.music import LocalMusicService
 from yoyopod.ui.screens.coordinator import ScreenCoordinator
@@ -26,7 +26,7 @@ class PlaybackCoordinator:
         self.screen_coordinator = screen_coordinator
         self.local_music_service = local_music_service
 
-    def bind(self, event_bus: EventBus) -> None:
+    def bind(self, event_bus: Bus) -> None:
         """Retain the legacy bind hook for boot compatibility."""
 
         del event_bus

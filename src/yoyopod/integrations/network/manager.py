@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -13,7 +14,6 @@ from yoyopod.integrations.network.models import GpsCoordinate, ModemPhase, Modem
 if TYPE_CHECKING:
     from yoyopod.config import ConfigManager
     from yoyopod.config.models import NetworkConfig
-    from yoyopod.core import EventBus
 
 
 class NetworkManager:
@@ -23,22 +23,24 @@ class NetworkManager:
         self,
         config: "NetworkConfig",
         backend: object | None = None,
-        event_bus: "EventBus | None" = None,
+        event_publisher: Callable[[object], None] | None = None,
     ) -> None:
         self.config = config
         self.backend = backend or Sim7600Backend(config)
-        self.event_bus = event_bus
+        self._event_publisher = event_publisher
         self._lifecycle_lock = threading.RLock()
         self._lifecycle_generation = 0
 
     @classmethod
     def from_config_manager(
-        cls, config_manager: "ConfigManager", event_bus: "EventBus | None" = None
+        cls,
+        config_manager: "ConfigManager",
+        event_publisher: Callable[[object], None] | None = None,
     ) -> "NetworkManager":
         """Build a network manager from the typed network configuration."""
 
         config = config_manager.get_network_settings()
-        return cls(config=config, event_bus=event_bus)
+        return cls(config=config, event_publisher=event_publisher)
 
     def start(self) -> None:
         """Open modem, initialize, and start PPP."""
@@ -228,10 +230,10 @@ class NetworkManager:
             return True
 
     def _publish(self, event: object) -> None:
-        """Publish an event if the bus is available."""
+        """Publish an event when a runtime publisher is available."""
 
-        if self.event_bus is not None:
-            self.event_bus.publish(event)
+        if self._event_publisher is not None:
+            self._event_publisher(event)
 
 
 __all__ = ["NetworkManager"]

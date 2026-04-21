@@ -7,7 +7,6 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
-from queue import SimpleQueue
 from typing import TYPE_CHECKING, Any, Optional
 
 from loguru import logger
@@ -18,7 +17,6 @@ from yoyopod.config import ConfigManager, MediaConfig, YoyoPodConfig
 from yoyopod.core.app_context import AppContext
 from yoyopod.core.bus import Bus
 from yoyopod.core.output_volume import OutputVolumeController
-from yoyopod.core.event_bus import EventBus
 from yoyopod.core.events import LifecycleEvent
 from yoyopod.core.fsm import MusicFSM
 from yoyopod.core.hardware import AudioDeviceCatalog
@@ -217,13 +215,6 @@ class YoyoPodApp:
         self._next_voip_iterate_at = 0.0
         self._voip_iterate_interval_seconds = 0.02
 
-        # Legacy main-thread event bus and queued callbacks
-        self._main_thread_id = self.main_thread_id
-        self.event_bus = EventBus(main_thread_id=self._main_thread_id)
-        self._pending_main_thread_callbacks: SimpleQueue[Callable[[], None]] = SimpleQueue()
-        self._pending_safety_main_thread_callbacks: SimpleQueue[Callable[[], None]] = (
-            SimpleQueue()
-        )
         self.runtime_metrics = RuntimeMetricsStore()
 
         # Runtime services
@@ -466,12 +457,9 @@ class YoyoPodApp:
         self.runtime_metrics.last_responsiveness_capture_artifacts = dict(value)
 
     def _pending_main_thread_callback_count(self) -> int | None:
-        """Return the combined generic and safety callback backlog."""
+        """Return the queued main-thread scheduler backlog."""
 
-        return self.runtime_metrics.pending_main_thread_callback_count(
-            self._pending_main_thread_callbacks,
-            self._pending_safety_main_thread_callbacks,
-        )
+        return self.scheduler.pending_count()
 
     def note_input_activity(self, action: object, _data: Any | None = None) -> None:
         """Record raw or semantic input activity before the coordinator drains it."""

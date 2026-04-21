@@ -134,7 +134,7 @@ class RuntimeBootService:
         self._callbacks_boot.setup_music_callbacks()
 
     def bind_coordinator_events(self) -> None:
-        """Bind coordinator-level event handlers to the EventBus."""
+        """Bind coordinator-level event handlers to the shared bus."""
         self._callbacks_boot.bind_coordinator_events()
 
     def setup_event_subscriptions(self) -> None:

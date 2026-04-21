@@ -65,9 +65,11 @@ class ScreenPowerService:
         self.mark_user_activity(now=time.monotonic(), render_on_wake=False)
 
     def queue_user_activity_event(self, action: Any, _data: Any | None = None) -> None:
-        """Publish semantic user activity onto the main-thread event bus."""
+        """Publish semantic user activity onto the main-thread bus."""
         action_name = getattr(action, "value", None)
-        self.app.event_bus.publish(UserActivityEvent(action_name=action_name))
+        self.app.scheduler.run_on_main(
+            lambda: self.app.bus.publish(UserActivityEvent(action_name=action_name))
+        )
 
     def handle_user_activity_event(self, event: UserActivityEvent) -> None:
         """Wake the display and reset the inactivity timer on user activity."""

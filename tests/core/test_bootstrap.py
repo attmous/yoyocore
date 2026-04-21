@@ -118,6 +118,7 @@ class _FakeApp:
             queue_main_thread_callback=scheduler,
             queue_lvgl_input_action=lambda _data=None: None,
         )
+        self.scheduler = SimpleNamespace(run_on_main=scheduler)
         self.cloud_manager = SimpleNamespace(sync_context_state=lambda: None)
         self.call_history_store = None
         self.voip_manager = None
@@ -176,7 +177,7 @@ class _FakeMusicBackend:
     def __init__(self) -> None:
         self.track_callback = None
         self.playback_state_callback = None
-        self.connection_change_callback = None
+        self.connection_change_callbacks: list[object] = []
 
     def on_track_change(self, callback) -> None:
         self.track_callback = callback
@@ -185,7 +186,7 @@ class _FakeMusicBackend:
         self.playback_state_callback = callback
 
     def on_connection_change(self, callback) -> None:
-        self.connection_change_callback = callback
+        self.connection_change_callbacks.append(callback)
 
 
 class _FakeCallCoordinator:
@@ -214,7 +215,7 @@ class _FakePlaybackCoordinator:
 
 
 def test_init_core_components_schedules_screen_actions_for_pil_backend(monkeypatch) -> None:
-    """Boot wiring should serialize screen actions on the runtime loop for pil displays too."""
+    """Boot wiring should serialize screen actions on the shared scheduler for pil displays."""
 
     scheduled_callback = object()
     fake_input_manager = _FakeInputManager()
@@ -341,36 +342,51 @@ def test_setup_voip_callbacks_bind_direct_call_handlers() -> None:
     assert synced == {"talk": 1, "active": 1}
 
 
-def test_setup_music_callbacks_bind_direct_playback_handlers() -> None:
-    """Music callbacks should wire straight to playback handlers on main-thread delivery."""
+def test_setup_music_callbacks_schedule_playback_handlers_on_main_thread() -> None:
+    """Music callbacks should schedule playback handlers back onto the main thread."""
 
     music_backend = _FakeMusicBackend()
-    playback_coordinator = _FakePlaybackCoordinator()
+    handled: list[tuple[str, object]] = []
+    playback_coordinator = SimpleNamespace(
+        handle_track_change=lambda track: handled.append(("track", track)),
+        handle_playback_state_change=lambda state: handled.append(("state", state)),
+        handle_availability_change=lambda available, reason: handled.append(
+            ("availability", (available, reason))
+        ),
+    )
     audio_volume_controller = SimpleNamespace(
-        sync_output_volume_on_music_connect=lambda *_args: None
+        sync_output_volume_on_music_connect=lambda available, reason: handled.append(
+            ("volume", (available, reason))
+        )
     )
     app = SimpleNamespace(
         music_backend=music_backend,
         playback_coordinator=playback_coordinator,
         audio_volume_controller=audio_volume_controller,
+        scheduler=SimpleNamespace(run_on_main=lambda fn: fn()),
     )
     RuntimeBootService(app).setup_music_callbacks()
 
-    assert music_backend.track_callback.__name__ == "handle_track_change"
-    assert music_backend.playback_state_callback.__name__ == "handle_playback_state_change"
-    assert (
-        music_backend.connection_change_callback.__name__
-        == "handle_availability_change"
-    )
+    music_backend.track_callback("track-1")
+    music_backend.playback_state_callback("playing")
+    for callback in music_backend.connection_change_callbacks:
+        callback(True, "connected")
+
+    assert handled == [
+        ("track", "track-1"),
+        ("state", "playing"),
+        ("volume", (True, "connected")),
+        ("availability", (True, "connected")),
+    ]
 
 
 def test_bind_coordinator_events_uses_existing_runtime_owners() -> None:
     """Event binding should use the initialized coordinators without rebuilding them."""
 
     bindings: list[tuple[str, object]] = []
-    event_bus = object()
+    bus = object()
     app = SimpleNamespace(
-        event_bus=event_bus,
+        bus=bus,
         call_coordinator=SimpleNamespace(bind=lambda bus: bindings.append(("call", bus))),
         playback_coordinator=SimpleNamespace(
             bind=lambda bus: bindings.append(("playback", bus))
@@ -381,9 +397,9 @@ def test_bind_coordinator_events_uses_existing_runtime_owners() -> None:
     RuntimeBootService(app).bind_coordinator_events()
 
     assert bindings == [
-        ("call", event_bus),
-        ("playback", event_bus),
-        ("power", event_bus),
+        ("call", bus),
+        ("playback", bus),
+        ("power", bus),
     ]
 
 
@@ -456,8 +472,8 @@ def test_managers_boot_starts_network_and_syncs_context_without_event_wiring() -
             self.started = False
 
         @classmethod
-        def from_config_manager(cls, _config_manager, event_bus=None):
-            assert event_bus is not None
+        def from_config_manager(cls, _config_manager, event_publisher=None):
+            assert event_publisher is not None
             return cls()
 
         def start(self) -> None:
@@ -486,10 +502,10 @@ def test_managers_boot_starts_network_and_syncs_context_without_event_wiring() -
         recent_track_store=None,
         context=AppContext(),
         runtime_loop=SimpleNamespace(queue_main_thread_callback=lambda *_args, **_kwargs: None),
+        scheduler=SimpleNamespace(run_on_main=lambda fn: fn()),
         output_volume=None,
         audio_volume_controller=None,
         simulate=False,
-        event_bus=object(),
         network_events=SimpleNamespace(
             sync_network_context_from_manager=lambda: sync_calls.append("synced")
         ),

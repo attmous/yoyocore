@@ -7,7 +7,7 @@ import yaml
 
 from yoyopod.config import ConfigManager
 from yoyopod.config.models import NetworkConfig, build_config_model
-from yoyopod.core import EventBus
+from yoyopod.core import Bus
 from yoyopod.core import (
     NetworkGpsFixEvent,
     NetworkGpsNoFixEvent,
@@ -130,8 +130,8 @@ def test_manager_start_full_sequence():
     """start() should open, init, and start PPP."""
     config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
     backend = FakeBackend()
-    bus = EventBus()
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    bus = Bus()
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
 
     manager.start()
 
@@ -144,8 +144,8 @@ def test_manager_stop():
     """stop() should close the backend."""
     config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
     backend = FakeBackend()
-    bus = EventBus()
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    bus = Bus()
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
 
     manager.start()
     manager.stop()
@@ -157,12 +157,13 @@ def test_manager_publishes_ppp_up():
     """start() should publish NetworkPppUpEvent on the bus."""
     config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
     backend = FakeBackend()
-    bus = EventBus()
+    bus = Bus()
     events_seen: list[object] = []
     bus.subscribe(NetworkPppUpEvent, events_seen.append)
 
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
     manager.start()
+    assert bus.drain() == 5
 
     assert len(events_seen) == 1
     assert isinstance(events_seen[0], NetworkPppUpEvent)
@@ -172,8 +173,8 @@ def test_manager_is_online():
     """is_online should reflect backend PPP state."""
     config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
     backend = FakeBackend()
-    bus = EventBus()
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    bus = Bus()
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
 
     manager.start()
     assert manager.is_online is True
@@ -189,8 +190,8 @@ def test_manager_recover_retries_full_bringup_after_failed_boot() -> None:
     backend = FakeBackend()
     backend.state.phase = ModemPhase.REGISTERING
     backend.health_online = False
-    bus = EventBus()
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    bus = Bus()
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
 
     recovered = manager.recover()
 
@@ -211,12 +212,13 @@ def test_manager_warms_gps_fix_on_start_when_enabled():
     )
     backend = FakeBackend()
     backend.gps_coord = GpsCoordinate(lat=48.7083, lng=9.6610, altitude=328.2, speed=0.0)
-    bus = EventBus()
+    bus = Bus()
     gps_events: list[object] = []
     bus.subscribe(NetworkGpsFixEvent, gps_events.append)
 
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
     manager.start()
+    assert bus.drain() == 5
 
     assert backend.gps_query_calls == 1
     assert backend.state.gps == backend.gps_coord
@@ -233,13 +235,14 @@ def test_manager_publishes_no_fix_and_clears_cached_gps_state() -> None:
     )
     backend = FakeBackend()
     backend.state.gps = GpsCoordinate(lat=48.7083, lng=9.6610, altitude=328.2, speed=0.0)
-    bus = EventBus()
+    bus = Bus()
     no_fix_events: list[object] = []
     bus.subscribe(NetworkGpsNoFixEvent, no_fix_events.append)
 
-    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+    manager = NetworkManager(config=config, backend=backend, event_publisher=bus.publish)
 
     coord = manager.query_gps()
+    assert bus.drain() == 1
 
     assert coord is None
     assert backend.state.gps is None

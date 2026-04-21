@@ -81,7 +81,8 @@ class FakeLvglPumpApp:
         self._last_lvgl_pump_at = 0.0
         self._voip_iterate_interval_seconds = 0.02
         self.coordinator_runtime = None
-        self.event_bus = SimpleNamespace(pending_count=lambda: 0)
+        self.bus = SimpleNamespace(pending_count=lambda: 0)
+        self.scheduler = SimpleNamespace(pending_count=lambda: 0)
 
     def _pending_main_thread_callback_count(self) -> int:
         return 0

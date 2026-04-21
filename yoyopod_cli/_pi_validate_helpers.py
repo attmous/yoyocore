@@ -360,7 +360,9 @@ def _exercise_sleep_wake(app: "YoyoPodApp") -> str:
     if app.context is None or app.context.screen.awake:
         raise NavigationSoakError("screen did not enter sleep during soak")
 
-    app.event_bus.publish(UserActivityEvent(action_name="navigation_soak"))
+    app.scheduler.run_on_main(
+        lambda: app.bus.publish(UserActivityEvent(action_name="navigation_soak"))
+    )
     _pump_app(app, 0.35)
     if app.context is None or not app.context.screen.awake:
         raise NavigationSoakError("screen did not wake after simulated activity")
@@ -1091,7 +1093,9 @@ class NavigationSoakRunner:
         if self.app.context is None or self.app.context.screen.awake:
             raise NavigationSoakFailure("screen did not enter sleep during navigation soak")
 
-        self.app.event_bus.publish(UserActivityEvent(action_name="navigation_soak"))
+        self.app.scheduler.run_on_main(
+            lambda: self.app.bus.publish(UserActivityEvent(action_name="navigation_soak"))
+        )
         self.pump.run_for(max(0.35, self.hold_seconds))
         if self.app.context is None or not self.app.context.screen.awake:
             raise NavigationSoakFailure("screen did not wake after simulated navigation activity")

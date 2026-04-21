@@ -8,7 +8,7 @@ from typing import Optional
 
 from loguru import logger
 
-from yoyopod.core import EventBus
+from yoyopod.core import Bus
 from yoyopod.core.ui_state import AppRuntimeState, CoordinatorRuntime
 from yoyopod.integrations.call import (
     CallHistoryStore,
@@ -41,7 +41,7 @@ class CallCoordinator:
         self._ringer = CallRinger()
         self._session_tracker = CallSessionTracker(call_history_store)
 
-    def bind(self, event_bus: EventBus) -> None:
+    def bind(self, event_bus: Bus) -> None:
         """Retain the legacy bind hook for boot compatibility."""
 
         del event_bus

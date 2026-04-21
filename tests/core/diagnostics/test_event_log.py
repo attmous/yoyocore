@@ -51,7 +51,19 @@ def test_diagnostics_setup_records_events_and_writes_snapshot(tmp_path: Path) ->
     assert payload["states"]["display.awake"]["value"] is True
     assert payload["states"]["display.awake"]["attrs"] == {"source": "test"}
     assert payload["services"] == ["diagnostics.snapshot"]
-    assert payload["subscriptions"] == {"object": 1}
+    assert payload["subscriptions"] == {
+        "GracefulShutdownCancelled": 1,
+        "GracefulShutdownRequested": 1,
+        "LowBatteryWarningRaised": 1,
+        "NetworkGpsFixEvent": 1,
+        "NetworkGpsNoFixEvent": 1,
+        "NetworkPppDownEvent": 1,
+        "NetworkPppUpEvent": 1,
+        "NetworkSignalUpdateEvent": 1,
+        "ScreenChangedEvent": 1,
+        "UserActivityEvent": 1,
+        "object": 1,
+    }
     assert payload["tick_stats_last_100"]["sample_count"] == 1
     assert payload["recent_events_tail_path"] == "events.jsonl"
     assert payload["recent_events_tail_lines"] >= 2

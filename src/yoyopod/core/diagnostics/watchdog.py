@@ -46,8 +46,8 @@ def evaluate_responsiveness_status(
     input_age = _coerce_float(status.get("input_activity_age_seconds"))
     handled_input_age = _coerce_float(status.get("handled_input_activity_age_seconds"))
     lvgl_age = _coerce_float(status.get("lvgl_pump_age_seconds"))
-    pending_callbacks = max(0, _coerce_int(status.get("pending_main_thread_callbacks")) or 0)
-    pending_events = max(0, _coerce_int(status.get("pending_event_bus_events")) or 0)
+    pending_scheduler_tasks = max(0, _coerce_int(status.get("pending_scheduler_tasks")) or 0)
+    pending_events = max(0, _coerce_int(status.get("pending_bus_events")) or 0)
     last_input_action = str(status.get("last_input_action") or "none")
     last_handled_input_action = str(status.get("last_handled_input_action") or "none")
     current_screen = str(status.get("current_screen") or "none")
@@ -70,19 +70,19 @@ def evaluate_responsiveness_status(
                 f"{loop_age:.1f}s while input stayed alive (input_age={input_age:.1f}s, "
                 f"handled_input_age={handled_text}, last_input={last_input_action}, "
                 f"last_handled_input={last_handled_input_action}, "
-                f"pending_callbacks={pending_callbacks}, pending_events={pending_events}, "
+                f"pending_scheduler_tasks={pending_scheduler_tasks}, pending_events={pending_events}, "
                 f"screen={current_screen}, state={current_state})"
             ),
         )
 
-    if pending_callbacks > 0 or pending_events > 0:
+    if pending_scheduler_tasks > 0 or pending_events > 0:
         return ResponsivenessWatchdogDecision(
             reason="coordinator_stall_with_pending_work",
             suspected_scope="runtime",
             summary=(
                 "Loop heartbeat stalled at "
                 f"{loop_age:.1f}s with queued work pending "
-                f"(callbacks={pending_callbacks}, events={pending_events}, "
+                f"(scheduler_tasks={pending_scheduler_tasks}, events={pending_events}, "
                 f"screen={current_screen}, state={current_state})"
             ),
         )

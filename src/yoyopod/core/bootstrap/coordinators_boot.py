@@ -80,8 +80,8 @@ class CoordinatorsBoot:
         )
         if self.app.screen_manager is not None:
             self.app.screen_manager.on_screen_changed = (
-                lambda screen_name: self.app.event_bus.publish(
-                    ScreenChangedEvent(screen_name=screen_name)
+                lambda screen_name: self.app.scheduler.run_on_main(
+                    lambda: self.app.bus.publish(ScreenChangedEvent(screen_name=screen_name))
                 )
             )
-            self.app.event_bus.publish(ScreenChangedEvent(screen_name=current_route_name))
+            self.app.bus.publish(ScreenChangedEvent(screen_name=current_route_name))

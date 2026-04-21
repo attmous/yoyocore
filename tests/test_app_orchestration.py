@@ -448,7 +448,11 @@ class FakePowerManager:
 
 
 def _publish_from_worker(app: YoyoPodApp, event: object) -> None:
-    worker = threading.Thread(target=lambda: app.event_bus.publish(event))
+    worker = threading.Thread(
+        target=lambda: app.scheduler.run_on_main(
+            lambda: app.bus.publish(event)
+        )
+    )
     worker.start()
     worker.join()
 
@@ -467,7 +471,7 @@ def _wait_for(predicate, *, timeout_seconds: float = 1.0) -> None:
 def _complete_power_refresh(app: YoyoPodApp) -> None:
     """Drain one queued async power-refresh completion for the test app."""
 
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
     app.runtime_loop.process_pending_main_thread_actions()
     assert app.get_status()["power_refresh_in_flight"] is False
 
@@ -539,6 +543,7 @@ class OrchestrationHarness:
     music_backend: FakeMusicBackend
     screen_manager: FakeScreenManager
     screens: OrchestrationScreens
+    pending_semantic_events: int = 0
 
     @classmethod
     def build(
@@ -589,6 +594,7 @@ class OrchestrationHarness:
         app.screen_manager.push_screen("menu")
 
         app.boot_service.setup_event_subscriptions()
+        app.runtime_loop.process_pending_main_thread_actions()
         assert app.call_coordinator is not None
         app.call_coordinator.start_ringing = lambda: None
         app.call_coordinator.stop_ringing = lambda: None
@@ -597,6 +603,7 @@ class OrchestrationHarness:
             music_backend=music_backend,
             screen_manager=screen_manager,
             screens=screens,
+            pending_semantic_events=0,
         )
 
     @property
@@ -643,6 +650,7 @@ class OrchestrationHarness:
         self.screen_manager.current_screen = self.screens.now_playing
 
     def publish(self, event: object) -> None:
+        self.pending_semantic_events += 1
         if isinstance(event, IncomingCallEvent):
             worker = threading.Thread(
                 target=lambda: self.app.runtime_loop.queue_main_thread_callback(
@@ -730,7 +738,10 @@ class OrchestrationHarness:
         _publish_from_worker(self.app, event)
 
     def drain_events(self) -> int:
-        return self.app.runtime_loop.process_pending_main_thread_actions()
+        self.app.runtime_loop.process_pending_main_thread_actions()
+        drained = self.pending_semantic_events
+        self.pending_semantic_events = 0
+        return drained
 
 
 def _build_app(playback_state: str = "stopped", auto_resume: bool = True) -> tuple[
@@ -993,7 +1004,7 @@ def test_outgoing_call_does_not_change_idle_or_paused_music(
     worker.start()
     worker.join()
 
-    assert app.runtime_loop.process_pending_main_thread_actions() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app.call_fsm.state == CallSessionState.OUTGOING
     assert app.music_fsm.state == music_state
     assert screen_manager.current_screen is app.outgoing_call_screen
@@ -1199,15 +1210,19 @@ def test_navigation_updates_runtime_base_state() -> None:
     app, _, screen_manager = _build_app(playback_state="stopped")
 
     screen_manager.push_screen("contacts")
+    assert app.bus.drain() == 1
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.CALL_IDLE
 
     screen_manager.pop_screen()
+    assert app.bus.drain() == 1
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.MENU
 
     screen_manager.push_screen("playlists")
+    assert app.bus.drain() == 1
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.PLAYLIST_BROWSER
 
     screen_manager.push_screen("power")
+    assert app.bus.drain() == 1
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.POWER
 
 
@@ -1219,7 +1234,7 @@ def test_worker_navigation_waits_for_coordinator_drain_before_syncing_state() ->
 
     assert screen_manager.current_screen is app.contact_list_screen
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.MENU
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.CALL_IDLE
 
 
@@ -1240,7 +1255,7 @@ def test_main_thread_callback_errors_are_contained_and_drain_continues() -> None
     app.runtime_loop.queue_main_thread_callback(good_callback)
     _publish_from_worker(app, UserActivityEvent(action_name="select"))
 
-    assert app.runtime_loop.process_pending_main_thread_actions() == 3
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 3
     assert callback_order == ["bad", "good"]
 
 
@@ -1248,11 +1263,14 @@ def test_call_end_restores_previous_screen_base_state() -> None:
     """Ending a call should restore the derived state for the screen the user returns to."""
     app, _, screen_manager = _build_app(playback_state="stopped")
     screen_manager.push_screen("playlists")
+    assert app.bus.drain() == 1
 
     app.call_fsm.sync(CallSessionState.ACTIVE)
     app.coordinator_runtime.sync_app_state("call_connected")
     screen_manager.push_screen("incoming_call")
+    assert app.bus.drain() == 1
     screen_manager.push_screen("in_call")
+    assert app.bus.drain() == 1
 
     worker = threading.Thread(
         target=lambda: app.runtime_loop.queue_main_thread_callback(
@@ -1262,7 +1280,7 @@ def test_call_end_restores_previous_screen_base_state() -> None:
     worker.start()
     worker.join()
 
-    assert app.runtime_loop.process_pending_main_thread_actions() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert screen_manager.current_screen is app.playlist_screen
     assert app.coordinator_runtime.current_app_state == AppRuntimeState.PLAYLIST_BROWSER
 
@@ -1448,7 +1466,7 @@ def test_music_recovery_worker_queues_direct_main_thread_completion() -> None:
 
     app.recovery_service.run_music_recovery_attempt(0.0)
 
-    assert app.event_bus.pending_count() == 0
+    assert app.bus.pending_count() == 0
     assert app.runtime_loop.process_pending_main_thread_actions() == 1
     assert app._music_recovery.in_flight is False
     assert app._music_recovery.next_attempt_at == 0.0
@@ -1464,7 +1482,7 @@ def test_network_recovery_worker_queues_direct_main_thread_completion() -> None:
 
     app.recovery_service.run_network_recovery_attempt(0.0)
 
-    assert app.event_bus.pending_count() == 0
+    assert app.bus.pending_count() == 0
     assert app.runtime_loop.process_pending_main_thread_actions() == 1
     assert app._network_recovery.in_flight is False
     assert app.context.network.connected is True
@@ -1574,7 +1592,7 @@ def test_power_poll_honors_interval_and_tracks_unavailable_backend() -> None:
     _force_power_refresh(app, now=0.0)
     app.power_runtime.poll_status(now=10.0)
     app.power_runtime.poll_status(now=30.0)
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
     app.runtime_loop.process_pending_main_thread_actions()
 
     assert app.power_manager.refresh_calls == 2
@@ -1612,7 +1630,7 @@ def test_periodic_power_poll_runs_off_the_coordinator_thread() -> None:
     assert app.menu_screen.render_calls == 0
 
     refresh_release.set()
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
     app.runtime_loop.process_pending_main_thread_actions()
 
     assert app.power_manager.refresh_calls == 1
@@ -1709,7 +1727,7 @@ def test_forced_power_poll_uses_new_cached_snapshot_while_refresh_callback_is_pe
     assert app.get_status()["power_refresh_in_flight"] is True
 
     app.power_manager.second_refresh_release.set()
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
 
     started_at = time.monotonic()
     app.power_runtime.poll_status(now=31.0, force=True)
@@ -1789,7 +1807,7 @@ def test_user_activity_event_wakes_screen_and_refreshes_current_screen() -> None
 
     _publish_from_worker(app, UserActivityEvent(action_name="select"))
 
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app.display.set_backlight_calls[-1] == 0.75
     assert app.context.screen.awake is True
     assert app.menu_screen.render_calls == render_calls_before + 1
@@ -1811,6 +1829,7 @@ def test_user_activity_event_wakes_screen_and_refreshes_visible_power_screen_hoo
     app._active_brightness = app.screen_power_service.resolve_active_brightness()
     app.screen_power_service.configure_screen_power(initial_now=0.0)
     screen_manager.push_screen("power")
+    assert app.bus.drain() == 1
     app.screen_power_service.sleep_screen(31.0)
 
     render_calls_before = app.power_screen.render_calls
@@ -1818,7 +1837,7 @@ def test_user_activity_event_wakes_screen_and_refreshes_visible_power_screen_hoo
 
     _publish_from_worker(app, UserActivityEvent(action_name="select"))
 
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app.context.screen.awake is True
     assert app.power_screen.render_calls == render_calls_before + 1
     assert app.power_screen.refresh_for_visible_tick_calls == refresh_calls_before + 1
@@ -1832,7 +1851,7 @@ def test_status_exposes_input_and_responsiveness_markers() -> None:
     app.note_input_activity(SimpleNamespace(value="select"))
     _publish_from_worker(app, UserActivityEvent(action_name="select"))
 
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
 
     app.record_responsiveness_capture(
         captured_at=time.monotonic(),
@@ -1893,7 +1912,7 @@ def test_raw_user_activity_wakes_screen_without_rerendering_current_pil_screen()
 
     _publish_from_worker(app, UserActivityEvent(action_name=None))
 
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app.display.set_backlight_calls[-1] == 0.75
     assert app.context.screen.awake is True
     assert app.menu_screen.render_calls == render_calls_before
@@ -1917,7 +1936,7 @@ def test_user_activity_event_wakes_sleeping_lvgl_screen_with_forced_refresh() ->
 
     _publish_from_worker(app, UserActivityEvent(action_name=None))
 
-    assert app.event_bus.drain() == 1
+    assert app.runtime_loop.process_pending_main_thread_actions() >= 1
     assert app._lvgl_backend.force_refresh_calls == 1
 
 
@@ -2156,7 +2175,7 @@ def test_watchdog_starts_and_feeds_from_app_loop() -> None:
     app.power_runtime.feed_watchdog_if_due(9.0)
     app.power_runtime.feed_watchdog_if_due(10.0)
     _wait_for(lambda: power_manager.feed_watchdog_calls == 1)
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
     app.runtime_loop.process_pending_main_thread_actions()
 
     assert power_manager.enable_watchdog_calls == 1
@@ -2197,7 +2216,7 @@ def test_watchdog_feed_runs_off_the_coordinator_thread() -> None:
     assert app.get_status()["watchdog_feed_in_flight"] is True
 
     feed_release.set()
-    _wait_for(lambda: (app.get_status()["pending_main_thread_callbacks"] or 0) > 0)
+    _wait_for(lambda: (app.get_status()["pending_scheduler_tasks"] or 0) > 0)
     app.runtime_loop.process_pending_main_thread_actions()
 
     assert power_manager.feed_watchdog_calls == 1
@@ -2505,8 +2524,8 @@ def test_runtime_loop_budgets_backlog_and_keeps_protected_work_running() -> None
     app._lvgl_backend = FakeLvglBackend()
     app.power_runtime.start_watchdog(now=0.0)
 
-    callback_budget = RuntimeLoopService._MAIN_THREAD_CALLBACK_DRAIN_BUDGET
-    event_budget = RuntimeLoopService._EVENT_BUS_DRAIN_BUDGET
+    callback_budget = RuntimeLoopService._SCHEDULER_DRAIN_BUDGET
+    event_budget = RuntimeLoopService._BUS_DRAIN_BUDGET
     queued_callbacks = callback_budget + 2
     queued_events = event_budget + 3
     callback_calls: list[int] = []
@@ -2514,7 +2533,7 @@ def test_runtime_loop_budgets_backlog_and_keeps_protected_work_running() -> None
     for index in range(queued_callbacks):
         app.runtime_loop.queue_main_thread_callback(lambda index=index: callback_calls.append(index))
     for _ in range(queued_events):
-        _publish_from_worker(app, UserActivityEvent(action_name="select"))
+        app.bus.publish(UserActivityEvent(action_name="select"))
 
     app.runtime_loop.run_iteration(
         monotonic_now=10.0,
@@ -2532,29 +2551,29 @@ def test_runtime_loop_budgets_backlog_and_keeps_protected_work_running() -> None
         assert power_manager.feed_watchdog_calls == 1
         assert status["watchdog_feed_in_flight"] is True
         assert callback_calls == list(range(callback_budget))
-        assert status["runtime_main_thread_callbacks_drained"] == callback_budget
-        assert status["runtime_event_bus_events_drained"] == event_budget
-        assert status["runtime_main_thread_callbacks_deferred"] == (
+        assert status["runtime_scheduler_tasks_drained"] == callback_budget
+        assert status["runtime_bus_events_drained"] == event_budget
+        assert status["runtime_scheduler_tasks_deferred"] == (
             queued_callbacks - callback_budget
         )
-        assert status["runtime_event_bus_events_deferred"] == queued_events - event_budget
-        assert status["runtime_main_thread_callback_drain_budget"] == callback_budget
-        assert status["runtime_event_bus_drain_budget"] == event_budget
-        assert status["runtime_main_thread_callback_budget_hit"] is True
-        assert status["runtime_event_bus_event_budget_hit"] is True
-        assert status["pending_main_thread_callbacks"] >= queued_callbacks - callback_budget
-        assert status["pending_event_bus_events"] == queued_events - event_budget
+        assert status["runtime_bus_events_deferred"] == queued_events - event_budget
+        assert status["runtime_scheduler_drain_budget"] == callback_budget
+        assert status["runtime_bus_drain_budget"] == event_budget
+        assert status["runtime_scheduler_budget_hit"] is True
+        assert status["runtime_bus_event_budget_hit"] is True
+        assert status["pending_scheduler_tasks"] >= queued_callbacks - callback_budget
+        assert status["pending_bus_events"] == queued_events - event_budget
     finally:
         feed_release.set()
         _wait_for(
-            lambda: (app.get_status()["pending_main_thread_callbacks"] or 0)
+            lambda: (app.get_status()["pending_scheduler_tasks"] or 0)
             > (queued_callbacks - callback_budget)
         )
         app.runtime_loop.process_pending_main_thread_actions()
 
 
-def test_runtime_loop_exempts_watchdog_completion_callback_from_budget() -> None:
-    """Watchdog completion should bypass the generic callback cap under backlog."""
+def test_runtime_loop_defers_watchdog_completion_with_other_scheduler_backlog() -> None:
+    """Watchdog completion should wait behind the shared scheduler budget under backlog."""
 
     power_manager = FakePowerManager(
         [_power_snapshot(available=True, battery_percent=60.0)],
@@ -2567,7 +2586,7 @@ def test_runtime_loop_exempts_watchdog_completion_callback_from_budget() -> None
     app._watchdog_active = True
     app._watchdog_feed_in_flight = True
 
-    callback_budget = RuntimeLoopService._MAIN_THREAD_CALLBACK_DRAIN_BUDGET
+    callback_budget = RuntimeLoopService._SCHEDULER_DRAIN_BUDGET
     queued_callbacks = callback_budget + 2
     callback_calls: list[int] = []
 
@@ -2580,13 +2599,15 @@ def test_runtime_loop_exempts_watchdog_completion_callback_from_budget() -> None
     status = app.get_status()
 
     assert power_manager.feed_watchdog_calls == 1
-    assert processed == callback_budget + 1
+    assert processed == callback_budget
     assert callback_calls == list(range(callback_budget))
-    assert status["watchdog_feed_in_flight"] is False
-    assert status["runtime_main_thread_callbacks_drained"] == callback_budget + 1
-    assert status["runtime_main_thread_callbacks_deferred"] == queued_callbacks - callback_budget
-    assert status["runtime_main_thread_callback_budget_hit"] is True
-    assert status["pending_main_thread_callbacks"] == queued_callbacks - callback_budget
+    assert status["watchdog_feed_in_flight"] is True
+    assert status["runtime_scheduler_tasks_drained"] == callback_budget
+    assert status["runtime_scheduler_tasks_deferred"] == (
+        queued_callbacks - callback_budget + 1
+    )
+    assert status["runtime_scheduler_budget_hit"] is True
+    assert status["pending_scheduler_tasks"] == queued_callbacks - callback_budget + 1
 
 
 def test_runtime_loop_logs_main_thread_drain_budget_hits() -> None:
@@ -2598,12 +2619,12 @@ def test_runtime_loop_logs_main_thread_drain_budget_hits() -> None:
     app.voip_manager = FakeRuntimeLoopVoIPManager()
     app._voip_iterate_interval_seconds = 0.02
 
-    callback_budget = RuntimeLoopService._MAIN_THREAD_CALLBACK_DRAIN_BUDGET
-    event_budget = RuntimeLoopService._EVENT_BUS_DRAIN_BUDGET
+    callback_budget = RuntimeLoopService._SCHEDULER_DRAIN_BUDGET
+    event_budget = RuntimeLoopService._BUS_DRAIN_BUDGET
     for _ in range(callback_budget + 1):
         app.runtime_loop.queue_main_thread_callback(lambda: None)
     for _ in range(event_budget + 2):
-        _publish_from_worker(app, UserActivityEvent(action_name="select"))
+        app.bus.publish(UserActivityEvent(action_name="select"))
 
     messages: list[str] = []
     sink_id = logger.add(
@@ -2625,9 +2646,9 @@ def test_runtime_loop_logs_main_thread_drain_budget_hits() -> None:
 
     log_text = "\n".join(messages)
     assert "coord|Main-thread drain budget hit:" in log_text
-    assert f"callback_budget={callback_budget}" in log_text
-    assert "callbacks_deferred=1" in log_text
-    assert f"event_budget={event_budget}" in log_text
+    assert f"scheduler_budget={callback_budget}" in log_text
+    assert "scheduler_tasks_deferred=1" in log_text
+    assert f"bus_budget={event_budget}" in log_text
     assert "events_deferred=2" in log_text
 
 

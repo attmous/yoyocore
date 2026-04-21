@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 import pytest
 
+import yoyopod.core.bus as bus_module
 from yoyopod.core import Bus
 
 
@@ -65,6 +66,28 @@ def test_bus_reports_subscription_counts_by_event_type() -> None:
     bus.subscribe(object, lambda event: None)
 
     assert bus.subscription_counts() == {"DemoEvent": 2, "object": 1}
+
+
+def test_bus_hot_path_logs_subscriptions_with_deferred_formatting(monkeypatch) -> None:
+    trace_calls: list[tuple[str, tuple[object, ...]]] = []
+    debug_calls: list[tuple[str, tuple[object, ...]]] = []
+
+    monkeypatch.setattr(
+        bus_module.logger,
+        "trace",
+        lambda message, *args: trace_calls.append((message, args)),
+    )
+    monkeypatch.setattr(
+        bus_module.logger,
+        "debug",
+        lambda message, *args: debug_calls.append((message, args)),
+    )
+
+    bus = Bus()
+    bus.subscribe(DemoEvent, lambda event: None)
+
+    assert trace_calls == [("Subscribed scaffold bus handler for {}", ("DemoEvent",))]
+    assert debug_calls == []
 
 
 def test_bus_strict_mode_reraises_handler_errors() -> None:

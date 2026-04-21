@@ -45,9 +45,9 @@ def _select_loop_cadence(
         runtime_loop._RELAXED_IDLE_INTERVAL_SECONDS,
         configured_voip_interval_seconds,
     )
-    pending_callbacks = max(0, runtime_loop.app._pending_main_thread_callback_count() or 0)
-    pending_events = max(0, runtime_loop.app.event_bus.pending_count())
-    if pending_callbacks > 0 or pending_events > 0:
+    pending_scheduler_tasks = max(0, runtime_loop.app.scheduler.pending_count())
+    pending_events = max(0, runtime_loop.app.bus.pending_count())
+    if pending_scheduler_tasks > 0 or pending_events > 0:
         return _LoopCadenceDecision(
             mode="latency_sensitive",
             reason="pending_work",

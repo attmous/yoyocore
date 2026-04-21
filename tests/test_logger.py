@@ -78,5 +78,5 @@ def test_infer_subsystem_maps_core_packages() -> None:
 
     assert infer_subsystem("yoyopod.integrations.call.manager") == "comm"
     assert infer_subsystem("yoyopod.ui.screens.manager") == "ui"
-    assert infer_subsystem("yoyopod.core.event_bus") == "core"
+    assert infer_subsystem("yoyopod.core.bus") == "core"
     assert infer_subsystem("yoyopod.main") == "app"

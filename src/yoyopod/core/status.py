@@ -23,32 +23,6 @@ class RuntimeMetricsStore:
         self.last_responsiveness_capture_summary: str | None = None
         self.last_responsiveness_capture_artifacts: dict[str, str] = {}
 
-    @staticmethod
-    def _queue_depth(queue_obj: object) -> int | None:
-        """Return a best-effort queue depth for runtime diagnostics."""
-
-        qsize = getattr(queue_obj, "qsize", None)
-        if not callable(qsize):
-            return None
-
-        try:
-            return int(qsize())
-        except (NotImplementedError, TypeError, ValueError):
-            return None
-
-    def pending_main_thread_callback_count(
-        self,
-        regular_queue: object,
-        safety_queue: object,
-    ) -> int | None:
-        """Return the combined generic and safety callback backlog."""
-
-        callback_backlog = self._queue_depth(regular_queue)
-        safety_backlog = self._queue_depth(safety_queue)
-        if callback_backlog is None and safety_backlog is None:
-            return None
-        return max(0, callback_backlog or 0) + max(0, safety_backlog or 0)
-
     def note_input_activity(
         self,
         action: object,
@@ -151,8 +125,8 @@ class RuntimeStatusService:
             "input_manager_running": (
                 self.app.input_manager.running if self.app.input_manager is not None else False
             ),
-            "pending_main_thread_callbacks": self.app._pending_main_thread_callback_count(),
-            "pending_event_bus_events": self.app.event_bus.pending_count(),
+            "pending_scheduler_tasks": self.app.scheduler.pending_count(),
+            "pending_bus_events": self.app.bus.pending_count(),
             "input_activity_age_seconds": (
                 max(0.0, monotonic_now - runtime_metrics.last_input_activity_at)
                 if runtime_metrics.last_input_activity_at > 0.0

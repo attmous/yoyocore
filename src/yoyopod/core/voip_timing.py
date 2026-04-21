@@ -137,7 +137,7 @@ def _sync_background_voip_timing_sample(runtime_loop: "RuntimeLoopService") -> N
             "interval_ms={:.1f} configured_interval_ms={:.1f} "
             "native_iterate_ms={:.1f} event_drain_ms={:.1f} "
             "native_events={} cadence_mode={} cadence_reason={} "
-            "pending_callbacks={} pending_events={} screen={} state={}",
+            "pending_scheduler_tasks={} pending_events={} screen={} state={}",
             runtime_loop._last_voip_schedule_delay_seconds * 1000.0,
             runtime_loop._last_voip_iterate_duration_seconds * 1000.0,
             runtime_loop._effective_voip_iterate_interval_seconds() * 1000.0,
@@ -147,8 +147,8 @@ def _sync_background_voip_timing_sample(runtime_loop: "RuntimeLoopService") -> N
             runtime_loop._last_voip_native_events,
             runtime_loop._current_cadence_mode,
             runtime_loop._current_cadence_reason,
-            runtime_loop.app._pending_main_thread_callback_count(),
-            runtime_loop.app.event_bus.pending_count(),
+            runtime_loop.app.scheduler.pending_count(),
+            runtime_loop.app.bus.pending_count(),
             runtime_loop._current_screen_name(),
             runtime_loop._runtime_state_name(),
         )

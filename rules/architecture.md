@@ -47,7 +47,7 @@ yoyopod.py / src/yoyopod/main.py  (entry points)
 - Local music playback runs through an app-managed mpv process instead of an external music daemon
 - mpv pushes playback and property-change events over JSON IPC rather than using polling
 - Liblinphone backend events are drained on the coordinator thread for UI and state updates
-- `EventBus` serializes typed app events on the coordinator thread
+- `Bus` serializes typed app events on the coordinator thread
 
 ## Module Boundary Rules
 
@@ -103,7 +103,8 @@ yoyopod.py / src/yoyopod/main.py  (entry points)
 
 ### Events and threading
 
-- Background callbacks should publish typed events onto `EventBus` or pass through a narrow coordinator-safe boundary.
+- Background callbacks should schedule main-thread work through `MainThreadScheduler`.
+- Only main-thread code should publish typed events onto `Bus`.
 - Do not mutate UI state directly from background threads.
 - Favor typed events and explicit seams over reaching into concrete screen instances.
 

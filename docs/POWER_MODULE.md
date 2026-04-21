@@ -48,7 +48,7 @@ YoyoPodApp
      -> PiSugarWatchdog
         -> i2cget / i2cset
   -> integrations.power.PowerCoordinator
-     -> EventBus
+     -> Bus
      -> PowerSafetyPolicy
      -> AppContext / CoordinatorRuntime
      -> current screen refresh

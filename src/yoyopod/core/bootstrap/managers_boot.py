@@ -72,7 +72,7 @@ class ManagersBoot:
             self.app.voip_manager = self.voip_manager_cls(
                 voip_config,
                 people_directory=self.app.people_directory,
-                event_scheduler=self.app.runtime_loop.queue_main_thread_callback,
+                event_scheduler=self.app.scheduler.run_on_main,
                 background_iterate_enabled=True,
             )
             self.app._voip_iterate_interval_seconds = max(
@@ -127,7 +127,9 @@ class ManagersBoot:
             self.logger.info("  - NetworkManager")
             self.app.network_manager = self.network_manager_cls.from_config_manager(
                 config_manager,
-                event_bus=self.app.event_bus,
+                event_publisher=lambda event: self.app.scheduler.run_on_main(
+                    lambda event_to_publish=event: self.app.bus.publish(event_to_publish)
+                ),
             )
             if self.app.network_manager.config.enabled and not self.app.simulate:
                 try:

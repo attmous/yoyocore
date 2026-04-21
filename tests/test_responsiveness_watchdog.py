@@ -15,8 +15,8 @@ def _status(**overrides: object) -> dict[str, object]:
         "display_backend": "lvgl",
         "loop_heartbeat_age_seconds": 0.1,
         "lvgl_pump_age_seconds": 0.1,
-        "pending_main_thread_callbacks": 0,
-        "pending_event_bus_events": 0,
+        "pending_scheduler_tasks": 0,
+        "pending_bus_events": 0,
         "input_activity_age_seconds": None,
         "handled_input_activity_age_seconds": None,
         "last_input_action": None,
@@ -65,8 +65,8 @@ def test_evaluate_responsiveness_status_flags_pending_work_stall() -> None:
     decision = evaluate_responsiveness_status(
         _status(
             loop_heartbeat_age_seconds=5.5,
-            pending_main_thread_callbacks=2,
-            pending_event_bus_events=1,
+            pending_scheduler_tasks=2,
+            pending_bus_events=1,
         ),
         stall_threshold_seconds=5.0,
         recent_input_window_seconds=3.0,
@@ -82,7 +82,7 @@ def test_watchdog_captures_once_per_stall_until_recovery() -> None:
 
     current_status = _status(
         loop_heartbeat_age_seconds=6.0,
-        pending_main_thread_callbacks=1,
+        pending_scheduler_tasks=1,
     )
     captures: list[str] = []
     now = [0.0]
