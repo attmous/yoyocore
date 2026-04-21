@@ -30,6 +30,12 @@ from yoyopod.core.setup_contract import (
 from yoyopod.backends.cloud import CloudClientError as BackendCloudClientError
 from yoyopod.backends.cloud import CloudDeviceClient as BackendCloudDeviceClient
 from yoyopod.backends.cloud import DeviceMqttClient as BackendDeviceMqttClient
+from yoyopod.backends.location import GpsReader as BackendGpsReader
+from yoyopod.backends.network import AtCommandSet as BackendAtCommandSet
+from yoyopod.backends.network import PppProcess as BackendPppProcess
+from yoyopod.backends.network import SerialTransport as BackendSerialTransport
+from yoyopod.backends.network import Sim7600Backend as BackendSim7600Backend
+from yoyopod.backends.network import TransportError as BackendTransportError
 from yoyopod.integrations.contacts.cloud_sync import (
     build_cloud_contact as ContactsBuildCloudContact,
 )
@@ -58,6 +64,13 @@ from yoyopod.cloud import CloudDeviceClient as LegacyCloudDeviceClient
 from yoyopod.cloud import CloudManager as LegacyCloudManager
 from yoyopod.cloud import CloudStatusSnapshot as LegacyCloudStatusSnapshot
 from yoyopod.cloud import DeviceMqttClient as LegacyDeviceMqttClient
+from yoyopod.network import Sim7600Backend as LegacySim7600Backend
+from yoyopod.network.at_commands import AtCommandSet as LegacyAtCommandSet
+from yoyopod.network.backend import Sim7600Backend as LegacyBackendSim7600Backend
+from yoyopod.network.gps import GpsReader as LegacyGpsReader
+from yoyopod.network.ppp import PppProcess as LegacyPppProcess
+from yoyopod.network.transport import SerialTransport as LegacySerialTransport
+from yoyopod.network.transport import TransportError as LegacyTransportError
 from yoyopod.people import Contact as LegacyContact
 from yoyopod.people import PeopleDirectory as LegacyPeopleDirectory
 from yoyopod.people import PeopleManager as LegacyPeopleManager
@@ -115,6 +128,18 @@ def test_legacy_cloud_import_paths_resolve_to_relocated_cloud_symbols() -> None:
     assert LegacyCloudDeviceClient is BackendCloudDeviceClient
     assert LegacyDeviceMqttClient is BackendDeviceMqttClient
     assert LegacyCloudManager is IntegrationCloudManager
+
+
+def test_legacy_network_backend_import_paths_resolve_to_relocated_symbols() -> None:
+    """Legacy low-level network imports should resolve to the relocated backends."""
+
+    assert LegacyAtCommandSet is BackendAtCommandSet
+    assert LegacyPppProcess is BackendPppProcess
+    assert LegacySerialTransport is BackendSerialTransport
+    assert LegacyTransportError is BackendTransportError
+    assert LegacyGpsReader is BackendGpsReader
+    assert LegacyBackendSim7600Backend is BackendSim7600Backend
+    assert LegacySim7600Backend is BackendSim7600Backend
 
 
 def test_demo_entrypoints_keep_importing_legacy_shims(monkeypatch) -> None:

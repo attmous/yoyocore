@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import threading
-from unittest.mock import MagicMock, patch
 
-from yoyopod.network.transport import SerialTransport, TransportError
-from yoyopod.network.at_commands import AtCommandSet
-from yoyopod.network.models import SignalInfo
+from yoyopod.backends.location import GpsReader
+from yoyopod.backends.network.at_commands import AtCommandSet
+from yoyopod.backends.network.transport import SerialTransport, TransportError
 
 
 class FakeTransport:
@@ -132,10 +131,6 @@ def test_get_registration_not_registered():
     transport.responses["AT+CEREG?"] = "+CEREG: 0,0\nOK"
     at = AtCommandSet(transport)
     assert at.get_registration() is False
-
-
-from yoyopod.network.gps import GpsReader
-
 
 def test_gps_reader_query_with_fix():
     """GpsReader.query should return decimal degree coordinates from ddmm.mmmm."""

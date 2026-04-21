@@ -5,9 +5,8 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from yoyopod.backends.cloud import DeviceMqttClient
 from yoyopod.core.events import StateChangedEvent
 from yoyopod.integrations.cloud.commands import PublishTelemetryCommand, SyncNowCommand
 from yoyopod.integrations.cloud.handlers import (
@@ -17,8 +16,30 @@ from yoyopod.integrations.cloud.handlers import (
     seed_cloud_state,
     sync_now,
 )
-from yoyopod.integrations.cloud.manager import CloudManager
-from yoyopod.integrations.cloud.models import CloudAccessToken, CloudStatusSnapshot
+
+if TYPE_CHECKING:
+    from yoyopod.backends.cloud import DeviceMqttClient
+    from yoyopod.integrations.cloud.manager import CloudManager
+    from yoyopod.integrations.cloud.models import CloudAccessToken, CloudStatusSnapshot
+
+
+_EXPORTS = {
+    "CloudAccessToken": ("yoyopod.integrations.cloud.models", "CloudAccessToken"),
+    "CloudManager": ("yoyopod.integrations.cloud.manager", "CloudManager"),
+    "CloudStatusSnapshot": ("yoyopod.integrations.cloud.models", "CloudStatusSnapshot"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load public cloud exports lazily to keep submodule imports acyclic."""
+
+    try:
+        module_name, attribute = _EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+
+    module = __import__(module_name, fromlist=[attribute])
+    return getattr(module, attribute)
 
 
 @dataclass(slots=True)
@@ -122,6 +143,8 @@ def _schedule_status_update(
 
 
 def _build_mqtt_client(config: object | None) -> DeviceMqttClient:
+    from yoyopod.backends.cloud import DeviceMqttClient
+
     cloud = getattr(config, "cloud", None)
     backend = getattr(cloud, "backend", None)
     secrets = getattr(cloud, "secrets", None)

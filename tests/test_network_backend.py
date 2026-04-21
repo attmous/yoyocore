@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import subprocess
 from unittest.mock import MagicMock, patch
 
-from yoyopod.network.ppp import PppProcess
+from yoyopod.backends.network.modem import Sim7600Backend
+from yoyopod.backends.network.ppp import PppProcess
+from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
 
 def test_ppp_spawn_constructs_correct_command():
     """PppProcess.spawn should invoke pppd with the correct arguments."""
     with (
-        patch("yoyopod.network.ppp.shutil.which", return_value="pppd"),
-        patch("yoyopod.network.ppp.os.geteuid", return_value=0, create=True),
+        patch("yoyopod.backends.network.ppp.shutil.which", return_value="pppd"),
+        patch("yoyopod.backends.network.ppp.os.geteuid", return_value=0, create=True),
         patch("subprocess.Popen") as mock_popen,
     ):
         mock_proc = MagicMock()
@@ -34,10 +35,10 @@ def test_ppp_spawn_uses_sbin_fallback_when_path_omits_pppd():
 
     with (
         patch(
-            "yoyopod.network.ppp.shutil.which",
+            "yoyopod.backends.network.ppp.shutil.which",
             side_effect=lambda candidate: "/usr/sbin/pppd" if candidate == "/usr/sbin/pppd" else None,
         ),
-        patch("yoyopod.network.ppp.os.geteuid", return_value=0, create=True),
+        patch("yoyopod.backends.network.ppp.os.geteuid", return_value=0, create=True),
         patch("subprocess.Popen") as mock_popen,
     ):
         mock_proc = MagicMock()
@@ -62,8 +63,8 @@ def test_ppp_spawn_uses_sudo_wrapper_for_non_root_noauth() -> None:
         return None
 
     with (
-        patch("yoyopod.network.ppp.shutil.which", side_effect=_which),
-        patch("yoyopod.network.ppp.os.geteuid", return_value=1000, create=True),
+        patch("yoyopod.backends.network.ppp.shutil.which", side_effect=_which),
+        patch("yoyopod.backends.network.ppp.os.geteuid", return_value=1000, create=True),
         patch("subprocess.Popen") as mock_popen,
     ):
         mock_proc = MagicMock()
@@ -86,9 +87,9 @@ def test_ppp_spawn_fails_without_sudo_for_non_root() -> None:
         return None
 
     with (
-        patch("yoyopod.network.ppp.shutil.which", side_effect=_which),
-        patch("yoyopod.network.ppp.os.geteuid", return_value=1000, create=True),
-        patch("yoyopod.network.ppp.Path.exists", return_value=False),
+        patch("yoyopod.backends.network.ppp.shutil.which", side_effect=_which),
+        patch("yoyopod.backends.network.ppp.os.geteuid", return_value=1000, create=True),
+        patch("yoyopod.backends.network.ppp.Path.exists", return_value=False),
         patch("subprocess.Popen") as mock_popen,
     ):
         ppp = PppProcess(serial_port="/dev/ttyUSB3", apn="internet")
@@ -124,14 +125,6 @@ def test_ppp_is_alive_when_dead():
     """is_alive should return False when no process."""
     ppp = PppProcess(serial_port="/dev/ttyUSB3", apn="internet")
     assert ppp.is_alive() is False
-
-
-# ---------------------------------------------------------------------------
-# Backend tests
-# ---------------------------------------------------------------------------
-
-from yoyopod.network.backend import NetworkBackend, Sim7600Backend
-from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 
 
 class FakeAtCommands:
@@ -357,7 +350,7 @@ def test_backend_is_online_marks_missing_ppp_interface_offline() -> None:
 
     backend._config = FakeConfig()
 
-    with patch("yoyopod.network.backend.Path.exists", return_value=False):
+    with patch("yoyopod.backends.network.modem.Path.exists", return_value=False):
         assert backend.is_online() is False
 
     assert backend._state.phase == ModemPhase.REGISTERED

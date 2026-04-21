@@ -1,11 +1,36 @@
-"""GPS backend wrapper built on the existing SIM7600 transport path."""
+"""GPS query helpers plus scaffold backend wrapper for the SIM7600 path."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from yoyopod.network.gps import GpsReader
-from yoyopod.network.transport import SerialTransport
+from yoyopod.backends.network.at_commands import AtCommandSet
+from yoyopod.backends.network.transport import SerialTransport
+
+if TYPE_CHECKING:
+    from yoyopod.network.models import GpsCoordinate
+
+
+class GpsReader:
+    """Query GPS position via AT commands on the SIM7600G-H."""
+
+    def __init__(self, transport: object) -> None:
+        self._at = AtCommandSet(transport)
+
+    def enable(self) -> bool:
+        """Enable the GPS engine on the modem."""
+
+        return self._at.enable_gps()
+
+    def disable(self) -> None:
+        """Disable the GPS engine."""
+
+        self._at.disable_gps()
+
+    def query(self) -> "GpsCoordinate | None":
+        """Query current GPS fix. Returns None if no fix available."""
+
+        return self._at.query_gps()
 
 
 class GpsBackend:
@@ -50,3 +75,6 @@ class GpsBackend:
         if callable(is_open) and is_open():
             return
         self._transport.open()
+
+
+__all__ = ["GpsBackend", "GpsReader"]
