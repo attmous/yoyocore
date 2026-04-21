@@ -55,7 +55,7 @@ from yoyopod.runtime.power_service import PowerRuntimeService
 from yoyopod.runtime.recovery import RecoverySupervisor
 from yoyopod.integrations.display import ScreenPowerService
 from yoyopod.runtime.shutdown import ShutdownLifecycleService
-from yoyopod.runtime.status import RuntimeStatusService
+from yoyopod.core.status import RuntimeStatusService
 from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler
 
 if TYPE_CHECKING:
