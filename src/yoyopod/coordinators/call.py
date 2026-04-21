@@ -4,7 +4,6 @@ Call-event coordination for YoyoPod.
 
 from __future__ import annotations
 
-import subprocess
 from typing import Optional
 
 from loguru import logger
@@ -21,6 +20,7 @@ from yoyopod.core import (
 )
 from yoyopod.integrations.call import (
     CallHistoryStore,
+    CallRinger,
     CallSessionState,
     CallSessionTracker,
     CallState,
@@ -45,7 +45,7 @@ class CallCoordinator:
         self.auto_resume_after_call = auto_resume_after_call
         self.call_history_store = call_history_store
         self.voip_registered = initial_voip_registered
-        self.ringing_process: Optional[subprocess.Popen] = None
+        self._ringer = CallRinger()
         self._event_bus: Optional[EventBus] = None
         self._bound = False
         self._session_tracker = CallSessionTracker(call_history_store)
@@ -106,45 +106,11 @@ class CallCoordinator:
 
     def start_ringing(self) -> None:
         """Start playing the ring tone for an incoming call."""
-        self.stop_ringing()
-
-        try:
-            ring_output_device = None
-            speaker_test_path = "speaker-test"
-            if self.runtime.config_manager:
-                ring_output_device = self.runtime.config_manager.get_ring_output_device()
-                speaker_test_path = self.runtime.config_manager.get_speaker_test_path()
-
-            command = [
-                speaker_test_path,
-                "-t",
-                "sine",
-                "-f",
-                "800",
-            ]
-            if ring_output_device:
-                command.extend(["-D", ring_output_device])
-
-            self.ringing_process = subprocess.Popen(
-                command,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            logger.debug("Ring tone started")
-        except Exception as exc:
-            logger.warning(f"Failed to start ring tone: {exc}")
+        self._ringer.start(self.runtime.config_manager)
 
     def stop_ringing(self) -> None:
         """Stop playing the ring tone."""
-        if self.ringing_process:
-            try:
-                self.ringing_process.terminate()
-                self.ringing_process.wait(timeout=1.0)
-                logger.debug("Ring tone stopped")
-            except Exception as exc:
-                logger.warning(f"Failed to stop ring tone: {exc}")
-            finally:
-                self.ringing_process = None
+        self._ringer.stop()
 
     def cleanup(self) -> None:
         """Clean up call-related coordinator state."""

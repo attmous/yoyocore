@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from yoyopod.integrations.call.messaging import MessagingService
     from yoyopod.integrations.call.message_store import VoIPMessageStore
     from yoyopod.integrations.call.manager import VoIPManager
+    from yoyopod.integrations.call.ringer import CallRinger
     from yoyopod.integrations.call.session import (
         CallFSM,
         CallInterruptionPolicy,
@@ -46,6 +47,7 @@ _PUBLIC_EXPORTS = {
     "CallSessionTracker": ("yoyopod.integrations.call.lifecycle", "CallSessionTracker"),
     "CallHistoryEntry": ("yoyopod.integrations.call.history", "CallHistoryEntry"),
     "CallHistoryStore": ("yoyopod.integrations.call.history", "CallHistoryStore"),
+    "CallRinger": ("yoyopod.integrations.call.ringer", "CallRinger"),
     "is_voip_configured": ("yoyopod.integrations.call.status", "is_voip_configured"),
     "sync_context_voip_status": ("yoyopod.integrations.call.status", "sync_context_voip_status"),
     "CallState": ("yoyopod.integrations.call.models", "CallState"),
@@ -102,6 +104,7 @@ __all__ = [
     "CallSessionTracker",
     "CallHistoryEntry",
     "CallHistoryStore",
+    "CallRinger",
     "is_voip_configured",
     "sync_context_voip_status",
     "CallState",
