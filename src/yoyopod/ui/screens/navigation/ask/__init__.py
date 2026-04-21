@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from yoyopod.coordinators.voice import (
     VoiceCommandOutcome,
@@ -52,6 +52,7 @@ class AskScreen(Screen):
         display: Display,
         context: Optional["AppContext"] = None,
         *,
+        app: Any | None = None,
         config_manager: Optional["ConfigManager"] = None,
         people_directory: Optional["PeopleManager"] = None,
         voip_manager: Optional["VoIPManager"] = None,
@@ -64,31 +65,64 @@ class AskScreen(Screen):
         voice_service_factory: Optional[Callable[[VoiceSettings], VoiceManager]] = None,
         voice_runtime: Optional["VoiceRuntimeCoordinator"] = None,
     ) -> None:
-        super().__init__(display, context, "Ask")
-        self.config_manager = config_manager
-        self.voip_manager = voip_manager
-        self.voice_runtime = voice_runtime or VoiceRuntimeCoordinator(
+        super().__init__(display, context, "Ask", app=app)
+        resolved_config_manager = config_manager or getattr(app, "config_manager", None)
+        resolved_people_directory = people_directory
+        if resolved_people_directory is None:
+            integrations = getattr(app, "integrations", None)
+            contacts_integration = (
+                integrations.get("contacts") if hasattr(integrations, "get") else None
+            )
+            resolved_people_directory = getattr(contacts_integration, "directory", None)
+        if resolved_people_directory is None:
+            resolved_people_directory = getattr(app, "people_directory", None)
+
+        resolved_voip_manager = voip_manager or getattr(app, "voip_manager", None)
+        audio_volume_controller = getattr(app, "audio_volume_controller", None)
+        resolved_volume_up_action = volume_up_action or getattr(
+            audio_volume_controller, "volume_up", None
+        )
+        resolved_volume_down_action = volume_down_action or getattr(
+            audio_volume_controller,
+            "volume_down",
+            None,
+        )
+        resolved_mute_action = mute_action or getattr(resolved_voip_manager, "mute", None)
+        resolved_unmute_action = unmute_action or getattr(resolved_voip_manager, "unmute", None)
+        local_music_service = getattr(app, "local_music_service", None)
+        resolved_play_music_action = play_music_action or getattr(
+            local_music_service,
+            "shuffle_all",
+            None,
+        )
+        resolved_voice_runtime = voice_runtime or getattr(app, "voice_runtime", None)
+
+        self.config_manager = resolved_config_manager
+        self.voip_manager = resolved_voip_manager
+        self.voice_runtime = resolved_voice_runtime or VoiceRuntimeCoordinator(
             context=context,
             settings_resolver=VoiceSettingsResolver(
                 context=context,
-                config_manager=config_manager,
+                config_manager=resolved_config_manager,
                 settings_provider=voice_settings_provider,
             ),
             command_executor=VoiceCommandExecutor(
                 context=context,
-                config_manager=config_manager,
-                people_directory=people_directory,
-                voip_manager=voip_manager,
-                volume_up_action=volume_up_action,
-                volume_down_action=volume_down_action,
-                mute_action=mute_action,
-                unmute_action=unmute_action,
-                play_music_action=play_music_action,
+                config_manager=resolved_config_manager,
+                people_directory=resolved_people_directory,
+                voip_manager=resolved_voip_manager,
+                volume_up_action=resolved_volume_up_action,
+                volume_down_action=resolved_volume_down_action,
+                mute_action=resolved_mute_action,
+                unmute_action=resolved_unmute_action,
+                play_music_action=resolved_play_music_action,
                 screen_summary_provider=self._screen_summary,
             ),
             voice_service_factory=voice_service_factory,
         )
-        self._async_voice_capture = voice_runtime is not None or voice_service_factory is None
+        self._async_voice_capture = (
+            resolved_voice_runtime is not None or voice_service_factory is None
+        )
         self._state: str = "idle"
         self._headline: str = "Ask"
         self._body: str = "Ask me anything..."
@@ -276,9 +310,7 @@ class AskScreen(Screen):
             return None
 
         ui_backend = (
-            self.display.get_ui_backend()
-            if hasattr(self.display, "get_ui_backend")
-            else None
+            self.display.get_ui_backend() if hasattr(self.display, "get_ui_backend") else None
         )
         if ui_backend is None or not getattr(ui_backend, "initialized", False):
             self._lvgl_view = None

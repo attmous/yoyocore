@@ -193,23 +193,7 @@ class ScreensBoot:
             self.app.ask_screen = AskScreen(
                 display,
                 context,
-                config_manager=self.app.config_manager,
-                people_directory=self.app.people_directory,
-                voip_manager=self.app.voip_manager,
-                volume_up_action=volume_controller.volume_up,
-                volume_down_action=volume_controller.volume_down,
-                mute_action=(
-                    self.app.voip_manager.mute if self.app.voip_manager is not None else None
-                ),
-                unmute_action=(
-                    self.app.voip_manager.unmute if self.app.voip_manager is not None else None
-                ),
-                play_music_action=(
-                    self.app.local_music_service.shuffle_all
-                    if self.app.local_music_service is not None
-                    else None
-                ),
-                voice_runtime=self.app.voice_runtime,
+                app=self.app,
             )
             self.app.power_screen = PowerScreen(
                 display,

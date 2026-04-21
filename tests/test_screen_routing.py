@@ -437,9 +437,9 @@ class _FakeConfigManager:
 
     def get_callable_contacts(self, *, gsm_enabled: bool = False) -> list[_FakeContact]:
         return [
-            contact for contact in self._contacts if contact.preferred_call_target(
-                gsm_enabled=gsm_enabled
-            )[0]
+            contact
+            for contact in self._contacts
+            if contact.preferred_call_target(gsm_enabled=gsm_enabled)[0]
         ]
 
     def get_capture_device_id(self) -> str | None:
@@ -589,6 +589,44 @@ def test_ask_screen_applies_local_device_actions() -> None:
     assert context.voice.mic_muted is False
     assert voip_manager.unmute_calls == 1
     assert context.voice.last_spoken_text == "Voice commands mic is live."
+
+
+def test_ask_screen_can_resolve_dependencies_from_app() -> None:
+    """AskScreen should resolve call, music, and volume hooks from the owning app seam."""
+
+    context = AppContext()
+    volume_up_calls: list[int] = []
+    voip_manager = _FakeVoipManager()
+    app = SimpleNamespace(
+        config_manager=_FakeConfigManager(
+            [_FakeContact("Hagar", "sip:mama@example.com", notes="Mama")]
+        ),
+        people_directory=_FakeConfigManager(
+            [_FakeContact("Hagar", "sip:mama@example.com", notes="Mama")]
+        ),
+        voip_manager=voip_manager,
+        audio_volume_controller=SimpleNamespace(
+            volume_up=lambda step: volume_up_calls.append(step) or 55,
+            volume_down=lambda _step: 45,
+        ),
+        local_music_service=SimpleNamespace(shuffle_all=lambda: True),
+    )
+    screen = AskScreen(
+        display=object(),
+        context=context,
+        app=app,
+    )
+
+    screen.on_voice_command({"transcript": "call mom"})
+    assert context.talk.selected_contact_name == "Mama"
+    assert voip_manager.make_calls == [("sip:mama@example.com", "Mama")]
+
+    screen.on_voice_command({"transcript": "play music"})
+    assert screen.consume_navigation_request() == NavigationRequest.route("shuffle_started")
+
+    screen.on_voice_command({"transcript": "volume up"})
+    assert volume_up_calls == [5]
+    assert context.voice.last_spoken_text == "Volume is 55."
 
 
 def test_ask_screen_can_start_music_from_local_hook() -> None:
