@@ -104,10 +104,10 @@ Current exemplar package homes:
   - compatibility shims for the historical network import path
 - `src/yoyopod/communication/`
   - `calling/`
-  - low-level calling backends, messaging helpers, and compatibility shims
+  - legacy compatibility facades over the canonical call seam
   - `messaging/`
   - `integrations/`
-  - `__init__.py` is the app-facing seam
+  - `__init__.py` is a historical compatibility facade
 - `src/yoyopod/integrations/call/`
   - canonical call manager, messaging service, models, message store, call-history store, and voice-note services
   - `__init__.py` is the app-facing seam

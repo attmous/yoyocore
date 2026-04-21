@@ -229,6 +229,23 @@ def test_legacy_call_import_paths_resolve_to_relocated_symbols() -> None:
     assert LegacyVoiceNoteDraft is IntegrationVoiceNoteDraft
 
 
+def test_legacy_communication_package_reexports_call_seam() -> None:
+    """Legacy communication package should expose the canonical call facade."""
+
+    legacy_module = importlib.import_module("yoyopod.communication")
+
+    assert legacy_module.CallHistoryStore is IntegrationCallHistoryStore
+    assert legacy_module.CallState is IntegrationCallState
+    assert legacy_module.MessageDeliveryState is IntegrationMessageDeliveryState
+    assert legacy_module.MessagingService is IntegrationMessagingService
+    assert legacy_module.RegistrationState is IntegrationRegistrationState
+    assert legacy_module.VoIPConfig is IntegrationVoIPConfig
+    assert legacy_module.VoIPManager is IntegrationVoIPManager
+    assert legacy_module.VoIPMessageRecord is IntegrationVoIPMessageRecord
+    assert legacy_module.VoIPMessageStore is IntegrationVoIPMessageStore
+    assert legacy_module.VoiceNoteDraft is IntegrationVoiceNoteDraft
+
+
 def test_legacy_voip_backend_import_paths_resolve_to_relocated_symbols() -> None:
     """Legacy VoIP backend imports should keep pointing at the canonical backend seam."""
 

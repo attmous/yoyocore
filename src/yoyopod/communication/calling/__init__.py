@@ -6,18 +6,41 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from yoyopod.backends.voip.protocol import VoIPIterateMetrics
-    from yoyopod.integrations.call.history import CallHistoryEntry, CallHistoryStore
-    from yoyopod.integrations.call.manager import VoIPManager
-    from yoyopod.integrations.call.voice_notes import VoiceNoteDraft
+    from yoyopod.integrations.call import (
+        CallHistoryEntry,
+        CallHistoryStore,
+        CallState,
+        MessageDeliveryState,
+        MessageDirection,
+        MessageKind,
+        MessagingService,
+        RegistrationState,
+        VoIPConfig,
+        VoIPIterateMetrics,
+        VoIPManager,
+        VoIPMessageRecord,
+        VoIPMessageStore,
+        VoiceNoteDraft,
+        VoiceNoteService,
+    )
 
 
 _LAZY_EXPORTS = {
-    "CallHistoryEntry": "yoyopod.integrations.call.history",
-    "CallHistoryStore": "yoyopod.integrations.call.history",
-    "VoIPIterateMetrics": "yoyopod.backends.voip.protocol",
-    "VoIPManager": "yoyopod.integrations.call.manager",
-    "VoiceNoteDraft": "yoyopod.integrations.call.voice_notes",
+    "CallHistoryEntry": "yoyopod.integrations.call",
+    "CallHistoryStore": "yoyopod.integrations.call",
+    "CallState": "yoyopod.integrations.call",
+    "MessageDeliveryState": "yoyopod.integrations.call",
+    "MessageDirection": "yoyopod.integrations.call",
+    "MessageKind": "yoyopod.integrations.call",
+    "MessagingService": "yoyopod.integrations.call",
+    "RegistrationState": "yoyopod.integrations.call",
+    "VoIPConfig": "yoyopod.integrations.call",
+    "VoIPIterateMetrics": "yoyopod.integrations.call",
+    "VoIPManager": "yoyopod.integrations.call",
+    "VoIPMessageRecord": "yoyopod.integrations.call",
+    "VoIPMessageStore": "yoyopod.integrations.call",
+    "VoiceNoteDraft": "yoyopod.integrations.call",
+    "VoiceNoteService": "yoyopod.integrations.call",
 }
 
 
@@ -31,7 +54,17 @@ def __getattr__(name: str) -> Any:
 __all__ = [
     "CallHistoryEntry",
     "CallHistoryStore",
+    "CallState",
+    "MessageDeliveryState",
+    "MessageDirection",
+    "MessageKind",
+    "MessagingService",
+    "RegistrationState",
+    "VoIPConfig",
+    "VoIPMessageRecord",
+    "VoIPMessageStore",
     "VoIPIterateMetrics",
     "VoIPManager",
     "VoiceNoteDraft",
+    "VoiceNoteService",
 ]
