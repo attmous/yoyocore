@@ -1526,7 +1526,12 @@ class CloudManager:
             str(payload.get("filename") or payload.get("originalFilename") or payload.get("title") or "").strip()
         )
         source_suffix = cached_path.suffix or ".mp3"
-        safe_name = self._safe_media_filename(preferred_name, default_stem=track_id, suffix=source_suffix)
+        display_stem = self._safe_media_stem(preferred_name, default_stem=track_id)
+        unique_stem = self._safe_media_stem(track_id, default_stem="track")
+        if display_stem == unique_stem:
+            safe_name = f"{display_stem}{self._safe_media_suffix(source_suffix)}"
+        else:
+            safe_name = f"{display_stem}-{unique_stem}{self._safe_media_suffix(source_suffix)}"
         target_path = uploads_dir / safe_name
 
         shutil.copy2(cached_path, target_path)
@@ -1566,6 +1571,10 @@ class CloudManager:
 
     @staticmethod
     def _safe_media_filename(value: str, *, default_stem: str, suffix: str) -> str:
+        return f"{CloudManager._safe_media_stem(value, default_stem=default_stem)}{CloudManager._safe_media_suffix(suffix)}"
+
+    @staticmethod
+    def _safe_media_stem(value: str, *, default_stem: str) -> str:
         stem = Path(value).stem if value else default_stem
         normalized = "".join(char if char.isalnum() or char in {"-", "_"} else "-" for char in stem)
         normalized = normalized.strip(".-_")
@@ -1574,8 +1583,12 @@ class CloudManager:
                 char if char.isalnum() or char in {"-", "_"} else "-" for char in default_stem
             ).strip(".-_")
             normalized = fallback or "track"
+        return normalized
+
+    @staticmethod
+    def _safe_media_suffix(suffix: str) -> str:
         safe_suffix = suffix if suffix.startswith(".") else f".{suffix}"
-        return f"{normalized}{safe_suffix[:16]}"
+        return safe_suffix[:16]
 
     def _is_backend_configured(self) -> bool:
         return bool(self.config_manager.get_cloud_settings().backend.api_base_url.strip())

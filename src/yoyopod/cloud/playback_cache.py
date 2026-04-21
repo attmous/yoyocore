@@ -6,6 +6,7 @@ import hashlib
 import os
 import re
 import tempfile
+import threading
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,7 @@ class RemotePlaybackCache:
         self.root = Path(root)
         self.max_bytes = max(32 * 1024 * 1024, int(max_bytes))
         self.root.mkdir(parents=True, exist_ok=True)
+        self._prune_lock = threading.Lock()
 
     def prepare(
         self,
@@ -93,19 +95,31 @@ class RemotePlaybackCache:
             raise
 
     def _prune(self, *, protected_paths: set[Path] | None = None) -> None:
-        files = [entry for entry in self.root.glob("*") if entry.is_file()]
-        files.sort(key=lambda entry: entry.stat().st_mtime)
         protected = {path.resolve(strict=False) for path in (protected_paths or set())}
 
-        total_size = sum(entry.stat().st_size for entry in files)
-        for entry in files:
-            if total_size <= self.max_bytes:
-                break
-            if entry.resolve(strict=False) in protected:
-                continue
-            size = entry.stat().st_size
-            entry.unlink(missing_ok=True)
-            total_size -= size
+        with self._prune_lock:
+            files: list[tuple[Path, float, int]] = []
+            for entry in self.root.glob("*"):
+                try:
+                    if not entry.is_file():
+                        continue
+                    stat = entry.stat()
+                except FileNotFoundError:
+                    continue
+                files.append((entry, stat.st_mtime, stat.st_size))
+
+            files.sort(key=lambda item: item[1])
+            total_size = sum(item[2] for item in files)
+            for entry, _mtime, size in files:
+                if total_size <= self.max_bytes:
+                    break
+                try:
+                    if entry.resolve(strict=False) in protected:
+                        continue
+                    entry.unlink(missing_ok=True)
+                    total_size -= size
+                except FileNotFoundError:
+                    continue
 
     def _target_path_for(
         self,

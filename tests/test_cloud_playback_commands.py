@@ -349,6 +349,8 @@ def test_store_media_command_acks_and_publishes_imported_event(tmp_path) -> None
     assert manager._mqtt.events[-1]["type"] == "media_library"
     assert manager._mqtt.events[-1]["payload"]["eventType"] == "imported"
     assert (tmp_path / "Music" / "Dashboard Uploads.m3u").exists()
+    imported_path = manager._mqtt.events[-1]["payload"]["payload"]["path"]
+    assert imported_path.endswith("Track-Seven-track-7.mp3")
 
 
 def test_store_media_sanitizes_fallback_track_id_in_target_filename(tmp_path) -> None:
@@ -421,3 +423,50 @@ def test_stopped_after_asset_load_is_not_dropped_when_activation_pending() -> No
 
     assert manager._remote_playback_session is None
     assert manager._mqtt.events[-1]["eventType"] == "stopped"
+
+
+def test_store_media_keeps_distinct_files_for_same_title(tmp_path) -> None:
+    music_backend = _FakeMusicBackend()
+    config_manager = _FakeConfigManager()
+    config_manager.get_media_settings = lambda: SimpleNamespace(  # type: ignore[method-assign]
+        music=SimpleNamespace(
+            remote_cache_dir=str(tmp_path / "cache"),
+            remote_cache_max_bytes=64 * 1024 * 1024,
+            music_dir=str(tmp_path / "Music"),
+        )
+    )
+    manager = CloudManager(
+        app=_FakeApp(music_backend),
+        config_manager=config_manager,
+        client=SimpleNamespace(),
+    )
+    manager._mqtt = _FakeMqttClient()
+    cached_path = tmp_path / "cache-track.mp3"
+    cached_path.write_bytes(b"audio")
+    manager._remote_playback_cache = SimpleNamespace(
+        prepare=lambda **kwargs: SimpleNamespace(path=str(cached_path), cache_hit=False)
+    )
+    manager._start_worker = lambda *, name, work: work()  # type: ignore[method-assign]
+
+    for command_id, track_id in (("cmd-10", "track-10"), ("cmd-11", "track-11")):
+        manager._apply_mqtt_command(
+            {
+                "commandId": command_id,
+                "command": "store_media",
+                "payload": {
+                    "trackId": track_id,
+                    "mediaUrl": "https://media.example.test/file.mp3",
+                    "title": "Shared Name",
+                },
+            }
+        )
+
+    imported_paths = [
+        event["payload"]["payload"]["path"]
+        for event in manager._mqtt.events
+        if event.get("type") == "media_library"
+    ]
+    assert len(imported_paths) == 2
+    assert imported_paths[0] != imported_paths[1]
+    assert imported_paths[0].endswith("Shared-Name-track-10.mp3")
+    assert imported_paths[1].endswith("Shared-Name-track-11.mp3")
