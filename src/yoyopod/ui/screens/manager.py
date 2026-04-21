@@ -201,6 +201,31 @@ class ScreenManager:
                 detail=f"screen={self.current_screen.route_name or self.current_screen.name}",
             )
 
+    def refresh_current_screen_for_visible_tick(self) -> bool:
+        """Refresh the current screen when it opts into periodic visible ticks."""
+
+        if self.current_screen is None:
+            return False
+
+        wants_visible_tick_refresh = getattr(
+            self.current_screen,
+            "wants_visible_tick_refresh",
+            None,
+        )
+        refresh_for_visible_tick = getattr(
+            self.current_screen,
+            "refresh_for_visible_tick",
+            None,
+        )
+        if callable(wants_visible_tick_refresh):
+            if not wants_visible_tick_refresh():
+                return False
+        elif not callable(refresh_for_visible_tick):
+            return False
+
+        self.refresh_current_screen()
+        return True
+
     def flush_pending_navigation_refresh(self) -> bool:
         """Render one deferred LVGL navigation refresh when present."""
         if not self._navigation_refresh_pending:

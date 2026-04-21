@@ -39,15 +39,9 @@ class ScreenCoordinator:
         if current_screen is None:
             return False
 
-        wants_visible_tick_refresh = getattr(current_screen, "wants_visible_tick_refresh", None)
-        refresh_for_visible_tick = getattr(current_screen, "refresh_for_visible_tick", None)
-        if callable(wants_visible_tick_refresh):
-            if not wants_visible_tick_refresh():
-                return False
-        elif not callable(refresh_for_visible_tick):
+        if not self.runtime.screen_manager.refresh_current_screen_for_visible_tick():
             return False
 
-        self.runtime.screen_manager.refresh_current_screen()
         logger.debug(
             "  -> Visible tick refreshed {}",
             current_screen.route_name or getattr(current_screen, "name", "unknown"),

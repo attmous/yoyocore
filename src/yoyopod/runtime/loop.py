@@ -644,14 +644,13 @@ class RuntimeLoopService:
                 return current_time
 
             if current_time - last_screen_update >= screen_update_interval:
-                self.app.boot_service.ensure_coordinators()
-                screen_coordinator = self.app.screen_coordinator
-                if screen_coordinator is None:
+                screen_manager = self.app.screen_manager
+                if screen_manager is None:
                     return current_time
 
                 self._measure_blocking_span(
                     "visible_screen_refresh",
-                    screen_coordinator.refresh_current_screen_for_visible_tick,
+                    screen_manager.refresh_current_screen_for_visible_tick,
                 )
                 return current_time
 
@@ -1012,7 +1011,15 @@ class RuntimeLoopService:
         if self.app.coordinator_runtime is not None:
             return str(self.app.coordinator_runtime.get_state_name())
 
-        return str(getattr(self.app._ui_state, "value", self.app._ui_state))
+        screen_manager = self.app.screen_manager
+        current_screen = screen_manager.get_current_screen() if screen_manager is not None else None
+        current_route_name = getattr(current_screen, "route_name", None)
+        from yoyopod.coordinators import CoordinatorRuntime
+
+        derived_state = CoordinatorRuntime.ui_state_for_screen_name(current_route_name)
+        if derived_state is not None:
+            return str(derived_state.value)
+        return "idle"
 
     def _warn_if_slow(
         self,

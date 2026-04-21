@@ -160,6 +160,27 @@ class FakeScreenManager:
         self.current_screen.refresh_for_visible_tick()
         self.current_screen.render()
 
+    def refresh_current_screen_for_visible_tick(self) -> bool:
+        if self.current_screen is None:
+            return False
+        wants_visible_tick_refresh = getattr(
+            self.current_screen,
+            "wants_visible_tick_refresh",
+            None,
+        )
+        refresh_for_visible_tick = getattr(
+            self.current_screen,
+            "refresh_for_visible_tick",
+            None,
+        )
+        if callable(wants_visible_tick_refresh):
+            if not wants_visible_tick_refresh():
+                return False
+        elif not callable(refresh_for_visible_tick):
+            return False
+        self.refresh_current_screen()
+        return True
+
     def _notify_screen_changed(self, route_name: str | None) -> None:
         if self.on_screen_changed is not None:
             self.on_screen_changed(route_name)
@@ -565,7 +586,6 @@ class OrchestrationHarness:
         screen_manager = FakeScreenManager(screens.screen_lookup())
         app.screen_manager = screen_manager
         app.screen_manager.push_screen("menu")
-        app._ui_state = AppRuntimeState.MENU
 
         app.boot_service.setup_event_subscriptions()
         assert app.call_coordinator is not None
@@ -1467,7 +1487,7 @@ def test_standard_profile_starts_on_menu() -> None:
     app.input_manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
 
     assert app.boot_service.get_initial_screen_name() == "menu"
-    assert app.boot_service.get_initial_ui_state() == AppRuntimeState.MENU
+    assert CoordinatorRuntime.ui_state_for_screen_name("menu") == AppRuntimeState.MENU
 
 
 def test_one_button_profile_starts_on_hub() -> None:
@@ -1477,7 +1497,7 @@ def test_one_button_profile_starts_on_hub() -> None:
     app.input_manager = InputManager(interaction_profile=InteractionProfile.ONE_BUTTON)
 
     assert app.boot_service.get_initial_screen_name() == "hub"
-    assert app.boot_service.get_initial_ui_state() == AppRuntimeState.HUB
+    assert CoordinatorRuntime.ui_state_for_screen_name("hub") == AppRuntimeState.HUB
 
 
 def test_power_poll_updates_context_runtime_and_visible_screen() -> None:

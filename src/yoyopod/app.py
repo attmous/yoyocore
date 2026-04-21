@@ -23,7 +23,6 @@ from yoyopod.audio import (
 )
 from yoyopod.config import ConfigManager, MediaConfig, YoyoPodConfig
 from yoyopod.coordinators import (
-    AppRuntimeState,
     CallCoordinator,
     CoordinatorRuntime,
     PlaybackCoordinator,
@@ -170,7 +169,6 @@ class YoyoPodApp:
         # Integration state
         self.auto_resume_after_call = True
         self._voip_registered = False
-        self._ui_state = AppRuntimeState.IDLE
 
         # Cloud / backend runtime
         self.cloud_manager: Optional[CloudManager] = None

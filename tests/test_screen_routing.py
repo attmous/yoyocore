@@ -81,7 +81,6 @@ class FakeLvglPumpApp:
         self._last_lvgl_pump_at = 0.0
         self._voip_iterate_interval_seconds = 0.02
         self.coordinator_runtime = None
-        self._ui_state = "idle"
         self.event_bus = SimpleNamespace(pending_count=lambda: 0)
 
     def _pending_main_thread_callback_count(self) -> int:
@@ -246,6 +245,28 @@ def test_screen_manager_routes_visible_screen_renders_through_refresh_hook(
     screen_manager.push_screen("other")
     screen_manager.pop_screen()
 
+    assert power.render_calls == 2
+    assert power.refresh_for_visible_tick_calls == 2
+
+
+def test_screen_manager_only_refreshes_visible_ticks_for_opted_in_screen(
+    display: Display,
+) -> None:
+    """Visible-tick refreshes should only render screens that opt into them."""
+
+    context = AppContext()
+    screen_manager = ScreenManager(display, input_manager=None)
+    menu = RoutableStubScreen(display, context)
+    power = HookAwareStubScreen(display, context)
+
+    screen_manager.register_screen("menu", menu)
+    screen_manager.register_screen("power", power)
+
+    screen_manager.replace_screen("menu")
+    assert screen_manager.refresh_current_screen_for_visible_tick() is False
+
+    screen_manager.replace_screen("power")
+    assert screen_manager.refresh_current_screen_for_visible_tick() is True
     assert power.render_calls == 2
     assert power.refresh_for_visible_tick_calls == 2
 

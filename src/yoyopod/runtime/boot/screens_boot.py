@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from yoyopod.coordinators import AppRuntimeState, CoordinatorRuntime
 from yoyopod.coordinators.voice import (
     VoiceCommandExecutor,
     VoiceRuntimeCoordinator,
@@ -292,10 +291,3 @@ class ScreensBoot:
             return "hub"
         return "menu"
 
-    def get_initial_ui_state(self) -> AppRuntimeState:
-        """Return the base runtime state for the active interaction profile."""
-        initial_route_name = self.get_initial_screen_name()
-        resolved_state = CoordinatorRuntime.ui_state_for_screen_name(initial_route_name)
-        if resolved_state is None:
-            return AppRuntimeState.IDLE
-        return resolved_state

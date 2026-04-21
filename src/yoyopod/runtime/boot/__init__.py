@@ -16,6 +16,7 @@ from yoyopod.audio import (
 )
 from yoyopod.config import ConfigManager
 from yoyopod.coordinators import (
+    AppRuntimeState,
     CallCoordinator,
     CoordinatorRuntime,
     PlaybackCoordinator,
@@ -45,7 +46,6 @@ from .screens_boot import ScreensBoot
 
 if TYPE_CHECKING:
     from yoyopod.app import YoyoPodApp
-    from yoyopod.coordinators import AppRuntimeState
 
 
 class RuntimeBootService:
@@ -143,9 +143,6 @@ class RuntimeBootService:
 
     def get_initial_screen_name(self) -> str:
         return self._screens_boot.get_initial_screen_name()
-
-    def get_initial_ui_state(self) -> "AppRuntimeState":
-        return self._screens_boot.get_initial_ui_state()
 
     def refresh_talk_summary(self) -> None:
         """Refresh Talk summary data exposed through the shared app context."""
@@ -258,7 +255,8 @@ class RuntimeBootService:
         )
         current_route_name = current_screen.route_name if current_screen is not None else None
         initial_ui_state = (
-            CoordinatorRuntime.ui_state_for_screen_name(current_route_name) or self.app._ui_state
+            CoordinatorRuntime.ui_state_for_screen_name(current_route_name)
+            or AppRuntimeState.IDLE
         )
         self.app.coordinator_runtime = CoordinatorRuntime(
             music_fsm=self.app.music_fsm,
