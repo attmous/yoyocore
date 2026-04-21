@@ -31,15 +31,6 @@ from yoyopod.coordinators import (
 )
 from yoyopod.coordinators.voice import VoiceRuntimeCoordinator
 from yoyopod.core import EventBus
-from yoyopod.core import (
-    NetworkGpsFixEvent,
-    NetworkGpsNoFixEvent,
-    NetworkPppDownEvent,
-    NetworkPppUpEvent,
-    NetworkSignalUpdateEvent,
-    ScreenChangedEvent,
-    UserActivityEvent,
-)
 from yoyopod.device import AudioDeviceCatalog
 from yoyopod.integrations.contacts.directory import PeopleManager
 from yoyopod.integrations.call import (
@@ -52,6 +43,7 @@ from yoyopod.integrations.power import PowerManager
 from yoyopod.core import MusicFSM
 from yoyopod.integrations.network import NetworkManager
 from yoyopod.runtime.boot import RuntimeBootService
+from yoyopod.runtime.event_subscriptions import RuntimeEventSubscriptions
 from yoyopod.runtime.loop import RuntimeLoopService
 from yoyopod.runtime.models import PendingShutdown, PowerAlert, RecoveryState
 from yoyopod.runtime.network_events import NetworkEventHandler
@@ -61,11 +53,6 @@ from yoyopod.runtime.screen_power import ScreenPowerService
 from yoyopod.runtime.shutdown import ShutdownLifecycleService
 from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler
 from yoyopod.integrations.cloud.manager import CloudManager
-from yoyopod.power.events import (
-    GracefulShutdownCancelled,
-    GracefulShutdownRequested,
-    LowBatteryWarningRaised,
-)
 
 if TYPE_CHECKING:
     from yoyopod.ui.display import Display
@@ -235,40 +222,8 @@ class YoyoPodApp:
         self.network_events = NetworkEventHandler(self)
         self.runtime_loop = RuntimeLoopService(self)
         self.boot_service = RuntimeBootService(self)
-        self.event_bus.subscribe(
-            ScreenChangedEvent,
-            self.screen_power_service.handle_screen_changed_event,
-        )
-        self.event_bus.subscribe(
-            UserActivityEvent,
-            self.screen_power_service.handle_user_activity_event,
-        )
-        self.event_bus.subscribe(
-            LowBatteryWarningRaised,
-            self.screen_power_service.handle_low_battery_warning_event,
-        )
-        self.event_bus.subscribe(
-            GracefulShutdownRequested,
-            self.shutdown_service.handle_graceful_shutdown_requested_event,
-        )
-        self.event_bus.subscribe(
-            GracefulShutdownCancelled,
-            self.shutdown_service.handle_graceful_shutdown_cancelled_event,
-        )
-        self.event_bus.subscribe(NetworkPppUpEvent, self.network_events.handle_network_ppp_up)
-        self.event_bus.subscribe(
-            NetworkSignalUpdateEvent,
-            self.network_events.handle_network_signal_update,
-        )
-        self.event_bus.subscribe(NetworkGpsFixEvent, self.network_events.handle_network_gps_fix)
-        self.event_bus.subscribe(
-            NetworkGpsNoFixEvent,
-            self.network_events.handle_network_gps_no_fix,
-        )
-        self.event_bus.subscribe(
-            NetworkPppDownEvent,
-            self.network_events.handle_network_ppp_down,
-        )
+        self.event_subscriptions = RuntimeEventSubscriptions(self)
+        self.event_subscriptions.register()
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
