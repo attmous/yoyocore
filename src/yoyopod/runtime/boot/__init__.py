@@ -108,8 +108,6 @@ class RuntimeBootService:
                 return False
 
             self.ensure_coordinators()
-            assert self.app.coordinator_runtime is not None
-            self.app.coordinator_runtime.set_ui_state(self.app._ui_state, trigger="initial_screen")
             self.bind_coordinator_events()
             self.setup_voip_callbacks()
             self.setup_music_callbacks()
@@ -253,6 +251,15 @@ class RuntimeBootService:
         assert self.app.call_fsm is not None
         assert self.app.call_interruption_policy is not None
         assert self.app.context is not None
+        current_screen = (
+            self.app.screen_manager.get_current_screen()
+            if self.app.screen_manager is not None
+            else None
+        )
+        current_route_name = current_screen.route_name if current_screen is not None else None
+        initial_ui_state = (
+            CoordinatorRuntime.ui_state_for_screen_name(current_route_name) or self.app._ui_state
+        )
         self.app.coordinator_runtime = CoordinatorRuntime(
             music_fsm=self.app.music_fsm,
             call_fsm=self.app.call_fsm,
@@ -268,7 +275,7 @@ class RuntimeBootService:
             in_call_screen=self.app.in_call_screen,
             config_manager=self.app.config_manager,
             context=self.app.context,
-            ui_state=self.app._ui_state,
+            ui_state=initial_ui_state,
             voip_ready=self.app._voip_registered,
         )
         self.app.screen_coordinator = ScreenCoordinator(self.app.coordinator_runtime)
@@ -296,8 +303,6 @@ class RuntimeBootService:
                     ScreenChangedEvent(screen_name=screen_name)
                 )
             )
-            current_screen = self.app.screen_manager.get_current_screen()
-            current_route_name = current_screen.route_name if current_screen is not None else None
             self.app.event_bus.publish(ScreenChangedEvent(screen_name=current_route_name))
 
 

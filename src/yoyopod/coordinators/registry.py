@@ -112,6 +112,17 @@ class CoordinatorRuntime:
         AppRuntimeState.CONNECTING,
         AppRuntimeState.ERROR,
     }
+    _STATE_BY_SCREEN_NAME = {
+        "home": AppRuntimeState.IDLE,
+        "hub": AppRuntimeState.HUB,
+        "menu": AppRuntimeState.MENU,
+        "listen": AppRuntimeState.PLAYLIST_BROWSER,
+        "ask": AppRuntimeState.SETTINGS,
+        "playlists": AppRuntimeState.PLAYLIST_BROWSER,
+        "power": AppRuntimeState.POWER,
+        "call": AppRuntimeState.CALL_IDLE,
+        "contacts": AppRuntimeState.CALL_IDLE,
+    }
 
     def __post_init__(self) -> None:
         self.current_app_state = self._derive_state()
@@ -200,21 +211,19 @@ class CoordinatorRuntime:
 
     def sync_ui_state_for_screen(self, screen_name: str | None) -> AppStateChange | None:
         """Update the base UI state for non-call overlay screens."""
-        state_by_screen = {
-            "home": AppRuntimeState.IDLE,
-            "hub": AppRuntimeState.HUB,
-            "menu": AppRuntimeState.MENU,
-            "listen": AppRuntimeState.PLAYLIST_BROWSER,
-            "ask": AppRuntimeState.SETTINGS,
-            "playlists": AppRuntimeState.PLAYLIST_BROWSER,
-            "power": AppRuntimeState.POWER,
-            "call": AppRuntimeState.CALL_IDLE,
-            "contacts": AppRuntimeState.CALL_IDLE,
-        }
-        if screen_name is None or screen_name not in state_by_screen:
+        resolved_state = self.ui_state_for_screen_name(screen_name)
+        if resolved_state is None:
             return None
 
-        return self.set_ui_state(state_by_screen[screen_name], trigger=f"screen:{screen_name}")
+        return self.set_ui_state(resolved_state, trigger=f"screen:{screen_name}")
+
+    @classmethod
+    def ui_state_for_screen_name(cls, screen_name: str | None) -> AppRuntimeState | None:
+        """Return the base UI state mapped to one concrete route name."""
+
+        if screen_name is None:
+            return None
+        return cls._STATE_BY_SCREEN_NAME.get(screen_name)
 
     def current_voip_manager(self) -> object | None:
         """Return the shared VoIP manager exposed by any registered call screen."""
