@@ -45,18 +45,18 @@ from yoyopod.integrations.music import LocalMusicService, RecentTrackHistoryStor
 from yoyopod.integrations.network import NetworkManager
 from yoyopod.integrations.power import PowerManager
 from yoyopod.runtime.boot import RuntimeBootService
-from yoyopod.runtime.event_subscriptions import RuntimeEventSubscriptions
+from yoyopod.core.event_subscriptions import RuntimeEventSubscriptions
 from yoyopod.runtime.loop import RuntimeLoopService
 from yoyopod.core.status import RuntimeMetricsStore
 from yoyopod.core.recovery import RecoveryState
+from yoyopod.integrations.call import VoiceNoteEventHandler
+from yoyopod.integrations.network import NetworkEventHandler
 from yoyopod.integrations.power import PendingShutdown, PowerAlert
-from yoyopod.runtime.network_events import NetworkEventHandler
 from yoyopod.runtime.power_service import PowerRuntimeService
 from yoyopod.runtime.recovery import RecoverySupervisor
 from yoyopod.integrations.display import ScreenPowerService
 from yoyopod.runtime.shutdown import ShutdownLifecycleService
 from yoyopod.core.status import RuntimeStatusService
-from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler
 
 if TYPE_CHECKING:
     from yoyopod.ui.display import Display

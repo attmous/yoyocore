@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from yoyopod.core import AppContext
-from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler
+from yoyopod.integrations.call import VoiceNoteEventHandler
 
 
 def test_voice_note_activity_syncs_talk_summary_without_boot_service() -> None:

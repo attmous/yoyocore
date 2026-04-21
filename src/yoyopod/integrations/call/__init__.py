@@ -147,6 +147,7 @@ _PUBLIC_EXPORTS = {
         "VoIPAvailabilityChangedEvent",
     ),
     "VoiceNoteDraft": ("yoyopod.integrations.call.voice_notes", "VoiceNoteDraft"),
+    "VoiceNoteEventHandler": ("yoyopod.integrations.call.voice_notes", "VoiceNoteEventHandler"),
     "VoiceNoteService": ("yoyopod.integrations.call.voice_notes", "VoiceNoteService"),
     "VoiceNoteSummaryChangedEvent": (
         "yoyopod.integrations.call.events",
@@ -584,6 +585,7 @@ __all__ = [
     "VoIPManager",
     "VoIPAvailabilityChangedEvent",
     "VoiceNoteDraft",
+    "VoiceNoteEventHandler",
     "VoiceNoteService",
     "VoiceNoteSummaryChangedEvent",
     "UnmuteCommand",

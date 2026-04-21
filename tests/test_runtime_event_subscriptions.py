@@ -18,7 +18,7 @@ from yoyopod.integrations.power.events import (
     GracefulShutdownRequested,
     LowBatteryWarningRaised,
 )
-from yoyopod.runtime.event_subscriptions import RuntimeEventSubscriptions
+from yoyopod.core.event_subscriptions import RuntimeEventSubscriptions
 
 
 def test_runtime_event_subscriptions_register_all_runtime_handlers() -> None:

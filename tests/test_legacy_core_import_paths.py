@@ -22,6 +22,7 @@ from yoyopod.app_context import (
     Track as AppContextTrack,
 )
 from yoyopod.core import AppContext as CoreAppContext
+from yoyopod.core.event_subscriptions import RuntimeEventSubscriptions as CoreRuntimeEventSubscriptions
 from yoyopod.core.event_bus import EventBus as CoreEventBus
 from yoyopod.core.event_bus import EventHandler as CoreEventHandler
 from yoyopod.core.recovery import RecoveryState as CoreRecoveryState
@@ -88,6 +89,7 @@ from yoyopod.integrations.call import VoIPManager as IntegrationVoIPManager
 from yoyopod.integrations.call import VoIPMessageRecord as IntegrationVoIPMessageRecord
 from yoyopod.integrations.call import VoIPMessageStore as IntegrationVoIPMessageStore
 from yoyopod.integrations.call import VoiceNoteDraft as IntegrationVoiceNoteDraft
+from yoyopod.integrations.call import VoiceNoteEventHandler as IntegrationVoiceNoteEventHandler
 from yoyopod.integrations.location.events import NetworkGpsFixEvent as IntegrationNetworkGpsFixEvent
 from yoyopod.integrations.music import LocalMusicService as IntegrationLocalMusicService
 from yoyopod.integrations.music import RecentTrackHistoryStore as IntegrationRecentTrackHistoryStore
@@ -106,6 +108,7 @@ from yoyopod.integrations.power import RTCState as IntegrationRTCState
 from yoyopod.integrations.network import GpsCoordinate as IntegrationGpsCoordinate
 from yoyopod.integrations.network import ModemPhase as IntegrationModemPhase
 from yoyopod.integrations.network import ModemState as IntegrationModemState
+from yoyopod.integrations.network import NetworkEventHandler as IntegrationNetworkEventHandler
 from yoyopod.integrations.network import NetworkManager as IntegrationNetworkManager
 from yoyopod.integrations.network import SignalInfo as IntegrationSignalInfo
 from yoyopod.integrations.contacts.cloud_sync import (
@@ -143,7 +146,10 @@ from yoyopod.runtime.models import PendingShutdown as LegacyPendingShutdown
 from yoyopod.runtime.models import PowerAlert as LegacyPowerAlert
 from yoyopod.runtime.models import RecoveryState as LegacyRecoveryState
 from yoyopod.runtime.metrics import RuntimeMetricsStore as LegacyRuntimeMetricsStore
+from yoyopod.runtime.network_events import NetworkEventHandler as LegacyNetworkEventHandler
+from yoyopod.runtime.event_subscriptions import RuntimeEventSubscriptions as LegacyRuntimeEventSubscriptions
 from yoyopod.runtime.status import RuntimeStatusService as LegacyRuntimeStatusService
+from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler as LegacyVoiceNoteEventHandler
 from yoyopod.runtime.screen_power import ScreenPowerService as LegacyScreenPowerService
 from yoyopod.event_bus import EventBus, EventHandler
 from yoyopod.events import CallState, RegistrationState, Track, TrackChangedEvent
@@ -392,6 +398,24 @@ def test_legacy_runtime_metrics_import_path_resolves_to_core_store() -> None:
     """Legacy runtime-metrics imports should point at the canonical core seam."""
 
     assert LegacyRuntimeMetricsStore is CoreRuntimeMetricsStore
+
+
+def test_legacy_runtime_event_subscription_import_path_resolves_to_core_owner() -> None:
+    """Legacy runtime event-subscription imports should point at the core owner."""
+
+    assert LegacyRuntimeEventSubscriptions is CoreRuntimeEventSubscriptions
+
+
+def test_legacy_runtime_network_event_import_path_resolves_to_network_owner() -> None:
+    """Legacy runtime network-event imports should point at the network owner."""
+
+    assert LegacyNetworkEventHandler is IntegrationNetworkEventHandler
+
+
+def test_legacy_runtime_voice_note_event_import_path_resolves_to_call_owner() -> None:
+    """Legacy runtime voice-note event imports should point at the call owner."""
+
+    assert LegacyVoiceNoteEventHandler is IntegrationVoiceNoteEventHandler
 
 
 def test_legacy_voice_import_paths_resolve_to_relocated_symbols() -> None:
