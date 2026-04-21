@@ -123,8 +123,10 @@ Current exemplar package homes:
 - `src/yoyopod/integrations/voice/`
   - canonical voice manager, service alias, and typed voice models
   - `__init__.py` is the app-facing seam
+- `src/yoyopod/backends/voice/`
+  - concrete capture, playback, STT, and TTS adapters
 - `src/yoyopod/voice/`
-  - compatibility shims plus local capture, STT, TTS, and command helpers
+  - compatibility shims plus the remaining command grammar helpers
   - device inventory/helpers live outside this package
 - `src/yoyopod/runtime/`, `src/yoyopod/coordinators/`, `src/yoyopod/app.py`
   - app/runtime composition

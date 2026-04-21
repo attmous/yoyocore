@@ -4,16 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from yoyopod.backends.voice import (
+    AudioCaptureBackend,
+    EspeakNgTextToSpeechBackend,
+    SpeechToTextBackend,
+    SubprocessAudioCaptureBackend,
+    TextToSpeechBackend,
+    VoskSpeechToTextBackend,
+)
 from yoyopod.integrations.voice.models import (
     VoiceCaptureRequest,
     VoiceCaptureResult,
     VoiceSettings,
     VoiceTranscript,
 )
-from yoyopod.voice.capture import AudioCaptureBackend, SubprocessAudioCaptureBackend
 from yoyopod.voice.commands import VoiceCommandMatch, match_voice_command
-from yoyopod.voice.stt import SpeechToTextBackend, VoskSpeechToTextBackend
-from yoyopod.voice.tts import EspeakNgTextToSpeechBackend, TextToSpeechBackend
 
 
 class VoiceManager:

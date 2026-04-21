@@ -206,7 +206,8 @@ yoyopod.py / yoyopod.main
 - `src/yoyopod/integrations/network/`: canonical network manager, modem models, and scaffold integration ownership
 - `src/yoyopod/network/`: compatibility shims for the historical network import path
 - `src/yoyopod/integrations/voice/`: canonical voice manager, service alias, and typed voice models
-- `src/yoyopod/voice/`: compatibility shims plus local capture, STT, TTS, and command-matching code
+- `src/yoyopod/backends/voice/`: concrete capture, playback, STT, and TTS adapters
+- `src/yoyopod/voice/`: compatibility shims plus the remaining command-matching code
 
 ### UI Layer
 

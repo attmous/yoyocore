@@ -11,21 +11,23 @@ import sys
 import threading
 import types
 
+from yoyopod.backends.voice import (
+    AlsaOutputPlayer,
+    EspeakNgTextToSpeechBackend,
+    SubprocessAudioCaptureBackend,
+    VoskSpeechToTextBackend,
+)
 from yoyopod.integrations.voice import (
     VoiceCaptureRequest,
     VoiceService,
     VoiceSettings,
     VoiceTranscript,
 )
-from yoyopod.voice.capture import SubprocessAudioCaptureBackend
 from yoyopod.voice.commands import (
     VOICE_COMMAND_GRAMMAR,
     VoiceCommandIntent,
     match_voice_command,
 )
-from yoyopod.voice.output import AlsaOutputPlayer
-from yoyopod.voice.stt import VoskSpeechToTextBackend
-from yoyopod.voice.tts import EspeakNgTextToSpeechBackend
 
 
 class FakeSttBackend:
@@ -278,14 +280,14 @@ def test_subprocess_audio_capture_backend_builds_arecord_command(monkeypatch) ->
         return _FakePopen(args, data=pcm)
 
     monkeypatch.setattr(
-        "yoyopod.voice.capture.shutil.which",
+        "yoyopod.backends.voice.capture.shutil.which",
         lambda b: "/usr/bin/arecord" if b == "arecord" else None,
     )
     monkeypatch.setattr(
-        "yoyopod.voice.capture.subprocess.run",
+        "yoyopod.backends.voice.capture.subprocess.run",
         lambda args, **_kw: subprocess.CompletedProcess(args, 0, "", ""),
     )
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.Popen", fake_popen)
 
     backend = SubprocessAudioCaptureBackend()
     result = backend.capture(
@@ -322,11 +324,11 @@ def test_subprocess_audio_capture_backend_falls_back_to_discovered_device(monkey
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(
-        "yoyopod.voice.capture.shutil.which",
+        "yoyopod.backends.voice.capture.shutil.which",
         lambda b: "/usr/bin/arecord" if b == "arecord" else None,
     )
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.run", fake_run)
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.Popen", fake_popen)
 
     backend = SubprocessAudioCaptureBackend()
     result = backend.capture(
@@ -358,11 +360,11 @@ def test_subprocess_audio_capture_backend_falls_back_when_preferred_device_break
         return subprocess.CompletedProcess(args, 0, "", "")
 
     monkeypatch.setattr(
-        "yoyopod.voice.capture.shutil.which",
+        "yoyopod.backends.voice.capture.shutil.which",
         lambda b: "/usr/bin/arecord" if b == "arecord" else None,
     )
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.run", fake_run)
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.Popen", fake_popen)
 
     backend = SubprocessAudioCaptureBackend()
     backend._preferred_device = "plughw:CARD=old,DEV=0"
@@ -391,14 +393,14 @@ def test_subprocess_audio_capture_backend_hard_timeout_stays_within_requested_wi
         return proc
 
     monkeypatch.setattr(
-        "yoyopod.voice.capture.shutil.which",
+        "yoyopod.backends.voice.capture.shutil.which",
         lambda b: "/usr/bin/arecord" if b == "arecord" else None,
     )
     monkeypatch.setattr(
-        "yoyopod.voice.capture.subprocess.run",
+        "yoyopod.backends.voice.capture.subprocess.run",
         lambda args, **_kw: subprocess.CompletedProcess(args, 0, "", ""),
     )
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.Popen", fake_popen)
 
     backend = SubprocessAudioCaptureBackend()
     result = backend.capture(
@@ -431,16 +433,16 @@ def test_subprocess_audio_capture_backend_ptt_cancel_interrupts_idle_pipe(monkey
         return b""
 
     monkeypatch.setattr(
-        "yoyopod.voice.capture.shutil.which",
+        "yoyopod.backends.voice.capture.shutil.which",
         lambda b: "/usr/bin/arecord" if b == "arecord" else None,
     )
     monkeypatch.setattr(
-        "yoyopod.voice.capture.subprocess.run",
+        "yoyopod.backends.voice.capture.subprocess.run",
         lambda args, **_kw: subprocess.CompletedProcess(args, 0, "", ""),
     )
-    monkeypatch.setattr("yoyopod.voice.capture.subprocess.Popen", fake_popen)
-    monkeypatch.setattr("yoyopod.voice.capture.select.select", fake_select)
-    monkeypatch.setattr("yoyopod.voice.capture.os.read", fake_os_read)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.subprocess.Popen", fake_popen)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.select.select", fake_select)
+    monkeypatch.setattr("yoyopod.backends.voice.capture.os.read", fake_os_read)
 
     backend = SubprocessAudioCaptureBackend()
     result = backend.capture(
@@ -470,10 +472,10 @@ def test_espeak_backend_builds_expected_command(monkeypatch) -> None:
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(
-        "yoyopod.voice.tts.shutil.which",
+        "yoyopod.backends.voice.tts.shutil.which",
         lambda binary: "/usr/bin/espeak-ng" if binary == "espeak-ng" else None,
     )
-    monkeypatch.setattr("yoyopod.voice.tts.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.backends.voice.tts.subprocess.run", fake_run)
 
     backend = EspeakNgTextToSpeechBackend()
     playback_calls: list[Path] = []
@@ -515,10 +517,10 @@ def test_alsa_output_player_prefers_usb_card_routes(monkeypatch, tmp_path) -> No
         return subprocess.CompletedProcess(args=args, returncode=1, stdout="", stderr="bad")
 
     monkeypatch.setattr(
-        "yoyopod.voice.output.shutil.which",
+        "yoyopod.backends.voice.output.shutil.which",
         lambda binary: "/usr/bin/aplay" if binary == "aplay" else None,
     )
-    monkeypatch.setattr("yoyopod.voice.output.subprocess.run", fake_run)
+    monkeypatch.setattr("yoyopod.backends.voice.output.subprocess.run", fake_run)
 
     player = AlsaOutputPlayer()
 
@@ -529,7 +531,7 @@ def test_alsa_output_player_prefers_usb_card_routes(monkeypatch, tmp_path) -> No
 def test_vosk_backend_requires_module_and_model(tmp_path, monkeypatch) -> None:
     """Vosk availability should stay false until both module and model are present."""
 
-    monkeypatch.setattr("yoyopod.voice.stt.importlib.util.find_spec", lambda name: None)
+    monkeypatch.setattr("yoyopod.backends.voice.stt.importlib.util.find_spec", lambda name: None)
     backend = VoskSpeechToTextBackend()
 
     assert (

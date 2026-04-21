@@ -44,9 +44,9 @@ That means the app does not yet have one global audio hardware contract. Device 
 
 ### Voice Commands
 
-- `src/yoyopod/voice/capture.py` resolves `arecord` capture candidates
-- `src/yoyopod/voice/output.py` resolves `aplay` playback candidates
-- `src/yoyopod/voice/tts.py` depends on that playback helper for spoken prompts
+- `src/yoyopod/backends/voice/capture.py` resolves `arecord` capture candidates
+- `src/yoyopod/backends/voice/output.py` resolves `aplay` playback candidates
+- `src/yoyopod/backends/voice/tts.py` depends on that playback helper for spoken prompts
 
 The effect is that one physical audio stack is managed by several different policy owners.
 

@@ -32,6 +32,16 @@ from yoyopod.backends.cloud import CloudDeviceClient as BackendCloudDeviceClient
 from yoyopod.backends.cloud import DeviceMqttClient as BackendDeviceMqttClient
 from yoyopod.backends.power import PiSugarBackend as BackendPiSugarBackend
 from yoyopod.backends.power import PiSugarWatchdog as BackendPiSugarWatchdog
+from yoyopod.backends.voice import AlsaOutputPlayer as BackendAlsaOutputPlayer
+from yoyopod.backends.voice import (
+    EspeakNgTextToSpeechBackend as BackendEspeakNgTextToSpeechBackend,
+)
+from yoyopod.backends.voice import (
+    SubprocessAudioCaptureBackend as BackendSubprocessAudioCaptureBackend,
+)
+from yoyopod.backends.voice import (
+    VoskSpeechToTextBackend as BackendVoskSpeechToTextBackend,
+)
 from yoyopod.backends.location import GpsReader as BackendGpsReader
 from yoyopod.backends.network import AtCommandSet as BackendAtCommandSet
 from yoyopod.backends.network import PppProcess as BackendPppProcess
@@ -112,9 +122,17 @@ from yoyopod.ui.input.hal import InteractionProfile
 from yoyopod.voice import VoiceManager as LegacyVoiceManager
 from yoyopod.voice import VoiceService as LegacyVoiceService
 from yoyopod.voice import VoiceSettings as LegacyVoiceSettings
+from yoyopod.voice.capture import (
+    SubprocessAudioCaptureBackend as LegacySubprocessAudioCaptureBackend,
+)
 from yoyopod.voice.models import VoiceCaptureRequest as LegacyVoiceCaptureRequest
 from yoyopod.voice.models import VoiceCaptureResult as LegacyVoiceCaptureResult
 from yoyopod.voice.models import VoiceTranscript as LegacyVoiceTranscript
+from yoyopod.voice.output import AlsaOutputPlayer as LegacyAlsaOutputPlayer
+from yoyopod.voice.stt import VoskSpeechToTextBackend as LegacyVoskSpeechToTextBackend
+from yoyopod.voice.tts import (
+    EspeakNgTextToSpeechBackend as LegacyEspeakNgTextToSpeechBackend,
+)
 from yoyopod import EventBus as RootEventBus
 from yoyopod import CallFSM as RootCallFSM
 from yoyopod import MusicFSM as RootMusicFSM
@@ -184,6 +202,10 @@ def test_legacy_voice_import_paths_resolve_to_relocated_symbols() -> None:
     assert LegacyVoiceService is IntegrationVoiceService
     assert LegacyVoiceSettings is IntegrationVoiceSettings
     assert LegacyVoiceTranscript is IntegrationVoiceTranscript
+    assert LegacySubprocessAudioCaptureBackend is BackendSubprocessAudioCaptureBackend
+    assert LegacyAlsaOutputPlayer is BackendAlsaOutputPlayer
+    assert LegacyVoskSpeechToTextBackend is BackendVoskSpeechToTextBackend
+    assert LegacyEspeakNgTextToSpeechBackend is BackendEspeakNgTextToSpeechBackend
 
 
 def test_legacy_network_backend_import_paths_resolve_to_relocated_symbols() -> None:

@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Callable
 
 from loguru import logger
 
+from yoyopod.backends.voice import AlsaOutputPlayer
 from yoyopod.core import VoiceInteractionState
 from yoyopod.integrations.voice import VoiceCaptureRequest, VoiceManager, VoiceSettings
-from yoyopod.voice.output import AlsaOutputPlayer
 
 from .executor import VoiceCommandExecutor
 from .settings import VoiceCommandOutcome, VoiceSettingsResolver
