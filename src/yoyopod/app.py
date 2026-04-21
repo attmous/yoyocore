@@ -33,6 +33,11 @@ from yoyopod.coordinators import (
 from yoyopod.coordinators.voice import VoiceRuntimeCoordinator
 from yoyopod.core import EventBus
 from yoyopod.core import (
+    NetworkGpsFixEvent,
+    NetworkGpsNoFixEvent,
+    NetworkPppDownEvent,
+    NetworkPppUpEvent,
+    NetworkSignalUpdateEvent,
     RecoveryAttemptCompletedEvent,
     ScreenChangedEvent,
     UserActivityEvent,
@@ -52,12 +57,19 @@ from yoyopod.runtime.boot import RuntimeBootService
 from yoyopod.runtime.loop import RuntimeLoopService
 from yoyopod.runtime.models import PendingShutdown, PowerAlert, RecoveryState
 from yoyopod.runtime.power_service import PowerRuntimeService
+from yoyopod.runtime.network_events import NetworkEventHandler
+from yoyopod.runtime.power_events import PowerEventHandler
 from yoyopod.runtime.recovery import RecoverySupervisor
 from yoyopod.runtime.screen_power import ScreenPowerService
 from yoyopod.runtime.shutdown import ShutdownLifecycleService
-from yoyopod.runtime.event_wiring import RuntimeEventWiring
+from yoyopod.runtime.voice_note_events import VoiceNoteEventHandler
 from yoyopod.ui.input import InteractionProfile
 from yoyopod.integrations.cloud.manager import CloudManager
+from yoyopod.power.events import (
+    GracefulShutdownCancelled,
+    GracefulShutdownRequested,
+    LowBatteryWarningRaised,
+)
 
 if TYPE_CHECKING:
     from yoyopod.ui.display import Display
@@ -225,9 +237,11 @@ class YoyoPodApp:
         self.power_runtime = PowerRuntimeService(self)
         self.shutdown_service = ShutdownLifecycleService(self)
         self.runtime_loop = RuntimeLoopService(self)
-        self.event_wiring = RuntimeEventWiring(self)
+        self.voice_note_events = VoiceNoteEventHandler(self)
+        self.power_events = PowerEventHandler(self)
+        self.network_events = NetworkEventHandler(self)
         self.boot_service = RuntimeBootService(self)
-        self.event_wiring.register()
+        self._register_runtime_event_subscriptions()
 
         logger.info("=" * 60)
         logger.info("YoyoPod Application Initializing")
@@ -308,14 +322,46 @@ class YoyoPodApp:
     def _iterate_voip_backend_if_due(self, now: float | None = None) -> None:
         self.runtime_loop.iterate_voip_backend_if_due(now)
 
+    def _register_runtime_event_subscriptions(self) -> None:
+        """Subscribe runtime-owned handlers on the compatibility EventBus."""
+
+        self.event_bus.subscribe(ScreenChangedEvent, self._handle_screen_changed_event)
+        self.event_bus.subscribe(UserActivityEvent, self._handle_user_activity_event)
+        self.event_bus.subscribe(
+            LowBatteryWarningRaised,
+            self.power_events.handle_low_battery_warning_event,
+        )
+        self.event_bus.subscribe(
+            GracefulShutdownRequested,
+            self.power_events.handle_graceful_shutdown_requested_event,
+        )
+        self.event_bus.subscribe(
+            GracefulShutdownCancelled,
+            self.power_events.handle_graceful_shutdown_cancelled_event,
+        )
+        self.event_bus.subscribe(NetworkPppUpEvent, self.network_events.handle_network_ppp_up)
+        self.event_bus.subscribe(
+            NetworkSignalUpdateEvent,
+            self.network_events.handle_network_signal_update,
+        )
+        self.event_bus.subscribe(NetworkGpsFixEvent, self.network_events.handle_network_gps_fix)
+        self.event_bus.subscribe(
+            NetworkGpsNoFixEvent,
+            self.network_events.handle_network_gps_no_fix,
+        )
+        self.event_bus.subscribe(
+            NetworkPppDownEvent,
+            self.network_events.handle_network_ppp_down,
+        )
+
     def _handle_screen_changed_event(self, event: ScreenChangedEvent) -> None:
-        self.event_wiring.handle_screen_changed_event(event)
+        self.screen_power_service.handle_screen_changed_event(event)
 
     def _queue_user_activity_event(self, action: Any, _data: Any | None = None) -> None:
         self.screen_power_service.queue_user_activity_event(action, _data)
 
     def _handle_user_activity_event(self, event: UserActivityEvent) -> None:
-        self.event_wiring.handle_user_activity_event(event)
+        self.screen_power_service.handle_user_activity_event(event)
 
     def _handle_recovery_attempt_completed_event(
         self,

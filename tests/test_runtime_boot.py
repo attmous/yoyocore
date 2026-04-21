@@ -320,7 +320,7 @@ def test_setup_voip_callbacks_bind_direct_call_handlers() -> None:
     app = SimpleNamespace(
         voip_manager=voip_manager,
         call_coordinator=call_coordinator,
-        event_wiring=SimpleNamespace(voice_note_events=voice_note_events),
+        voice_note_events=voice_note_events,
         context=None,
         call_history_store=None,
     )
