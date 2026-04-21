@@ -6,7 +6,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from yoyopod.communication.calling.backend_protocol import VoIPIterateMetrics
+    from yoyopod.backends.voip.protocol import VoIPIterateMetrics
     from yoyopod.integrations.call.history import CallHistoryEntry, CallHistoryStore
     from yoyopod.integrations.call.manager import VoIPManager
     from yoyopod.integrations.call.voice_notes import VoiceNoteDraft
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 _LAZY_EXPORTS = {
     "CallHistoryEntry": "yoyopod.integrations.call.history",
     "CallHistoryStore": "yoyopod.integrations.call.history",
-    "VoIPIterateMetrics": "yoyopod.communication.calling.backend_protocol",
+    "VoIPIterateMetrics": "yoyopod.backends.voip.protocol",
     "VoIPManager": "yoyopod.integrations.call.manager",
     "VoiceNoteDraft": "yoyopod.integrations.call.voice_notes",
 }

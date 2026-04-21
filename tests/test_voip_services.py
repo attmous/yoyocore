@@ -7,7 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-from yoyopod.communication.calling.mock_backend import MockVoIPBackend
+from yoyopod.backends.voip import MockVoIPBackend
 from yoyopod.communication.calling.messaging import MessagingService
 from yoyopod.communication.messaging import VoIPMessageStore
 from yoyopod.communication.models import (
@@ -68,7 +68,8 @@ import sys
 from yoyopod.communication.calling.backend import MockVoIPBackend
 
 assert "yoyopod.communication.integrations.liblinphone.backend" not in sys.modules
-assert "yoyopod.communication.calling.mock_backend" in sys.modules
+assert "yoyopod.backends.voip.liblinphone" not in sys.modules
+assert "yoyopod.backends.voip.mock_backend" in sys.modules
 assert MockVoIPBackend.__name__ == "MockVoIPBackend"
 """
     result = subprocess.run(
@@ -86,7 +87,7 @@ def test_backend_compat_module_reexports_protocol_types() -> None:
     """calling.backend should remain a stable import path for protocol types."""
 
     from yoyopod.communication.calling.backend import VoIPBackend, VoIPIterateMetrics
-    from yoyopod.communication.calling.backend_protocol import (
+    from yoyopod.backends.voip.protocol import (
         VoIPBackend as BackendProtocol,
         VoIPIterateMetrics as IterateMetrics,
     )
@@ -98,7 +99,7 @@ def test_backend_compat_module_reexports_protocol_types() -> None:
 def test_liblinphone_binding_compat_alias_reexports_binding_types() -> None:
     """The legacy Liblinphone binding path should forward to the relocated module."""
 
-    from yoyopod.communication.integrations.liblinphone.binding import (
+    from yoyopod.backends.voip.binding import (
         LiblinphoneBinding as RelocatedBinding,
         LiblinphoneBindingError as RelocatedBindingError,
         LiblinphoneNativeEvent as RelocatedNativeEvent,

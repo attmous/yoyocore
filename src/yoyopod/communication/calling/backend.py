@@ -5,16 +5,16 @@ from __future__ import annotations
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
 
-from yoyopod.communication.calling.backend_protocol import VoIPBackend, VoIPIterateMetrics
+from yoyopod.backends.voip.protocol import VoIPBackend, VoIPIterateMetrics
 
 if TYPE_CHECKING:
-    from yoyopod.communication.calling.mock_backend import MockVoIPBackend
-    from yoyopod.communication.integrations.liblinphone import LiblinphoneBackend
+    from yoyopod.backends.voip.liblinphone import LiblinphoneBackend
+    from yoyopod.backends.voip.mock_backend import MockVoIPBackend
 
 
 _LAZY_EXPORTS = {
-    "LiblinphoneBackend": "yoyopod.communication.integrations.liblinphone",
-    "MockVoIPBackend": "yoyopod.communication.calling.mock_backend",
+    "LiblinphoneBackend": "yoyopod.backends.voip.liblinphone",
+    "MockVoIPBackend": "yoyopod.backends.voip.mock_backend",
 }
 
 

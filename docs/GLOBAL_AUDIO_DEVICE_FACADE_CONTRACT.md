@@ -40,7 +40,7 @@ That means the app does not yet have one global audio hardware contract. Device 
 ### Calls
 
 - `config/device/hardware.yaml` carries shared communication audio device IDs
-- `src/yoyopod/communication/calling/backend.py` directly issues startup `amixer` capture-tuning commands
+- `src/yoyopod/backends/voip/liblinphone.py` directly issues startup `amixer` capture-tuning commands
 
 ### Voice Commands
 

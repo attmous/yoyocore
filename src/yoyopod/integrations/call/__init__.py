@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from yoyopod.communication.calling.backend_protocol import VoIPIterateMetrics
+    from yoyopod.backends.voip.protocol import VoIPIterateMetrics
     from yoyopod.integrations.call.history import CallHistoryEntry, CallHistoryStore
     from yoyopod.integrations.call.manager import VoIPManager
     from yoyopod.integrations.call.voice_notes import VoiceNoteDraft, VoiceNoteService
@@ -14,10 +14,7 @@ if TYPE_CHECKING:
 _PUBLIC_EXPORTS = {
     "CallHistoryEntry": ("yoyopod.integrations.call.history", "CallHistoryEntry"),
     "CallHistoryStore": ("yoyopod.integrations.call.history", "CallHistoryStore"),
-    "VoIPIterateMetrics": (
-        "yoyopod.communication.calling.backend_protocol",
-        "VoIPIterateMetrics",
-    ),
+    "VoIPIterateMetrics": ("yoyopod.backends.voip.protocol", "VoIPIterateMetrics"),
     "VoIPManager": ("yoyopod.integrations.call.manager", "VoIPManager"),
     "VoiceNoteDraft": ("yoyopod.integrations.call.voice_notes", "VoiceNoteDraft"),
     "VoiceNoteService": ("yoyopod.integrations.call.voice_notes", "VoiceNoteService"),

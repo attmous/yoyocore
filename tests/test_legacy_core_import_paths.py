@@ -48,6 +48,11 @@ from yoyopod.backends.network import PppProcess as BackendPppProcess
 from yoyopod.backends.network import SerialTransport as BackendSerialTransport
 from yoyopod.backends.network import Sim7600Backend as BackendSim7600Backend
 from yoyopod.backends.network import TransportError as BackendTransportError
+from yoyopod.backends.voip import LiblinphoneBackend as BackendLiblinphoneBackend
+from yoyopod.backends.voip import LiblinphoneBinding as BackendLiblinphoneBinding
+from yoyopod.backends.voip import MockVoIPBackend as BackendMockVoIPBackend
+from yoyopod.backends.voip import VoIPBackend as BackendVoIPBackend
+from yoyopod.backends.voip import VoIPIterateMetrics as BackendVoIPIterateMetrics
 from yoyopod.integrations.call import CallHistoryEntry as IntegrationCallHistoryEntry
 from yoyopod.integrations.call import CallHistoryStore as IntegrationCallHistoryStore
 from yoyopod.integrations.call import VoIPManager as IntegrationVoIPManager
@@ -105,6 +110,14 @@ from yoyopod.communication.calling import CallHistoryEntry as LegacyCallHistoryE
 from yoyopod.communication.calling import CallHistoryStore as LegacyCallHistoryStore
 from yoyopod.communication.calling import VoIPManager as LegacyVoIPManager
 from yoyopod.communication.calling import VoiceNoteDraft as LegacyVoiceNoteDraft
+from yoyopod.communication.calling.backend import (
+    LiblinphoneBackend as LegacyCallingLiblinphoneBackend,
+)
+from yoyopod.communication.calling.backend import MockVoIPBackend as LegacyCallingMockVoIPBackend
+from yoyopod.communication.calling.backend import VoIPBackend as LegacyCallingVoIPBackend
+from yoyopod.communication.calling.backend import (
+    VoIPIterateMetrics as LegacyCallingVoIPIterateMetrics,
+)
 from yoyopod.network.at_commands import AtCommandSet as LegacyAtCommandSet
 from yoyopod.network.backend import Sim7600Backend as LegacyBackendSim7600Backend
 from yoyopod.network.gps import GpsReader as LegacyGpsReader
@@ -140,6 +153,15 @@ from yoyopod.voice.output import AlsaOutputPlayer as LegacyAlsaOutputPlayer
 from yoyopod.voice.stt import VoskSpeechToTextBackend as LegacyVoskSpeechToTextBackend
 from yoyopod.voice.tts import (
     EspeakNgTextToSpeechBackend as LegacyEspeakNgTextToSpeechBackend,
+)
+from yoyopod.communication.integrations.liblinphone import (
+    LiblinphoneBackend as LegacyLiblinphoneBackend,
+)
+from yoyopod.communication.integrations.liblinphone import (
+    LiblinphoneBinding as LegacyLiblinphoneBinding,
+)
+from yoyopod.communication.integrations.liblinphone_binding import (
+    LiblinphoneBinding as LegacyCompatLiblinphoneBinding,
 )
 from yoyopod import EventBus as RootEventBus
 from yoyopod import CallFSM as RootCallFSM
@@ -186,6 +208,18 @@ def test_legacy_call_import_paths_resolve_to_relocated_symbols() -> None:
     assert LegacyCallHistoryStore is IntegrationCallHistoryStore
     assert LegacyVoIPManager is IntegrationVoIPManager
     assert LegacyVoiceNoteDraft is IntegrationVoiceNoteDraft
+
+
+def test_legacy_voip_backend_import_paths_resolve_to_relocated_symbols() -> None:
+    """Legacy VoIP backend imports should keep pointing at the canonical backend seam."""
+
+    assert LegacyCallingLiblinphoneBackend is BackendLiblinphoneBackend
+    assert LegacyCallingMockVoIPBackend is BackendMockVoIPBackend
+    assert LegacyCallingVoIPBackend is BackendVoIPBackend
+    assert LegacyCallingVoIPIterateMetrics is BackendVoIPIterateMetrics
+    assert LegacyLiblinphoneBackend is BackendLiblinphoneBackend
+    assert LegacyLiblinphoneBinding is BackendLiblinphoneBinding
+    assert LegacyCompatLiblinphoneBinding is BackendLiblinphoneBinding
 
 
 def test_legacy_cloud_import_paths_resolve_to_relocated_cloud_symbols() -> None:

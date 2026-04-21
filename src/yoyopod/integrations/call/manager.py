@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Callable, cast
 
 from loguru import logger
 
-from yoyopod.communication.calling.backend_protocol import VoIPBackend
+from yoyopod.backends.voip.protocol import VoIPBackend
 from yoyopod.communication.calling.messaging import MessagingService
-from yoyopod.communication.integrations.liblinphone import LiblinphoneBackend
+from yoyopod.backends.voip import LiblinphoneBackend
 from yoyopod.communication.messaging import VoIPMessageStore
 from yoyopod.communication.models import (
     BackendStopped,

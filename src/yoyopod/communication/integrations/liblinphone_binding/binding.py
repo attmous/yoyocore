@@ -1,6 +1,6 @@
 """Compatibility alias for the relocated Liblinphone binding module."""
 
-from yoyopod.communication.integrations.liblinphone.binding import (
+from yoyopod.backends.voip.binding import (
     LiblinphoneBinding,
     LiblinphoneBindingError,
     LiblinphoneNativeEvent,

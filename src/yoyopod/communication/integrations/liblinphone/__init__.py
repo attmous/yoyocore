@@ -1,11 +1,11 @@
-"""Liblinphone integration package for native binding and Python backend."""
+"""Compatibility package for the relocated Liblinphone backend and binding."""
 
-from yoyopod.communication.integrations.liblinphone.binding import (
+from yoyopod.backends.voip.binding import (
     LiblinphoneBinding,
     LiblinphoneBindingError,
     LiblinphoneNativeEvent,
 )
-from yoyopod.communication.integrations.liblinphone.backend import LiblinphoneBackend
+from yoyopod.backends.voip.liblinphone import LiblinphoneBackend
 
 __all__ = [
     "LiblinphoneBackend",
