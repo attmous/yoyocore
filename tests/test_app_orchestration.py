@@ -24,7 +24,6 @@ from yoyopod.core import (
     IncomingCallEvent,
     MusicAvailabilityChangedEvent,
     PlaybackStateChangedEvent,
-    RecoveryAttemptCompletedEvent,
     RegistrationChangedEvent,
     TrackChangedEvent,
     UserActivityEvent,
@@ -1331,16 +1330,20 @@ def test_music_recovery_backoff_doubles_after_success() -> None:
     app.music_backend = FakeRecoveringMusicBackend([False, True])
 
     app._music_recovery.in_flight = True
-    app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="music", recovered=False, recovery_now=0.0)
+    app.recovery_service.handle_recovery_attempt_completed(
+        manager="music",
+        recovered=False,
+        recovery_now=0.0,
     )
 
     assert app._music_recovery.next_attempt_at == 1.0
     assert app._music_recovery.delay_seconds == 2.0
 
     app._music_recovery.in_flight = True
-    app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="music", recovered=False, recovery_now=1.0)
+    app.recovery_service.handle_recovery_attempt_completed(
+        manager="music",
+        recovered=False,
+        recovery_now=1.0,
     )
 
     assert app._music_recovery.next_attempt_at == 3.0
@@ -1348,8 +1351,10 @@ def test_music_recovery_backoff_doubles_after_success() -> None:
 
     app.music_backend._connected = True
     app._music_recovery.in_flight = True
-    app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="music", recovered=True, recovery_now=3.0)
+    app.recovery_service.handle_recovery_attempt_completed(
+        manager="music",
+        recovered=True,
+        recovery_now=3.0,
     )
 
     assert app._music_recovery.next_attempt_at == 0.0
@@ -1364,8 +1369,10 @@ def test_network_recovery_backoff_updates_context_after_completion() -> None:
     app.network_manager = FakeRecoveringNetworkManager([False, True])
 
     app._network_recovery.in_flight = True
-    app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="network", recovered=False, recovery_now=0.0)
+    app.recovery_service.handle_recovery_attempt_completed(
+        manager="network",
+        recovered=False,
+        recovery_now=0.0,
     )
 
     assert app._network_recovery.next_attempt_at == 1.0
@@ -1378,12 +1385,45 @@ def test_network_recovery_backoff_updates_context_after_completion() -> None:
     app.network_manager._online = True
     app.network_manager._state.phase = ModemPhase.ONLINE
     app._network_recovery.in_flight = True
-    app._handle_recovery_attempt_completed_event(
-        RecoveryAttemptCompletedEvent(manager="network", recovered=True, recovery_now=1.0)
+    app.recovery_service.handle_recovery_attempt_completed(
+        manager="network",
+        recovered=True,
+        recovery_now=1.0,
     )
 
     assert app._network_recovery.next_attempt_at == 0.0
     assert app._network_recovery.delay_seconds == 1.0
+    assert app.context.network.connected is True
+
+
+def test_music_recovery_worker_queues_direct_main_thread_completion() -> None:
+    """Music recovery workers should queue direct coordinator callbacks instead of typed events."""
+
+    app = YoyoPodApp(simulate=True)
+    app.music_backend = FakeRecoveringMusicBackend([True])
+    app._music_recovery.in_flight = True
+
+    app.recovery_service.run_music_recovery_attempt(0.0)
+
+    assert app.event_bus.pending_count() == 0
+    assert app.runtime_loop.process_pending_main_thread_actions() == 1
+    assert app._music_recovery.in_flight is False
+    assert app._music_recovery.next_attempt_at == 0.0
+
+
+def test_network_recovery_worker_queues_direct_main_thread_completion() -> None:
+    """Network recovery workers should queue direct coordinator callbacks instead of typed events."""
+
+    app = YoyoPodApp(simulate=False)
+    app.context = AppContext()
+    app.network_manager = FakeRecoveringNetworkManager([True])
+    app._network_recovery.in_flight = True
+
+    app.recovery_service.run_network_recovery_attempt(0.0)
+
+    assert app.event_bus.pending_count() == 0
+    assert app.runtime_loop.process_pending_main_thread_actions() == 1
+    assert app._network_recovery.in_flight is False
     assert app.context.network.connected is True
 
 

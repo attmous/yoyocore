@@ -321,7 +321,11 @@ class YoyoPodApp:
         self,
         event: RecoveryAttemptCompletedEvent,
     ) -> None:
-        self.event_wiring.handle_recovery_attempt_completed_event(event)
+        self.recovery_service.handle_recovery_attempt_completed(
+            manager=event.manager,
+            recovered=event.recovered,
+            recovery_now=event.recovery_now,
+        )
 
     def _register_power_shutdown_hooks(self) -> None:
         self.shutdown_service.register_power_shutdown_hooks()

@@ -10,7 +10,6 @@ from yoyopod.core import (
     NetworkPppDownEvent,
     NetworkPppUpEvent,
     NetworkSignalUpdateEvent,
-    RecoveryAttemptCompletedEvent,
     ScreenChangedEvent,
     UserActivityEvent,
 )
@@ -41,10 +40,6 @@ class RuntimeEventWiring:
 
         self.app.event_bus.subscribe(ScreenChangedEvent, self.handle_screen_changed_event)
         self.app.event_bus.subscribe(UserActivityEvent, self.handle_user_activity_event)
-        self.app.event_bus.subscribe(
-            RecoveryAttemptCompletedEvent,
-            self.handle_recovery_attempt_completed_event,
-        )
         self.app.event_bus.subscribe(
             LowBatteryWarningRaised,
             self.power_events.handle_low_battery_warning_event,
@@ -77,9 +72,3 @@ class RuntimeEventWiring:
 
     def handle_user_activity_event(self, event: UserActivityEvent) -> None:
         self.app.screen_power_service.handle_user_activity_event(event)
-
-    def handle_recovery_attempt_completed_event(
-        self,
-        event: RecoveryAttemptCompletedEvent,
-    ) -> None:
-        self.app.recovery_service.handle_recovery_attempt_completed_event(event)

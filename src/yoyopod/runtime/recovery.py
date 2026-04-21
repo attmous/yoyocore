@@ -21,17 +21,21 @@ class RecoverySupervisor:
     def __init__(self, app: "YoyoPodApp") -> None:
         self.app = app
 
-    def handle_recovery_attempt_completed_event(
+    def handle_recovery_attempt_completed(
         self,
-        event: RecoveryAttemptCompletedEvent,
+        *,
+        manager: str,
+        recovered: bool,
+        recovery_now: float,
     ) -> None:
-        """Finalize background recovery attempts on the coordinator thread."""
-        if event.manager == "music":
+        """Finalize one background recovery attempt on the coordinator thread."""
+
+        if manager == "music":
             self.app._music_recovery.in_flight = False
             if self.app._stopping:
                 return
 
-            if event.recovered and self.app.music_backend:
+            if recovered and self.app.music_backend:
                 if hasattr(self.app.music_backend, "polling") and not getattr(
                     self.app.music_backend,
                     "polling",
@@ -43,12 +47,12 @@ class RecoverySupervisor:
             self.finalize_recovery_attempt(
                 "Music",
                 self.app._music_recovery,
-                event.recovered,
-                event.recovery_now,
+                recovered,
+                recovery_now,
             )
             return
 
-        if event.manager != "network":
+        if manager != "network":
             return
 
         self.app._network_recovery.in_flight = False
@@ -65,8 +69,20 @@ class RecoverySupervisor:
         self.finalize_recovery_attempt(
             "Network",
             self.app._network_recovery,
-            event.recovered,
-            event.recovery_now,
+            recovered,
+            recovery_now,
+        )
+
+    def handle_recovery_attempt_completed_event(
+        self,
+        event: RecoveryAttemptCompletedEvent,
+    ) -> None:
+        """Compatibility wrapper for the legacy completion event shape."""
+
+        self.handle_recovery_attempt_completed(
+            manager=event.manager,
+            recovered=event.recovered,
+            recovery_now=event.recovery_now,
         )
 
     def attempt_manager_recovery(self, now: float | None = None) -> None:
@@ -184,8 +200,8 @@ class RecoverySupervisor:
         if not self.app._stopping and self.app.music_backend is not None:
             recovered = self.start_music_backend()
 
-        self.app.event_bus.publish(
-            RecoveryAttemptCompletedEvent(
+        self.app.runtime_loop.queue_main_thread_callback(
+            lambda: self.handle_recovery_attempt_completed(
                 manager="music",
                 recovered=recovered,
                 recovery_now=recovery_now,
@@ -199,8 +215,8 @@ class RecoverySupervisor:
         if not self.app._stopping and self.app.network_manager is not None:
             recovered = self.app.network_manager.recover()
 
-        self.app.event_bus.publish(
-            RecoveryAttemptCompletedEvent(
+        self.app.runtime_loop.queue_main_thread_callback(
+            lambda: self.handle_recovery_attempt_completed(
                 manager="network",
                 recovered=recovered,
                 recovery_now=recovery_now,
