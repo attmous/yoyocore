@@ -101,6 +101,29 @@ def test_disabling_double_tap_select_emits_advance_immediately() -> None:
     assert actions == [InputAction.ADVANCE]
 
 
+def test_double_tap_select_attribute_tracks_state_machine_configuration() -> None:
+    """The adapter should continue exposing double_tap_select_enabled as a public attribute."""
+    adapter = PTTInputAdapter(simulate=True, enable_navigation=True)
+
+    assert adapter.double_tap_select_enabled is True
+
+    adapter.set_double_tap_select_enabled(False)
+
+    assert adapter.double_tap_select_enabled is False
+    assert InputAction.SELECT not in adapter.get_capabilities()
+
+
+def test_enable_navigation_attribute_remains_the_single_source_of_truth() -> None:
+    """Toggling enable_navigation on the adapter should update the shared state object."""
+    adapter = PTTInputAdapter(simulate=True, enable_navigation=True)
+
+    adapter.enable_navigation = False
+
+    assert adapter.enable_navigation is False
+    assert adapter.state.enable_navigation is False
+    assert adapter.get_capabilities() == [InputAction.PTT_PRESS, InputAction.PTT_RELEASE]
+
+
 def test_button_press_fires_raw_activity_immediately() -> None:
     """Physical button presses should emit wake-worthy activity before gesture resolution."""
     adapter = PTTInputAdapter(simulate=True, enable_navigation=True)

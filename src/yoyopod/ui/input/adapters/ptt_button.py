@@ -44,7 +44,6 @@ class PTTInputAdapter(InputHAL):
         simulate: bool = False,
     ) -> None:
         self.device = whisplay_device
-        self.enable_navigation = enable_navigation
         self.simulate = simulate
         self.debounce_time = self.DEFAULT_DEBOUNCE_TIME if debounce_time is None else debounce_time
         self.double_click_time = (
@@ -126,7 +125,7 @@ class PTTInputAdapter(InputHAL):
                 InputAction.ADVANCE,
                 InputAction.BACK,
             ]
-            if self.state.double_tap_select_enabled:
+            if self.double_tap_select_enabled:
                 actions.append(InputAction.SELECT)
             if self.raw_ptt_passthrough:
                 actions.extend([InputAction.PTT_PRESS, InputAction.PTT_RELEASE])
@@ -144,6 +143,22 @@ class PTTInputAdapter(InputHAL):
     def set_double_tap_select_enabled(self, enabled: bool) -> None:
         """Enable or disable delayed double-tap select for one-button navigation."""
         self._state_machine.set_double_tap_select_enabled(enabled)
+
+    @property
+    def enable_navigation(self) -> bool:
+        return self.state.enable_navigation
+
+    @enable_navigation.setter
+    def enable_navigation(self, value: bool) -> None:
+        self.state.enable_navigation = bool(value)
+
+    @property
+    def double_tap_select_enabled(self) -> bool:
+        return self.state.double_tap_select_enabled
+
+    @double_tap_select_enabled.setter
+    def double_tap_select_enabled(self, value: bool) -> None:
+        self._state_machine.set_double_tap_select_enabled(value)
 
     def _get_button_state(self) -> bool:
         """Return True when the physical button is pressed."""
