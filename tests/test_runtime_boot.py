@@ -7,7 +7,6 @@ from types import SimpleNamespace
 
 import yoyopod.runtime.boot as boot_module
 from yoyopod.runtime.boot import RuntimeBootService
-from yoyopod.runtime.boot.wiring_boot import WiringBoot
 
 
 class _FakeDisplay:
@@ -327,13 +326,10 @@ def test_setup_voip_callbacks_bind_direct_call_handlers() -> None:
         context=None,
         call_history_store=None,
     )
-    wiring = WiringBoot(
-        app,
-        logger=SimpleNamespace(info=lambda *_args, **_kwargs: None, warning=lambda *_args, **_kwargs: None),
-    )
-    wiring.ensure_coordinators = lambda: None
+    service = RuntimeBootService(app)
+    service.ensure_coordinators = lambda: None
 
-    wiring.setup_voip_callbacks()
+    service.setup_voip_callbacks()
 
     assert voip_manager.incoming_call_callback.__name__ == "handle_incoming_call"
     assert voip_manager.call_state_callback.__name__ == "handle_call_state_change"
@@ -358,16 +354,10 @@ def test_setup_music_callbacks_bind_direct_playback_handlers() -> None:
         playback_coordinator=playback_coordinator,
         audio_volume_controller=audio_volume_controller,
     )
-    wiring = WiringBoot(
-        app,
-        logger=SimpleNamespace(
-            info=lambda *_args, **_kwargs: None,
-            warning=lambda *_args, **_kwargs: None,
-        ),
-    )
-    wiring.ensure_coordinators = lambda: None
+    service = RuntimeBootService(app)
+    service.ensure_coordinators = lambda: None
 
-    wiring.setup_music_callbacks()
+    service.setup_music_callbacks()
 
     assert music_backend.track_callback.__name__ == "handle_track_change"
     assert music_backend.playback_state_callback.__name__ == "handle_playback_state_change"
