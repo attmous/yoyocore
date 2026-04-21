@@ -30,12 +30,18 @@ from yoyopod.core.setup_contract import (
 from yoyopod.backends.cloud import CloudClientError as BackendCloudClientError
 from yoyopod.backends.cloud import CloudDeviceClient as BackendCloudDeviceClient
 from yoyopod.backends.cloud import DeviceMqttClient as BackendDeviceMqttClient
+from yoyopod.backends.power import PiSugarBackend as BackendPiSugarBackend
+from yoyopod.backends.power import PiSugarWatchdog as BackendPiSugarWatchdog
 from yoyopod.backends.location import GpsReader as BackendGpsReader
 from yoyopod.backends.network import AtCommandSet as BackendAtCommandSet
 from yoyopod.backends.network import PppProcess as BackendPppProcess
 from yoyopod.backends.network import SerialTransport as BackendSerialTransport
 from yoyopod.backends.network import Sim7600Backend as BackendSim7600Backend
 from yoyopod.backends.network import TransportError as BackendTransportError
+from yoyopod.integrations.power import BatteryState as IntegrationBatteryState
+from yoyopod.integrations.power import PowerManager as IntegrationPowerManager
+from yoyopod.integrations.power import PowerSnapshot as IntegrationPowerSnapshot
+from yoyopod.integrations.power import RTCState as IntegrationRTCState
 from yoyopod.integrations.network import GpsCoordinate as IntegrationGpsCoordinate
 from yoyopod.integrations.network import ModemPhase as IntegrationModemPhase
 from yoyopod.integrations.network import ModemState as IntegrationModemState
@@ -87,6 +93,12 @@ from yoyopod.people import PeopleManager as LegacyPeopleManager
 from yoyopod.people import build_cloud_contact as legacy_build_cloud_contact
 from yoyopod.people import contacts_from_mapping as legacy_contacts_from_mapping
 from yoyopod.people import contacts_to_mapping as legacy_contacts_to_mapping
+from yoyopod.power import PowerManager as LegacyPowerManager
+from yoyopod.power import PowerSnapshot as LegacyPowerSnapshot
+from yoyopod.power.backend import PiSugarBackend as LegacyPiSugarBackend
+from yoyopod.power.models import BatteryState as LegacyBatteryState
+from yoyopod.power.models import RTCState as LegacyRTCState
+from yoyopod.power.watchdog import PiSugarWatchdog as LegacyPiSugarWatchdog
 from yoyopod.runtime_state import VoiceState
 from yoyopod.setup_contract import Path as SetupContractPath
 from yoyopod.setup_contract import RUNTIME_REQUIRED_CONFIG_FILES
@@ -138,6 +150,17 @@ def test_legacy_cloud_import_paths_resolve_to_relocated_cloud_symbols() -> None:
     assert LegacyCloudDeviceClient is BackendCloudDeviceClient
     assert LegacyDeviceMqttClient is BackendDeviceMqttClient
     assert LegacyCloudManager is IntegrationCloudManager
+
+
+def test_legacy_power_import_paths_resolve_to_relocated_symbols() -> None:
+    """Legacy power imports should keep pointing at the canonical power seam."""
+
+    assert LegacyBatteryState is IntegrationBatteryState
+    assert LegacyPowerManager is IntegrationPowerManager
+    assert LegacyPowerSnapshot is IntegrationPowerSnapshot
+    assert LegacyRTCState is IntegrationRTCState
+    assert LegacyPiSugarBackend is BackendPiSugarBackend
+    assert LegacyPiSugarWatchdog is BackendPiSugarWatchdog
 
 
 def test_legacy_network_backend_import_paths_resolve_to_relocated_symbols() -> None:

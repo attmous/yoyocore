@@ -115,9 +115,11 @@ Current exemplar package homes:
 - `src/yoyopod/audio/`
   - local music/media behavior, history, output-volume coordination, and mpv backend wiring
   - `__init__.py` is the app-facing seam
-- `src/yoyopod/power/`
-  - PiSugar backend, watchdog, safety policy, typed events, and power-runtime supervision
+- `src/yoyopod/integrations/power/`
+  - canonical power manager, power models, and scaffold integration ownership
   - `__init__.py` is the app-facing seam
+- `src/yoyopod/power/`
+  - compatibility shims plus the remaining power-specific events and policies
 - `src/yoyopod/voice/`
   - local voice behavior, models, and backends
   - device inventory/helpers live outside this package
@@ -128,7 +130,7 @@ The app layer should import from domain seams such as:
 
 - `yoyopod.integrations.network`
 - `yoyopod.audio`
-- `yoyopod.power`
+- `yoyopod.integrations.power`
 - `yoyopod.communication`
 - `yoyopod.integrations.contacts`
 
@@ -191,11 +193,14 @@ The power migration follows the same cutover shape:
 
 - power backend and shutdown policy under `config/power/backend.yaml`
 - `ConfigManager.get_power_settings()` as the typed runtime seam
-- `src/yoyopod/power/` as the domain-owned package home
-- app/runtime composition depending on `PowerManager.from_config_manager()`
+- `src/yoyopod/integrations/power/` as the canonical owner of the public
+  manager/models seam
+- `src/yoyopod/power/` retained as compatibility shims plus legacy events/policies
+- app/runtime composition depending on `yoyopod.integrations.power.PowerManager`
+  and `PowerManager.from_config_manager()`
   instead of reading power state from app-shell config
 - power polling and PiSugar watchdog cadence owned by the power domain via
-  `src/yoyopod/power/runtime.py`, while app/runtime composition still owns
+  `src/yoyopod/runtime/power_service.py`, while app/runtime composition still owns
   scheduling and shutdown orchestration
 
 ## Template For Future Migrations

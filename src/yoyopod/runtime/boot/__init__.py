@@ -22,7 +22,7 @@ from yoyopod.device import AudioDeviceCatalog
 from yoyopod.integrations.cloud.manager import CloudManager
 from yoyopod.integrations.contacts.directory import PeopleManager
 from yoyopod.integrations.network import NetworkManager
-from yoyopod.power.manager import PowerManager
+from yoyopod.integrations.power import PowerManager
 from yoyopod.ui.display import Display
 from yoyopod.ui.display.contracts import (
     WhisplayProductionRenderContractError,

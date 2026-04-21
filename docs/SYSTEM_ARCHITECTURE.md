@@ -201,7 +201,8 @@ yoyopod.py / yoyopod.main
 
 ### Power, Network, and Voice
 
-- `src/yoyopod/power/`: PiSugar power, RTC, watchdog, and safety policy code
+- `src/yoyopod/integrations/power/`: canonical power manager, models, and scaffold integration ownership
+- `src/yoyopod/power/`: compatibility shims plus the remaining power-specific events and safety policy code
 - `src/yoyopod/integrations/network/`: canonical network manager, modem models, and scaffold integration ownership
 - `src/yoyopod/network/`: compatibility shims for the historical network import path
 - `src/yoyopod/voice/`: local capture, STT, TTS, and command-matching code

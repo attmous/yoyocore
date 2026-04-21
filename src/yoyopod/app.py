@@ -39,9 +39,9 @@ from yoyopod.core import (
 )
 from yoyopod.device import AudioDeviceCatalog
 from yoyopod.integrations.contacts.directory import PeopleManager
+from yoyopod.integrations.power import PowerManager
 from yoyopod.core import CallFSM, CallInterruptionPolicy, MusicFSM
 from yoyopod.integrations.network import NetworkManager
-from yoyopod.power.manager import PowerManager
 from yoyopod.runtime.boot import RuntimeBootService
 from yoyopod.runtime.loop import RuntimeLoopService
 from yoyopod.runtime.models import PendingShutdown, PowerAlert, RecoveryState

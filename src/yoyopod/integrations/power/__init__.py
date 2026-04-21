@@ -3,12 +3,43 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from yoyopod.backends.power import PiSugarBackend
 from yoyopod.integrations.power.commands import SetRtcAlarmCommand
 from yoyopod.integrations.power.handlers import apply_snapshot
 from yoyopod.integrations.power.poller import PowerPoller
+
+if TYPE_CHECKING:
+    from yoyopod.integrations.power.manager import PowerManager
+    from yoyopod.integrations.power.models import (
+        BatteryState,
+        PowerDeviceInfo,
+        PowerSnapshot,
+        RTCState,
+        ShutdownState,
+    )
+
+
+_PUBLIC_EXPORTS = {
+    "BatteryState": ("yoyopod.integrations.power.models", "BatteryState"),
+    "PowerDeviceInfo": ("yoyopod.integrations.power.models", "PowerDeviceInfo"),
+    "PowerManager": ("yoyopod.integrations.power.manager", "PowerManager"),
+    "PowerSnapshot": ("yoyopod.integrations.power.models", "PowerSnapshot"),
+    "RTCState": ("yoyopod.integrations.power.models", "RTCState"),
+    "ShutdownState": ("yoyopod.integrations.power.models", "ShutdownState"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Load canonical public power exports lazily to avoid backend import cycles."""
+
+    try:
+        module_name, attribute = _PUBLIC_EXPORTS[name]
+    except KeyError as exc:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}") from exc
+
+    module = __import__(module_name, fromlist=[attribute])
+    return getattr(module, attribute)
 
 
 @dataclass(slots=True)
@@ -19,7 +50,18 @@ class PowerIntegration:
     poller: PowerPoller
 
 
-__all__ = ["PowerIntegration", "setup", "teardown"]
+__all__ = [
+    "BatteryState",
+    "PowerDeviceInfo",
+    "PowerIntegration",
+    "PowerManager",
+    "PowerSnapshot",
+    "RTCState",
+    "SetRtcAlarmCommand",
+    "ShutdownState",
+    "setup",
+    "teardown",
+]
 
 
 def setup(
@@ -30,6 +72,8 @@ def setup(
     poll_interval_seconds: float = 30.0,
 ) -> PowerIntegration:
     """Register the scaffold power services and poller."""
+
+    from yoyopod.backends.power import PiSugarBackend
 
     actual_backend = backend or PiSugarBackend(config)
     poller = PowerPoller(

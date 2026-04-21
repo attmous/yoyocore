@@ -25,15 +25,16 @@ This module is responsible for:
 ## Architecture
 
 Main files:
-- `src/yoyopod/power/models.py`
-- `src/yoyopod/power/backend.py`
-- `src/yoyopod/power/manager.py`
+- `src/yoyopod/integrations/power/models.py`
+- `src/yoyopod/integrations/power/manager.py`
+- `src/yoyopod/integrations/power/__init__.py`
+- `src/yoyopod/backends/power/pisugar.py`
+- `src/yoyopod/backends/power/watchdog.py`
 - `src/yoyopod/power/policies.py`
-- `src/yoyopod/power/runtime.py`
-- `src/yoyopod/power/watchdog.py`
 - `src/yoyopod/power/events.py`
+- `src/yoyopod/runtime/power_service.py`
 - `src/yoyopod/coordinators/power.py`
-- `src/yoyopod/ui/screens/system/power.py`
+- `src/yoyopod/ui/screens/system/power_screen.py`
 - `src/yoyopod/cli/pi/power.py` (`yoyopod pi power battery`, `yoyopod pi power rtc`)
 
 Runtime flow:
@@ -57,9 +58,14 @@ The app schedules PiSugar polling and watchdog work through `PowerRuntimeService
 publishes typed power events, updates shared runtime state, and then applies safety
 or UI behavior from those events.
 
+`src/yoyopod/integrations/power/` is now the canonical public ownership seam for
+the power manager and typed models. `src/yoyopod/power/` stays in place as a
+compatibility package for historical imports plus the remaining power events and
+safety-policy helpers.
+
 ## Backends And Transports
 
-`PowerManager` is the app-facing facade.
+`PowerManager` in `src/yoyopod/integrations/power/manager.py` is the app-facing facade.
 
 `PiSugarBackend` currently supports:
 - automatic transport selection

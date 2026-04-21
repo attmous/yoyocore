@@ -8,13 +8,13 @@ from typing import TYPE_CHECKING, Any
 from yoyopod.config.models import PowerConfig
 
 if TYPE_CHECKING:
-    from yoyopod.power.manager import PowerManager
-    from yoyopod.power.models import PowerSnapshot
+    from yoyopod.integrations.power.manager import PowerManager
+    from yoyopod.integrations.power.models import PowerSnapshot
 
 
 _LAZY_EXPORTS = {
-    "PowerManager": "yoyopod.power.manager",
-    "PowerSnapshot": "yoyopod.power.models",
+    "PowerManager": "yoyopod.integrations.power.manager",
+    "PowerSnapshot": "yoyopod.integrations.power.models",
 }
 
 

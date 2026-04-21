@@ -10,7 +10,7 @@ from .types import CheckResult
 def _rtc_check(config_dir: Path) -> CheckResult:
     """Validate PiSugar RTC reachability and report the current RTC state."""
     from yoyopod.config import ConfigManager
-    from yoyopod.power import PowerManager
+    from yoyopod.integrations.power import PowerManager
 
     config_manager = ConfigManager(config_dir=str(config_dir))
     manager = PowerManager.from_config_manager(config_manager)

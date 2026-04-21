@@ -13,7 +13,7 @@ from yoyopod.backends.power.pisugar import (
     build_pisugar_transport,
 )
 from yoyopod.backends.power.watchdog import PiSugarWatchdog, WatchdogCommandError
-from yoyopod.power.models import PowerSnapshot
+from yoyopod.integrations.power.models import PowerSnapshot
 
 __all__ = [
     "PiSugarAutoTransport",

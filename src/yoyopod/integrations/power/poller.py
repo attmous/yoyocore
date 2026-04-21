@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from yoyopod.power.models import PowerSnapshot
+from yoyopod.integrations.power.models import PowerSnapshot
 
 
 class PowerPoller:

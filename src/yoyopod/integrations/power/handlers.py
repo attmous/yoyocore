@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from yoyopod.power.models import PowerSnapshot
+from yoyopod.integrations.power.models import PowerSnapshot
 
 
 def snapshot_to_state_rows(snapshot: PowerSnapshot) -> list[tuple[str, Any, dict[str, Any]]]:

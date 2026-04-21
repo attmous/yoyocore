@@ -10,7 +10,7 @@ from yoyopod.config import ConfigManager
 from yoyopod.audio import MusicConfig
 from yoyopod.integrations.contacts.directory import PeopleDirectory
 from yoyopod.integrations.network import NetworkManager
-from yoyopod.power import PowerManager
+from yoyopod.integrations.power import PowerManager
 
 
 def _write_yaml(base_dir: Path, relative_path: str, payload: dict) -> Path:
