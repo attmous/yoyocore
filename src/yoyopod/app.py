@@ -60,7 +60,6 @@ from yoyopod.runtime.power_service import PowerRuntimeService
 from yoyopod.runtime.recovery import RecoverySupervisor
 from yoyopod.runtime.screen_power import ScreenPowerService
 from yoyopod.runtime.shutdown import ShutdownLifecycleService
-from yoyopod.ui.input import InteractionProfile
 from yoyopod.integrations.cloud.manager import CloudManager
 from yoyopod.power.events import (
     GracefulShutdownCancelled,
@@ -258,48 +257,6 @@ class YoyoPodApp:
     def setup(self) -> bool:
         """Initialize all components and register callbacks."""
         return self.boot_service.setup()
-
-    def _load_configuration(self) -> bool:
-        return self.boot_service.load_configuration()
-
-    def _resolve_screen_timeout_seconds(self) -> float:
-        return self.boot_service.resolve_screen_timeout_seconds()
-
-    def _resolve_active_brightness(self) -> float:
-        return self.boot_service.resolve_active_brightness()
-
-    def _configure_screen_power(self, initial_now: float | None = None) -> None:
-        self.screen_power_service.configure_screen_power(initial_now)
-
-    def _refresh_talk_summary(self) -> None:
-        self.boot_service.refresh_talk_summary()
-
-    def _init_core_components(self) -> bool:
-        return self.boot_service.init_core_components()
-
-    def _init_managers(self) -> bool:
-        return self.boot_service.init_managers()
-
-    def _setup_screens(self) -> bool:
-        return self.boot_service.setup_screens()
-
-    def _get_interaction_profile(self) -> InteractionProfile:
-        return self.boot_service.get_interaction_profile()
-
-    def _get_initial_screen_name(self) -> str:
-        return self.boot_service.get_initial_screen_name()
-
-    def _get_initial_ui_state(self) -> AppRuntimeState:
-        return self.boot_service.get_initial_ui_state()
-
-    def _setup_voip_callbacks(self) -> None:
-        self.boot_service.setup_voip_callbacks()
-
-    def _setup_music_callbacks(self) -> None:
-        self.boot_service.setup_music_callbacks()
-
-    def _setup_event_subscriptions(self) -> None:
-        self.boot_service.setup_event_subscriptions()
 
     def _pending_main_thread_callback_count(self) -> int | None:
         """Return the combined generic and safety callback backlog."""

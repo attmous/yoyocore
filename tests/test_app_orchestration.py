@@ -560,7 +560,7 @@ class OrchestrationHarness:
         app.screen_manager.push_screen("menu")
         app._ui_state = AppRuntimeState.MENU
 
-        app._setup_event_subscriptions()
+        app.boot_service.setup_event_subscriptions()
         assert app.call_coordinator is not None
         app.call_coordinator.start_ringing = lambda: None
         app.call_coordinator.stop_ringing = lambda: None
@@ -1444,8 +1444,8 @@ def test_standard_profile_starts_on_menu() -> None:
     app.context = AppContext()
     app.input_manager = InputManager(interaction_profile=InteractionProfile.STANDARD)
 
-    assert app._get_initial_screen_name() == "menu"
-    assert app._get_initial_ui_state() == AppRuntimeState.MENU
+    assert app.boot_service.get_initial_screen_name() == "menu"
+    assert app.boot_service.get_initial_ui_state() == AppRuntimeState.MENU
 
 
 def test_one_button_profile_starts_on_hub() -> None:
@@ -1454,8 +1454,8 @@ def test_one_button_profile_starts_on_hub() -> None:
     app.context = AppContext(interaction_profile=InteractionProfile.ONE_BUTTON)
     app.input_manager = InputManager(interaction_profile=InteractionProfile.ONE_BUTTON)
 
-    assert app._get_initial_screen_name() == "hub"
-    assert app._get_initial_ui_state() == AppRuntimeState.HUB
+    assert app.boot_service.get_initial_screen_name() == "hub"
+    assert app.boot_service.get_initial_ui_state() == AppRuntimeState.HUB
 
 
 def test_power_poll_updates_context_runtime_and_visible_screen() -> None:
@@ -1693,9 +1693,9 @@ def test_screen_timeout_turns_backlight_off_after_inactivity() -> None:
         display=SimpleNamespace(brightness=80, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app._update_screen_power(31.0)
 
     assert app.display.set_backlight_calls == [0.8, 0.0]
@@ -1714,9 +1714,9 @@ def test_screen_power_service_turns_backlight_off_after_inactivity() -> None:
         display=SimpleNamespace(brightness=80, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app.screen_power_service.update_screen_power(31.0)
 
     assert app.display.set_backlight_calls == [0.8, 0.0]
@@ -1735,9 +1735,9 @@ def test_user_activity_event_wakes_screen_and_refreshes_current_screen() -> None
         display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app._sleep_screen(31.0)
 
     assert app.context.screen.awake is False
@@ -1763,9 +1763,9 @@ def test_user_activity_event_wakes_screen_and_refreshes_visible_power_screen_hoo
         display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     screen_manager.push_screen("power")
     app._sleep_screen(31.0)
 
@@ -1839,9 +1839,9 @@ def test_raw_user_activity_wakes_screen_without_rerendering_current_pil_screen()
         display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app._sleep_screen(31.0)
 
     assert app.context.screen.awake is False
@@ -1866,9 +1866,9 @@ def test_user_activity_event_wakes_sleeping_lvgl_screen_with_forced_refresh() ->
         display=SimpleNamespace(brightness=75, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app._sleep_screen(31.0)
 
     _publish_from_worker(app, UserActivityEvent(action_name=None))
@@ -1887,9 +1887,9 @@ def test_screen_on_time_accumulates_across_sleep_and_wake_cycles() -> None:
         display=SimpleNamespace(brightness=80, backlight_timeout_seconds=30),
     )
 
-    app._screen_timeout_seconds = app._resolve_screen_timeout_seconds()
-    app._active_brightness = app._resolve_active_brightness()
-    app._configure_screen_power(initial_now=0.0)
+    app._screen_timeout_seconds = app.screen_power_service.resolve_screen_timeout_seconds()
+    app._active_brightness = app.screen_power_service.resolve_active_brightness()
+    app.screen_power_service.configure_screen_power(initial_now=0.0)
     app._sleep_screen(10.0)
     app._wake_screen(20.0, render_current=False)
     app._sleep_screen(25.0)
