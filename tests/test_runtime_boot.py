@@ -325,10 +325,7 @@ def test_setup_voip_callbacks_bind_direct_call_handlers() -> None:
         context=None,
         call_history_store=None,
     )
-    service = RuntimeBootService(app)
-    service.ensure_coordinators = lambda: None
-
-    service.setup_voip_callbacks()
+    RuntimeBootService(app).setup_voip_callbacks()
 
     assert voip_manager.incoming_call_callback.__name__ == "handle_incoming_call"
     assert voip_manager.call_state_callback.__name__ == "handle_call_state_change"
@@ -353,10 +350,7 @@ def test_setup_music_callbacks_bind_direct_playback_handlers() -> None:
         playback_coordinator=playback_coordinator,
         audio_volume_controller=audio_volume_controller,
     )
-    service = RuntimeBootService(app)
-    service.ensure_coordinators = lambda: None
-
-    service.setup_music_callbacks()
+    RuntimeBootService(app).setup_music_callbacks()
 
     assert music_backend.track_callback.__name__ == "handle_track_change"
     assert music_backend.playback_state_callback.__name__ == "handle_playback_state_change"
@@ -364,6 +358,29 @@ def test_setup_music_callbacks_bind_direct_playback_handlers() -> None:
         music_backend.connection_change_callback.__name__
         == "handle_availability_change"
     )
+
+
+def test_bind_coordinator_events_uses_existing_runtime_owners() -> None:
+    """Event binding should use the initialized coordinators without rebuilding them."""
+
+    bindings: list[tuple[str, object]] = []
+    event_bus = object()
+    app = SimpleNamespace(
+        event_bus=event_bus,
+        call_coordinator=SimpleNamespace(bind=lambda bus: bindings.append(("call", bus))),
+        playback_coordinator=SimpleNamespace(
+            bind=lambda bus: bindings.append(("playback", bus))
+        ),
+        power_coordinator=SimpleNamespace(bind=lambda bus: bindings.append(("power", bus))),
+    )
+
+    RuntimeBootService(app).bind_coordinator_events()
+
+    assert bindings == [
+        ("call", event_bus),
+        ("playback", event_bus),
+        ("power", event_bus),
+    ]
 
 
 def test_managers_boot_starts_network_and_syncs_context_without_event_wiring() -> None:
