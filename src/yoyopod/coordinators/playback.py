@@ -112,7 +112,7 @@ class PlaybackCoordinator:
             self.runtime.music_fsm.transition("stop")
 
         state_change = self.runtime.sync_app_state(f"playback_{playback_state}")
-        if state_change.entered(AppRuntimeState.PLAYING):
+        if state_change.entered(AppRuntimeState.MUSIC):
             logger.info("Music now playing")
         self.screen_coordinator.refresh_now_playing_screen()
 

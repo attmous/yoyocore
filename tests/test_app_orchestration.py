@@ -961,7 +961,7 @@ def test_background_events_wait_for_drain_before_mutating_state() -> None:
     assert app.event_bus.drain() == 2
     assert app.voip_registered
     assert app.music_fsm.state == MusicState.PLAYING
-    assert app.coordinator_runtime.current_app_state == AppRuntimeState.PLAYING
+    assert app.coordinator_runtime.current_app_state == AppRuntimeState.MUSIC
 
 
 def test_track_event_refreshes_now_playing_screen_when_visible() -> None:

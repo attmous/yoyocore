@@ -26,13 +26,11 @@ if TYPE_CHECKING:
 
 
 class AppRuntimeState(Enum):
-    """Derived application state used by the production coordinator path."""
+    """Derived application mode used by coordinator-level dispatch and status."""
 
     IDLE = "idle"
-    PLAYING = "playing"
-    PAUSED = "paused"
-    CALL_INCOMING = "call_incoming"
-    CALL_OUTGOING = "call_outgoing"
+    MUSIC = "music"
+    CALL_CONNECTING = "call_connecting"
     CALL_ACTIVE = "call_active"
 
 
@@ -98,20 +96,14 @@ class CoordinatorRuntime:
 
     def _derive_state(self) -> AppRuntimeState:
         """Derive the current application state from the split FSMs."""
-        if self.call_fsm.state == CallSessionState.INCOMING:
-            return AppRuntimeState.CALL_INCOMING
-
-        if self.call_fsm.state == CallSessionState.OUTGOING:
-            return AppRuntimeState.CALL_OUTGOING
+        if self.call_fsm.state in (CallSessionState.INCOMING, CallSessionState.OUTGOING):
+            return AppRuntimeState.CALL_CONNECTING
 
         if self.call_fsm.state == CallSessionState.ACTIVE:
             return AppRuntimeState.CALL_ACTIVE
 
-        if self.music_fsm.state == MusicState.PLAYING:
-            return AppRuntimeState.PLAYING
-
-        if self.music_fsm.state == MusicState.PAUSED:
-            return AppRuntimeState.PAUSED
+        if self.music_fsm.state in (MusicState.PLAYING, MusicState.PAUSED):
+            return AppRuntimeState.MUSIC
 
         return AppRuntimeState.IDLE
 

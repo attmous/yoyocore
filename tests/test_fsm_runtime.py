@@ -117,22 +117,23 @@ def test_runtime_state_is_derived_from_split_fsms() -> None:
 
     runtime.music_fsm.transition("play")
     state_change = runtime.sync_app_state("playback_playing")
-    assert state_change.entered(AppRuntimeState.PLAYING)
-    assert runtime.current_app_state == AppRuntimeState.PLAYING
+    assert state_change.entered(AppRuntimeState.MUSIC)
+    assert runtime.current_app_state == AppRuntimeState.MUSIC
 
     state_change = runtime.set_voip_ready(True)
     assert not state_change.changed
-    assert runtime.current_app_state == AppRuntimeState.PLAYING
+    assert runtime.current_app_state == AppRuntimeState.MUSIC
 
     runtime.call_interruption_policy.mark_paused_for_call(runtime.music_fsm)
     state_change = runtime.sync_app_state("auto_pause_for_call")
-    assert state_change.entered(AppRuntimeState.PAUSED)
-    assert runtime.current_app_state == AppRuntimeState.PAUSED
+    assert not state_change.changed
+    assert runtime.music_fsm.state == MusicState.PAUSED
+    assert runtime.current_app_state == AppRuntimeState.MUSIC
 
     runtime.call_fsm.transition("incoming")
     state_change = runtime.sync_app_state("incoming_call")
-    assert state_change.entered(AppRuntimeState.CALL_INCOMING)
-    assert runtime.current_app_state == AppRuntimeState.CALL_INCOMING
+    assert state_change.entered(AppRuntimeState.CALL_CONNECTING)
+    assert runtime.current_app_state == AppRuntimeState.CALL_CONNECTING
 
     runtime.call_fsm.transition("connect")
     state_change = runtime.sync_app_state("call_connected")
@@ -143,8 +144,8 @@ def test_runtime_state_is_derived_from_split_fsms() -> None:
     runtime.music_fsm.transition("play")
     runtime.call_interruption_policy.clear()
     state_change = runtime.sync_app_state("call_ended")
-    assert state_change.entered(AppRuntimeState.PLAYING)
-    assert runtime.current_app_state == AppRuntimeState.PLAYING
+    assert state_change.entered(AppRuntimeState.MUSIC)
+    assert runtime.current_app_state == AppRuntimeState.MUSIC
 
 
 def test_runtime_returns_to_base_ui_state_when_music_and_calls_are_idle() -> None:
@@ -156,7 +157,7 @@ def test_runtime_returns_to_base_ui_state_when_music_and_calls_are_idle() -> Non
 
     runtime.music_fsm.transition("play")
     runtime.sync_app_state("load_playlist")
-    assert runtime.current_app_state == AppRuntimeState.PLAYING
+    assert runtime.current_app_state == AppRuntimeState.MUSIC
 
     runtime.music_fsm.transition("stop")
     state_change = runtime.sync_app_state("stop")
