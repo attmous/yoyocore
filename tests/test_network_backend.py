@@ -290,3 +290,51 @@ def test_backend_start_ppp_skips_blank_apn_configuration() -> None:
     assert backend._state.phase == ModemPhase.ONLINE
     assert "spawn" in ppp.calls
     assert not any(call.startswith("configure_pdp:") for call in at.calls)
+
+
+def test_backend_is_online_marks_dead_ppp_process_offline() -> None:
+    """is_online() should reconcile stale ONLINE state when pppd has already exited."""
+
+    at = FakeAtCommands()
+    ppp = FakePpp()
+    ppp.alive = False
+    backend = Sim7600Backend.__new__(Sim7600Backend)
+    backend._at = at
+    backend._ppp = ppp
+    backend._gps = None
+    backend._state = ModemState(phase=ModemPhase.ONLINE)
+
+    class FakeConfig:
+        gps_enabled = False
+        apn = "internet"
+
+    backend._config = FakeConfig()
+
+    assert backend.is_online() is False
+    assert backend._state.phase == ModemPhase.REGISTERED
+    assert backend._state.error == "PPP process exited"
+
+
+def test_backend_is_online_marks_missing_ppp_interface_offline() -> None:
+    """is_online() should drop back to REGISTERED when the PPP interface disappears."""
+
+    at = FakeAtCommands()
+    ppp = FakePpp()
+    ppp.alive = True
+    backend = Sim7600Backend.__new__(Sim7600Backend)
+    backend._at = at
+    backend._ppp = ppp
+    backend._gps = None
+    backend._state = ModemState(phase=ModemPhase.ONLINE)
+
+    class FakeConfig:
+        gps_enabled = False
+        apn = "internet"
+
+    backend._config = FakeConfig()
+
+    with patch("yoyopod.network.backend.Path.exists", return_value=False):
+        assert backend.is_online() is False
+
+    assert backend._state.phase == ModemPhase.REGISTERED
+    assert backend._state.error == "PPP interface down"

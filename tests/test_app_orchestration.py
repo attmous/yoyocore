@@ -40,6 +40,7 @@ from yoyopod.core import (
 from yoyopod.power import BatteryState, PowerSnapshot
 from yoyopod.runtime.loop import RuntimeLoopService
 from yoyopod.runtime.models import PowerAlert
+from yoyopod.network.models import ModemPhase, ModemState, SignalInfo
 from yoyopod.ui.input import InputManager, InteractionProfile
 
 
@@ -215,6 +216,38 @@ class FakeRecoveringMusicBackend(MockMusicBackend):
         result_index = min(self.start_calls - 1, len(self._start_results) - 1)
         self._connected = self._start_results[result_index]
         return self._connected
+
+
+class FakeRecoveringNetworkManager:
+    """Minimal network-manager double for recovery backoff tests."""
+
+    def __init__(self, recover_results: list[bool]) -> None:
+        self._recover_results = recover_results
+        self.recover_calls = 0
+        self.config = SimpleNamespace(enabled=True)
+        self._online = False
+        self._state = ModemState(
+            phase=ModemPhase.REGISTERED,
+            signal=SignalInfo(csq=20),
+            carrier="Telekom.de",
+            network_type="4G",
+            sim_ready=True,
+        )
+
+    def recover(self) -> bool:
+        self.recover_calls += 1
+        result_index = min(self.recover_calls - 1, len(self._recover_results) - 1)
+        self._online = self._recover_results[result_index]
+        self._state.phase = ModemPhase.ONLINE if self._online else ModemPhase.REGISTERED
+        return self._online
+
+    @property
+    def is_online(self) -> bool:
+        return self._online
+
+    @property
+    def modem_state(self) -> ModemState:
+        return self._state
 
 
 class FakeStoppingVoIPManager:
@@ -1123,6 +1156,23 @@ def test_recovery_service_no_longer_owns_power_runtime_helpers() -> None:
     assert not hasattr(app.recovery_service, "feed_watchdog_if_due")
 
 
+def test_recovery_service_schedules_network_reconnect_off_main_thread() -> None:
+    """Network recovery should schedule modem retries instead of blocking the loop thread."""
+
+    app = YoyoPodApp(simulate=True)
+    app.network_manager = FakeRecoveringNetworkManager([False, True])
+    scheduled_attempts: list[float] = []
+
+    app.recovery_service.start_network_recovery_worker = (
+        lambda recovery_now: scheduled_attempts.append(recovery_now)
+    )
+
+    app.recovery_service.attempt_network_recovery(0.0)
+
+    assert scheduled_attempts == [0.0]
+    assert app._network_recovery.in_flight is True
+
+
 def test_music_recovery_backoff_doubles_after_success() -> None:
     """Background music recovery results should update backoff on success and failure."""
     app = YoyoPodApp(simulate=True)
@@ -1152,6 +1202,37 @@ def test_music_recovery_backoff_doubles_after_success() -> None:
 
     assert app._music_recovery.next_attempt_at == 0.0
     assert app._music_recovery.delay_seconds == 1.0
+
+
+def test_network_recovery_backoff_updates_context_after_completion() -> None:
+    """Network recovery completion should refresh UI status and backoff state."""
+
+    app = YoyoPodApp(simulate=True)
+    app.context = AppContext()
+    app.network_manager = FakeRecoveringNetworkManager([False, True])
+
+    app._network_recovery.in_flight = True
+    app._handle_recovery_attempt_completed_event(
+        RecoveryAttemptCompletedEvent(manager="network", recovered=False, recovery_now=0.0)
+    )
+
+    assert app._network_recovery.next_attempt_at == 1.0
+    assert app._network_recovery.delay_seconds == 2.0
+    assert app.context.network.enabled is True
+    assert app.context.network.signal_strength == 3
+    assert app.context.network.connection_type == "4g"
+    assert app.context.network.connected is False
+
+    app.network_manager._online = True
+    app.network_manager._state.phase = ModemPhase.ONLINE
+    app._network_recovery.in_flight = True
+    app._handle_recovery_attempt_completed_event(
+        RecoveryAttemptCompletedEvent(manager="network", recovered=True, recovery_now=1.0)
+    )
+
+    assert app._network_recovery.next_attempt_at == 0.0
+    assert app._network_recovery.delay_seconds == 1.0
+    assert app.context.network.connected is True
 
 
 def test_app_stop_uses_silent_voip_teardown() -> None:

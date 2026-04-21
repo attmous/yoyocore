@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 import yoyopod.main as main_module
 import yoyopod.runtime.diagnostics as diagnostics_module
 import yoyopod.runtime.screenshot as screenshot_module
@@ -339,6 +341,9 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
 ) -> None:
     """Traceback dumps should chain onto the existing screenshot signal handlers."""
 
+    if not all(hasattr(signal, name) for name in ("SIGUSR1", "SIGUSR2")):
+        pytest.skip("screenshot dump signals are unavailable on this platform")
+
     register_calls: list[tuple[int, bool, bool]] = []
     unregister_calls: list[int] = []
     logs: list[tuple[str, tuple[object, ...]]] = []
@@ -349,11 +354,13 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
         lambda signum, *, file, all_threads, chain: register_calls.append(
             (signum, all_threads, chain)
         ),
+        raising=False,
     )
     monkeypatch.setattr(
         diagnostics_module.faulthandler,
         "unregister",
         lambda signum: unregister_calls.append(signum),
+        raising=False,
     )
     fake_log = SimpleNamespace(
         info=lambda *args: logs.append(("info", args)),
@@ -385,6 +392,9 @@ def test_install_traceback_dump_handlers_registers_faulthandler_chain(
 
 def test_main_restores_previous_signal_handlers_before_stop(monkeypatch) -> None:
     """Main should restore SIGTERM and screenshot handlers during teardown."""
+
+    if not all(hasattr(signal, name) for name in ("SIGUSR1", "SIGUSR2")):
+        pytest.skip("screenshot dump signals are unavailable on this platform")
 
     events: list[tuple[object, ...]] = []
     previous_handlers = {

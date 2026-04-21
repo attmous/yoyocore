@@ -30,6 +30,7 @@ class FakeBackend:
         self.ppp_stopped = False
         self.gps_query_calls = 0
         self.gps_coord: GpsCoordinate | None = None
+        self.health_online = True
 
     def probe(self) -> bool:
         return True
@@ -49,17 +50,22 @@ class FakeBackend:
 
     def start_ppp(self) -> bool:
         self.ppp_started = True
+        self.health_online = True
         self.state.phase = ModemPhase.ONLINE
         return True
 
     def stop_ppp(self) -> None:
         self.ppp_stopped = True
+        self.health_online = False
         self.state.phase = ModemPhase.REGISTERED
 
     def query_gps(self):
         self.gps_query_calls += 1
         self.state.gps = self.gps_coord
         return self.gps_coord
+
+    def is_online(self) -> bool:
+        return self.health_online and self.state.phase == ModemPhase.ONLINE
 
 
 def test_manager_start_full_sequence():
@@ -116,6 +122,25 @@ def test_manager_is_online():
 
     backend.state.phase = ModemPhase.REGISTERED
     assert manager.is_online is False
+
+
+def test_manager_recover_retries_full_bringup_after_failed_boot() -> None:
+    """recover() should reset the backend and rerun modem init plus PPP bring-up."""
+
+    config = build_config_model(NetworkConfig, {"enabled": True, "apn": "internet"})
+    backend = FakeBackend()
+    backend.state.phase = ModemPhase.REGISTERING
+    backend.health_online = False
+    bus = EventBus()
+    manager = NetworkManager(config=config, backend=backend, event_bus=bus)
+
+    recovered = manager.recover()
+
+    assert recovered is True
+    assert backend.closed is True
+    assert backend.opened is True
+    assert backend.inited is True
+    assert backend.ppp_started is True
 
 
 def test_manager_warms_gps_fix_on_start_when_enabled():

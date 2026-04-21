@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -27,6 +28,7 @@ class NetworkManager:
         self.config = config
         self.backend = backend or Sim7600Backend(config)
         self.event_bus = event_bus
+        self._lifecycle_lock = threading.RLock()
 
     @classmethod
     def from_config_manager(
@@ -38,6 +40,11 @@ class NetworkManager:
 
     def start(self) -> None:
         """Open modem, initialize, and start PPP."""
+        with self._lifecycle_lock:
+            self._start_unlocked()
+
+    def _start_unlocked(self) -> None:
+        """Run the one-shot modem bring-up flow while the lifecycle lock is held."""
         from yoyopod.core import (
             NetworkModemReadyEvent,
             NetworkPppUpEvent,
@@ -90,22 +97,48 @@ class NetworkManager:
         """Stop PPP and close the modem."""
         from yoyopod.core import NetworkPppDownEvent
 
-        logger.info("Stopping network manager")
-        try:
-            self.backend.close()
-        except Exception as exc:
-            logger.error("Error stopping network: {}", exc)
-        self._publish(NetworkPppDownEvent(reason="shutdown"))
+        with self._lifecycle_lock:
+            logger.info("Stopping network manager")
+            try:
+                self.backend.close()
+            except Exception as exc:
+                logger.error("Error stopping network: {}", exc)
+            self._publish(NetworkPppDownEvent(reason="shutdown"))
+
+    def recover(self) -> bool:
+        """Reset the modem backend and retry the full bring-up flow."""
+
+        if not self.config.enabled:
+            logger.info("Network module disabled")
+            return False
+
+        with self._lifecycle_lock:
+            logger.info("Recovering network manager")
+            try:
+                self.backend.close()
+            except Exception as exc:
+                logger.debug("Ignoring network close error during recovery reset: {}", exc)
+
+            try:
+                self._start_unlocked()
+            except Exception as exc:
+                logger.error("Network recovery failed: {}", exc)
+            return self.is_online
 
     @property
     def is_online(self) -> bool:
         """Return True when PPP is up."""
-        return self.backend.get_state().phase == ModemPhase.ONLINE
+        with self._lifecycle_lock:
+            backend_is_online = getattr(self.backend, "is_online", None)
+            if callable(backend_is_online):
+                return bool(backend_is_online())
+            return self.backend.get_state().phase == ModemPhase.ONLINE
 
     @property
     def modem_state(self) -> ModemState:
         """Return the current modem state."""
-        return self.backend.get_state()
+        with self._lifecycle_lock:
+            return self.backend.get_state()
 
     def query_gps(self) -> GpsCoordinate | None:
         """Query GPS coordinates (may briefly interrupt PPP)."""

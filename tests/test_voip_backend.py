@@ -245,9 +245,7 @@ def test_liblinphone_backend_starts_and_drains_native_events() -> None:
     assert binding.start_kwargs["lime_server_url"] == ""
     assert binding.start_kwargs["mic_gain"] == 0
     assert binding.start_kwargs["output_volume"] == 100
-    assert binding.start_kwargs["factory_config_path"].endswith(
-        "config\\liblinphone_factory.conf"
-    ) or binding.start_kwargs["factory_config_path"].endswith(
+    assert binding.start_kwargs["factory_config_path"].replace("\\", "/").endswith(
         "config/communication/integrations/liblinphone_factory.conf"
     )
 

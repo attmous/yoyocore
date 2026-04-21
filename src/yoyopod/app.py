@@ -179,6 +179,7 @@ class YoyoPodApp:
         # Runtime state tracked across services
         self._voip_recovery = RecoveryState()
         self._music_recovery = RecoveryState()
+        self._network_recovery = RecoveryState()
         self._next_power_poll_at = 0.0
         self._power_available: bool | None = None
         self._power_alert: PowerAlert | None = None
@@ -480,11 +481,20 @@ class YoyoPodApp:
     def _attempt_music_recovery(self, recovery_now: float) -> None:
         self.recovery_service.attempt_music_recovery(recovery_now)
 
+    def _attempt_network_recovery(self, recovery_now: float) -> None:
+        self.recovery_service.attempt_network_recovery(recovery_now)
+
     def _start_music_recovery_worker(self, recovery_now: float) -> None:
         self.recovery_service.start_music_recovery_worker(recovery_now)
 
+    def _start_network_recovery_worker(self, recovery_now: float) -> None:
+        self.recovery_service.start_network_recovery_worker(recovery_now)
+
     def _run_music_recovery_attempt(self, recovery_now: float) -> None:
         self.recovery_service.run_music_recovery_attempt(recovery_now)
+
+    def _run_network_recovery_attempt(self, recovery_now: float) -> None:
+        self.recovery_service.run_network_recovery_attempt(recovery_now)
 
     def _finalize_recovery_attempt(
         self,

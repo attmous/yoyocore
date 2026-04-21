@@ -315,18 +315,24 @@ def test_simulated_whisplay_adapter_does_not_own_browser_preview() -> None:
     assert not hasattr(adapter, "web_server")
 
 
-def test_whisplay_font_cache_reuses_loaded_fonts(monkeypatch) -> None:
+def test_whisplay_font_cache_reuses_loaded_fonts(monkeypatch, tmp_path) -> None:
     """Repeated text draws should not reload the same font on every call."""
 
     adapter = WhisplayDisplayAdapter(simulate=True, renderer="pil")
     adapter._font_cache.clear()
+    fake_font_path = tmp_path / "cache-font.ttf"
+    fake_font_path.write_text("unused font payload")
 
-    original_truetype = ImageFont.truetype
     load_calls: list[tuple[str, int]] = []
 
     def counting_truetype(path: str, size: int, *args, **kwargs):
         load_calls.append((path, size))
-        return original_truetype(path, size, *args, **kwargs)
+        return ImageFont.load_default()
+
+    monkeypatch.setattr(
+        "yoyopod.ui.display.adapters.whisplay.DEFAULT_FONT_PATH",
+        fake_font_path,
+    )
 
     monkeypatch.setattr(
         "yoyopod.ui.display.adapters.whisplay._load_pillow_modules",

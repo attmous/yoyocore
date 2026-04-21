@@ -26,25 +26,45 @@ class RecoverySupervisor:
         event: RecoveryAttemptCompletedEvent,
     ) -> None:
         """Finalize background recovery attempts on the coordinator thread."""
-        if event.manager != "music":
+        if event.manager == "music":
+            self.app._music_recovery.in_flight = False
+            if self.app._stopping:
+                return
+
+            if event.recovered and self.app.music_backend:
+                if hasattr(self.app.music_backend, "polling") and not getattr(
+                    self.app.music_backend,
+                    "polling",
+                ):
+                    start_polling = getattr(self.app.music_backend, "start_polling", None)
+                    if start_polling is not None:
+                        start_polling()
+
+            self.finalize_recovery_attempt(
+                "Music",
+                self.app._music_recovery,
+                event.recovered,
+                event.recovery_now,
+            )
             return
 
-        self.app._music_recovery.in_flight = False
+        if event.manager != "network":
+            return
+
+        self.app._network_recovery.in_flight = False
         if self.app._stopping:
             return
 
-        if event.recovered and self.app.music_backend:
-            if hasattr(self.app.music_backend, "polling") and not getattr(
-                self.app.music_backend,
-                "polling",
-            ):
-                start_polling = getattr(self.app.music_backend, "start_polling", None)
-                if start_polling is not None:
-                    start_polling()
+        if self.app.network_manager is not None:
+            self.app.event_wiring.network_events.sync_network_context_from_manager()
+            if self.app.cloud_manager is not None:
+                self.app.cloud_manager.note_network_change(
+                    connected=self.app.network_manager.is_online
+                )
 
         self.finalize_recovery_attempt(
-            "Music",
-            self.app._music_recovery,
+            "Network",
+            self.app._network_recovery,
             event.recovered,
             event.recovery_now,
         )
@@ -57,6 +77,7 @@ class RecoverySupervisor:
         recovery_now = time.monotonic() if now is None else now
         self.attempt_voip_recovery(recovery_now)
         self.attempt_music_recovery(recovery_now)
+        self.attempt_network_recovery(recovery_now)
 
     def attempt_voip_recovery(self, recovery_now: float) -> None:
         """Restart the VoIP backend when it is not running."""
@@ -112,6 +133,26 @@ class RecoverySupervisor:
         self.app._music_recovery.in_flight = True
         self.start_music_recovery_worker(recovery_now)
 
+    def attempt_network_recovery(self, recovery_now: float) -> None:
+        """Reinitialize the modem when cellular registration or PPP is down."""
+
+        if self.app.network_manager is None or not self.app.network_manager.config.enabled:
+            return
+
+        if self.app.network_manager.is_online:
+            self.app._network_recovery.reset()
+            return
+
+        if self.app._network_recovery.in_flight:
+            return
+
+        if recovery_now < self.app._network_recovery.next_attempt_at:
+            return
+
+        logger.info("Attempting network recovery")
+        self.app._network_recovery.in_flight = True
+        self.start_network_recovery_worker(recovery_now)
+
     def start_music_recovery_worker(self, recovery_now: float) -> None:
         """Launch the non-blocking music recovery attempt worker."""
         worker = threading.Thread(
@@ -119,6 +160,17 @@ class RecoverySupervisor:
             args=(recovery_now,),
             daemon=True,
             name="music-recovery",
+        )
+        worker.start()
+
+    def start_network_recovery_worker(self, recovery_now: float) -> None:
+        """Launch the non-blocking network recovery attempt worker."""
+
+        worker = threading.Thread(
+            target=self.run_network_recovery_attempt,
+            args=(recovery_now,),
+            daemon=True,
+            name="network-recovery",
         )
         worker.start()
 
@@ -131,6 +183,21 @@ class RecoverySupervisor:
         self.app.event_bus.publish(
             RecoveryAttemptCompletedEvent(
                 manager="music",
+                recovered=recovered,
+                recovery_now=recovery_now,
+            )
+        )
+
+    def run_network_recovery_attempt(self, recovery_now: float) -> None:
+        """Run one modem reinitialization attempt off the coordinator thread."""
+
+        recovered = False
+        if not self.app._stopping and self.app.network_manager is not None:
+            recovered = self.app.network_manager.recover()
+
+        self.app.event_bus.publish(
+            RecoveryAttemptCompletedEvent(
+                manager="network",
                 recovered=recovered,
                 recovery_now=recovery_now,
             )

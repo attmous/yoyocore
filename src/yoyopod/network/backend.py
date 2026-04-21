@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
@@ -21,6 +22,7 @@ class NetworkBackend(Protocol):
 
     def probe(self) -> bool: ...
     def get_state(self) -> ModemState: ...
+    def is_online(self) -> bool: ...
 
 
 class Sim7600Backend:
@@ -50,6 +52,24 @@ class Sim7600Backend:
 
     def get_state(self) -> ModemState:
         return self._state
+
+    def is_online(self) -> bool:
+        """Return True when the active PPP session still looks healthy."""
+
+        if self._state.phase != ModemPhase.ONLINE:
+            return False
+
+        if not self._ppp.is_alive():
+            self._state.phase = ModemPhase.REGISTERED
+            self._state.error = "PPP process exited"
+            return False
+
+        if not Path("/sys/class/net/ppp0").exists():
+            self._state.phase = ModemPhase.REGISTERED
+            self._state.error = "PPP interface down"
+            return False
+
+        return True
 
     def open(self) -> None:
         self._transport.open()
