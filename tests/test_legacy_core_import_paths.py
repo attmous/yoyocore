@@ -85,7 +85,11 @@ from yoyopod.integrations.music import RecentTrackHistoryStore as IntegrationRec
 from yoyopod.integrations.music.events import TrackChangedEvent as IntegrationTrackChangedEvent
 from yoyopod.integrations.network.events import NetworkPppUpEvent as IntegrationNetworkPppUpEvent
 from yoyopod.integrations.power import BatteryState as IntegrationBatteryState
+from yoyopod.integrations.power import GracefulShutdownCancelled as IntegrationGracefulShutdownCancelled
+from yoyopod.integrations.power import GracefulShutdownRequested as IntegrationGracefulShutdownRequested
+from yoyopod.integrations.power import LowBatteryWarningRaised as IntegrationLowBatteryWarningRaised
 from yoyopod.integrations.power import PowerManager as IntegrationPowerManager
+from yoyopod.integrations.power import PowerSafetyPolicy as IntegrationPowerSafetyPolicy
 from yoyopod.integrations.power import PowerSnapshot as IntegrationPowerSnapshot
 from yoyopod.integrations.power import RTCState as IntegrationRTCState
 from yoyopod.integrations.network import GpsCoordinate as IntegrationGpsCoordinate
@@ -162,8 +166,12 @@ from yoyopod.people import contacts_to_mapping as legacy_contacts_to_mapping
 from yoyopod.power import PowerManager as LegacyPowerManager
 from yoyopod.power import PowerSnapshot as LegacyPowerSnapshot
 from yoyopod.power.backend import PiSugarBackend as LegacyPiSugarBackend
+from yoyopod.power.events import GracefulShutdownCancelled as LegacyGracefulShutdownCancelled
+from yoyopod.power.events import GracefulShutdownRequested as LegacyGracefulShutdownRequested
+from yoyopod.power.events import LowBatteryWarningRaised as LegacyLowBatteryWarningRaised
 from yoyopod.power.models import BatteryState as LegacyBatteryState
 from yoyopod.power.models import RTCState as LegacyRTCState
+from yoyopod.power.policies import PowerSafetyPolicy as LegacyPowerSafetyPolicy
 from yoyopod.power.watchdog import PiSugarWatchdog as LegacyPiSugarWatchdog
 from yoyopod.runtime_state import VoiceState
 from yoyopod.setup_contract import Path as SetupContractPath
@@ -326,6 +334,10 @@ def test_legacy_power_import_paths_resolve_to_relocated_symbols() -> None:
     assert LegacyRTCState is IntegrationRTCState
     assert LegacyPiSugarBackend is BackendPiSugarBackend
     assert LegacyPiSugarWatchdog is BackendPiSugarWatchdog
+    assert LegacyLowBatteryWarningRaised is IntegrationLowBatteryWarningRaised
+    assert LegacyGracefulShutdownRequested is IntegrationGracefulShutdownRequested
+    assert LegacyGracefulShutdownCancelled is IntegrationGracefulShutdownCancelled
+    assert LegacyPowerSafetyPolicy is IntegrationPowerSafetyPolicy
 
 
 def test_legacy_voice_import_paths_resolve_to_relocated_symbols() -> None:

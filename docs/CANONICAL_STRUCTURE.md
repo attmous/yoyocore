@@ -117,6 +117,7 @@ Frozen canonical package homes:
   - owns music-domain typed events in `events.py`
 - `src/yoyopod/integrations/power/`
   - canonical power-domain seam
+  - owns power-domain typed events in `events.py` and battery safety policy in `policies.py`
 - `src/yoyopod/integrations/network/`
   - canonical cellular/network seam
   - owns modem / PPP / signal events in `events.py`
@@ -235,8 +236,8 @@ The power migration follows the same cutover shape:
 - power backend and shutdown policy under `config/power/backend.yaml`
 - `ConfigManager.get_power_settings()` as the typed runtime seam
 - `src/yoyopod/integrations/power/` as the canonical owner of the public
-  manager/models seam
-- `src/yoyopod/power/` retained as compatibility shims plus legacy events/policies
+  manager/models/events/policies seam
+- `src/yoyopod/power/` retained only as compatibility shims
 - app/runtime composition depending on `yoyopod.integrations.power.PowerManager`
   and `PowerManager.from_config_manager()`
   instead of reading power state from app-shell config

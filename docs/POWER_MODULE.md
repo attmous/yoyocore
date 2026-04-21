@@ -27,11 +27,11 @@ This module is responsible for:
 Main files:
 - `src/yoyopod/integrations/power/models.py`
 - `src/yoyopod/integrations/power/manager.py`
+- `src/yoyopod/integrations/power/events.py`
+- `src/yoyopod/integrations/power/policies.py`
 - `src/yoyopod/integrations/power/__init__.py`
 - `src/yoyopod/backends/power/pisugar.py`
 - `src/yoyopod/backends/power/watchdog.py`
-- `src/yoyopod/power/policies.py`
-- `src/yoyopod/power/events.py`
 - `src/yoyopod/runtime/power_service.py`
 - `src/yoyopod/coordinators/power.py`
 - `src/yoyopod/ui/screens/system/power_screen.py`
@@ -59,9 +59,9 @@ publishes typed power events, updates shared runtime state, and then applies saf
 or UI behavior from those events.
 
 `src/yoyopod/integrations/power/` is now the canonical public ownership seam for
-the power manager and typed models. `src/yoyopod/power/` stays in place as a
-compatibility package for historical imports plus the remaining power events and
-safety-policy helpers.
+the power manager, typed models, power-domain events, and safety policy.
+`src/yoyopod/power/` stays in place only as a compatibility package for
+historical imports.
 
 ## Backends And Transports
 

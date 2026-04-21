@@ -5,13 +5,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from yoyopod.config.models import PowerConfig
-from yoyopod.power.events import (
+from yoyopod.integrations.power.events import (
     GracefulShutdownCancelled,
     GracefulShutdownRequested,
     LowBatteryWarningRaised,
 )
-from yoyopod.power.models import BatteryState, PowerSnapshot
-from yoyopod.power.policies import PowerSafetyPolicy
+from yoyopod.integrations.power import BatteryState, PowerSnapshot
+from yoyopod.integrations.power.policies import PowerSafetyPolicy
 
 
 def _snapshot(

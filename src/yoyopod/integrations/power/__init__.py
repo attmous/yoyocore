@@ -22,8 +22,21 @@ if TYPE_CHECKING:
 
 _PUBLIC_EXPORTS = {
     "BatteryState": ("yoyopod.integrations.power.models", "BatteryState"),
+    "GracefulShutdownCancelled": (
+        "yoyopod.integrations.power.events",
+        "GracefulShutdownCancelled",
+    ),
+    "GracefulShutdownRequested": (
+        "yoyopod.integrations.power.events",
+        "GracefulShutdownRequested",
+    ),
+    "LowBatteryWarningRaised": (
+        "yoyopod.integrations.power.events",
+        "LowBatteryWarningRaised",
+    ),
     "PowerDeviceInfo": ("yoyopod.integrations.power.models", "PowerDeviceInfo"),
     "PowerManager": ("yoyopod.integrations.power.manager", "PowerManager"),
+    "PowerSafetyPolicy": ("yoyopod.integrations.power.policies", "PowerSafetyPolicy"),
     "PowerSnapshot": ("yoyopod.integrations.power.models", "PowerSnapshot"),
     "RTCState": ("yoyopod.integrations.power.models", "RTCState"),
     "ShutdownState": ("yoyopod.integrations.power.models", "ShutdownState"),
@@ -52,9 +65,13 @@ class PowerIntegration:
 
 __all__ = [
     "BatteryState",
+    "GracefulShutdownCancelled",
+    "GracefulShutdownRequested",
+    "LowBatteryWarningRaised",
     "PowerDeviceInfo",
     "PowerIntegration",
     "PowerManager",
+    "PowerSafetyPolicy",
     "PowerSnapshot",
     "RTCState",
     "SetRtcAlarmCommand",

@@ -14,7 +14,7 @@ from yoyopod.integrations.network.events import (
     NetworkPppUpEvent,
     NetworkSignalUpdateEvent,
 )
-from yoyopod.power.events import (
+from yoyopod.integrations.power.events import (
     GracefulShutdownCancelled,
     GracefulShutdownRequested,
     LowBatteryWarningRaised,

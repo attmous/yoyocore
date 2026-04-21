@@ -13,8 +13,8 @@ from yoyopod.core import AppContext
 from yoyopod.coordinators.registry import CoordinatorRuntime
 from yoyopod.coordinators.screen import ScreenCoordinator
 from yoyopod.core import EventBus
-from yoyopod.power.models import PowerSnapshot
-from yoyopod.power.policies import PowerSafetyPolicy
+from yoyopod.integrations.power.models import PowerSnapshot
+from yoyopod.integrations.power.policies import PowerSafetyPolicy
 
 if TYPE_CHECKING:
     from yoyopod.integrations.cloud.manager import CloudManager

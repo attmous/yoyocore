@@ -13,7 +13,7 @@ from yoyopod.core import (
     ScreenChangedEvent,
     UserActivityEvent,
 )
-from yoyopod.power.events import (
+from yoyopod.integrations.power.events import (
     GracefulShutdownCancelled,
     GracefulShutdownRequested,
     LowBatteryWarningRaised,

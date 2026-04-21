@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from yoyopod.power.events import GracefulShutdownCancelled, GracefulShutdownRequested
+from yoyopod.integrations.power.events import (
+    GracefulShutdownCancelled,
+    GracefulShutdownRequested,
+)
 from yoyopod.runtime.models import PendingShutdown
 
 if TYPE_CHECKING:
