@@ -1,6 +1,6 @@
-# YoyoPod Core
+# YoYoPod Core
 
-YoyoPod is an iPod-inspired Raspberry Pi application that combines SIP calling, local-first music playback, and a small-screen button UI.
+YoYoPod is an iPod-inspired Raspberry Pi application that combines SIP calling, local-first music playback, and a small-screen button UI.
 
 Current product surface:
 - `Listen` - local music with `Playlists`, `Recent`, and `Shuffle`, including dashboard-imported device-local tracks
@@ -18,14 +18,14 @@ Approved contacts are now backend-synced policy data:
   when the backend household contact list is still empty
 
 Supported display/input modes:
-- Pimoroni Display HAT Mini: `320x240` landscape with four buttons
+- Pimoroni Display HAT Mini: `320x240` landscape adapter surface on the shared LVGL path
 - PiSugar Whisplay HAT: `240x280` portrait with a single PTT-style button
-- Simulation mode: browser display with keyboard and web-button input
+- Simulation mode: shared LVGL browser preview with keyboard and web-button input
 
 ## Call And Music Contract
 
 - Incoming and outgoing call setup both pause local music once when playback is actively running.
-- Missed, rejected, failed, cancelled, and completed call teardown only auto-resume music when YoyoPod paused it for that call and `auto_resume_after_call` is enabled.
+- Missed, rejected, failed, cancelled, and completed call teardown only auto-resume music when YoYoPod paused it for that call and `auto_resume_after_call` is enabled.
 - Calls that start while music is already paused or idle leave playback unchanged.
 - Playback FSM state only flips after the pause or resume command succeeds, so navigation after the call keeps the visible playback truth aligned with the backend.
 
@@ -85,6 +85,7 @@ Start here:
 Setup and operations:
 - [Setup Contract](docs/SETUP_CONTRACT.md)
 - [Quality Gates](docs/QUALITY_GATES.md)
+- [Pi Profiling Workflow](docs/PI_PROFILING_WORKFLOW.md)
 - [Pi Dev Workflow](docs/PI_DEV_WORKFLOW.md)
 - [Pi Smoke Validation](docs/RPI_SMOKE_VALIDATION.md)
 - [Deployed Pi Dependencies](docs/DEPLOYED_PI_DEPENDENCIES.md)

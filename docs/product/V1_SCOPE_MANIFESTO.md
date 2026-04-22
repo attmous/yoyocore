@@ -1,6 +1,6 @@
-# YoyoPod V1 Scope Manifesto
+# YoYoPod V1 Scope Manifesto
 
-YoyoPod V1 is not a smartphone for kids.
+YoYoPod V1 is not a smartphone for kids.
 It is the first independent device before a smartphone.
 
 ## What V1 is for
@@ -82,7 +82,7 @@ If these fail, the kid stops caring:
 
 ## Hard product truth
 Parents will buy the dream once.
-They will only keep using YoyoPod if calling and location are dependable in real life.
+They will only keep using YoYoPod if calling and location are dependable in real life.
 
 ## V1 success test
 A parent should be able to say:
@@ -90,4 +90,4 @@ A parent should be able to say:
 "My child can carry this instead of a smartphone for now, I can reach them, I can see where they are, and they actually like using it."
 
 ## One-line V1 definition
-YoyoPod V1 is a parent-managed, walkie-talkie-like first device for kids that delivers safe communication, live location, and simple audio before the smartphone years.
+YoYoPod V1 is a parent-managed, walkie-talkie-like first device for kids that delivers safe communication, live location, and simple audio before the smartphone years.

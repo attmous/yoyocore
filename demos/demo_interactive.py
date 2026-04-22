@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Interactive YoyoPod UI demo using the current HAL-based stack.
+Interactive YoYoPod UI demo using the current HAL-based stack.
 
 Controls:
 - `a`: Select
@@ -50,7 +50,7 @@ def build_context() -> AppContext:
 
 def main() -> int:
     """Run the interactive demo."""
-    logger.info("Starting YoyoPod interactive demo")
+    logger.info("Starting YoYoPod interactive demo")
     logger.info("=" * 50)
     logger.info("Controls: A=select, B=back, X=up, Y=down")
     logger.info("=" * 50)

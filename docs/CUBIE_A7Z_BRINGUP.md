@@ -1,10 +1,10 @@
 # Radxa Cubie A7Z Bringup
 
-This note records the current YoyoPod bringup path for the Radxa Cubie A7Z and the main findings from hardware validation.
+This note records the current YoYoPod bringup path for the Radxa Cubie A7Z and the main findings from hardware validation.
 
 It is intentionally practical:
 
-- what was required to make the board usable as a YoyoPod target
+- what was required to make the board usable as a YoYoPod target
 - what was verified on-device
 - what is still risky, unsupported, or unresolved
 
@@ -16,9 +16,9 @@ This bringup was done on:
 - OS: `Debian Bullseye`
 - kernel family: Radxa vendor BSP `5.15.147-18-a733`
 - user: `radxa`
-- project dir: `~/YoyoPod_Core`
+- project dir: `~/yoyopod-core`
 
-The Cubie A7Z is now a usable YoyoPod development target, but it is not yet a drop-in replacement for the Raspberry Pi Zero 2W. The major caveat is the Whisplay physical button behavior on this board.
+The Cubie A7Z is now a usable YoYoPod development target, but it is not yet a drop-in replacement for the Raspberry Pi Zero 2W. The major caveat is the Whisplay physical button behavior on this board.
 
 ## Bringup Summary
 
@@ -56,12 +56,12 @@ uv python install 3.12
 Important note:
 
 - Debian system `python3` remains `3.9.2`
-- YoyoPod should use `uv` / `.venv`, not replace `/usr/bin/python3`
+- YoYoPod should use `uv` / `.venv`, not replace `/usr/bin/python3`
 
 Project setup on the board:
 
 ```bash
-cd ~/YoyoPod_Core
+cd ~/yoyopod-core
 ~/.local/bin/uv venv --python 3.12 .venv
 ~/.local/bin/uv sync --extra dev
 ```
@@ -135,7 +135,7 @@ Verified behavior when PiSugar was attached and powered correctly:
 
 RTC status was checked and synchronized to the NTP-synced system clock.
 
-## 8. Board-specific YoyoPod config
+## 8. Board-specific YoYoPod config
 
 Cubie A7Z support is configured through a tracked board override:
 
@@ -163,7 +163,7 @@ The Cubie board was validated with:
 - `espeak-ng`
 - Vosk Python package from the project environment
 - local Vosk model installed at:
-- `~/YoyoPod_Core/models/vosk-model-small-en-us`
+- `~/yoyopod-core/models/vosk-model-small-en-us`
 
 Verified state on the board:
 
@@ -179,11 +179,11 @@ For local-first music validation, sample tracks were placed under:
 
 And a simple playlist was created:
 
-- `/home/radxa/Music/YoyoPod Test Playlist.m3u`
+- `/home/radxa/Music/YoYoPod Test Playlist.m3u`
 
 ## Current Verified State
 
-The Cubie A7Z is currently able to run YoyoPod with:
+The Cubie A7Z is currently able to run YoYoPod with:
 
 - Python `3.12` in the project `.venv`
 - working SPI display path
@@ -214,7 +214,7 @@ What was observed:
   - `yoyopod`
   - `pisugar-server`
 
-So this is not a YoyoPod application bug and not a PiSugar watchdog/software action issue.
+So this is not a YoYoPod application bug and not a PiSugar watchdog/software action issue.
 
 ### 2. PiSugar software tap actions were not the cause
 
@@ -260,7 +260,7 @@ The Cubie image still uses Debian Bullseye system Python:
 
 - `python3 = 3.9.2`
 
-YoyoPod uses:
+YoYoPod uses:
 
 - `uv`
 - Python `3.12`

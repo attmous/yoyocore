@@ -1,3 +1,3 @@
 """
-Test suite for YoyoPod.
+Test suite for YoYoPod.
 """

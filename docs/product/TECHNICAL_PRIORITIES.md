@@ -1,9 +1,9 @@
-# Technical Priorities for YoyoPod_Core
+# Technical Priorities for yoyopod-core
 
 This is the translation layer from product truth to engineering reality.
 
 ## Priority 0: Stop treating V1 like a platform
-YoyoPod_Core should optimize for a reliable appliance, not an extensible universe.
+yoyopod-core should optimize for a reliable appliance, not an extensible universe.
 
 Implications:
 - kill or defer anything that smells like framework-building for future features
@@ -184,7 +184,7 @@ Deprioritize for now:
 7. Battery characterization and power tuning
 8. Only then broaden feature scope
 
-## Governing rule for YoyoPod_Core
+## Governing rule for yoyopod-core
 Every engineering decision should answer:
 Does this improve trust, reliability, simplicity, or daily usefulness for V1?
 

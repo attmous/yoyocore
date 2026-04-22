@@ -20,11 +20,11 @@ def battery(
     ] = "config",
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
 ) -> None:
-    """Inspect PiSugar power telemetry through YoyoPod's power module."""
+    """Inspect PiSugar power telemetry through YoYoPod's power module."""
     from loguru import logger
 
     from yoyopod.config import ConfigManager
-    from yoyopod.power import PowerManager
+    from yoyopod.integrations.power import PowerManager
 
     configure_logging(verbose)
 
@@ -87,7 +87,7 @@ def _build_power_manager(config_dir: str) -> Any:
     from loguru import logger
 
     from yoyopod.config import ConfigManager
-    from yoyopod.power import PowerManager
+    from yoyopod.integrations.power import PowerManager
 
     config_path = resolve_config_dir(config_dir)
     config_manager = ConfigManager(config_dir=str(config_path))

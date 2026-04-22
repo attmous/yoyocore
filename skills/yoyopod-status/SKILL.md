@@ -23,7 +23,7 @@ If the file does not exist yet, run `yoyopod remote config edit` first. That com
 2. **Present the result.** Prefer a compact summary with:
    - git branch and commit
    - music backend status
-   - YoyoPod service status
+   - YoYoPod service status
    - PiSugar server status
    - PID file state
    - latest startup marker

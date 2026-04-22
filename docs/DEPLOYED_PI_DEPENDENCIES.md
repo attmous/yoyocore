@@ -4,7 +4,7 @@
 **Target Device:** `rpi-zero`  
 **SSH User:** `tifo`
 
-This document is a live deployment snapshot of the Raspberry Pi environment currently running YoyoPod. It complements the architecture docs by showing the actual services, processes, packages, and native libraries the production device depends on today.
+This document is a live deployment snapshot of the Raspberry Pi environment currently running YoYoPod. It complements the architecture docs by showing the actual services, processes, packages, and native libraries the production device depends on today.
 
 ## Active Services
 
@@ -15,12 +15,12 @@ These services were running when this snapshot was taken:
 
 What that means in practice:
 
-- YoyoPod itself is a systemd-managed application service
+- YoYoPod itself is a systemd-managed application service
 - PiSugar power telemetry, RTC, and watchdog transport come from the standalone `pisugar-server` system service
 
 ## Active Runtime Processes
 
-The live process tree for YoyoPod was:
+The live process tree for YoYoPod was:
 
 ```text
 uv run python yoyopod.py
@@ -36,7 +36,7 @@ No separate Mopidy process or music daemon is part of the stack anymore.
 
 - `python3`
 - `uv`
-- YoyoPod virtual environment under `/home/raouf/yoyo-py/.venv`
+- YoYoPod virtual environment under `/home/raouf/yoyo-py/.venv`
 
 ### Music playback
 
@@ -74,7 +74,6 @@ No separate Mopidy process or music daemon is part of the stack anymore.
 These are the declared application-level Python dependencies relevant to the current product:
 
 - `cffi`
-- `pillow`
 - `requests`
 - `loguru`
 - `pyyaml`
@@ -82,7 +81,6 @@ These are the declared application-level Python dependencies relevant to the cur
 
 Present in the project but not central to the current Whisplay Pi runtime:
 
-- `displayhatmini` for Pimoroni hardware mode
 - `flask`
 - `flask-socketio`
 - `flask-cors`
@@ -99,7 +97,7 @@ Live ALSA playback devices on the Pi:
 - `card 0`: `wm8960-soundcard`
 - `card 1`: `vc4-hdmi`
 
-Current YoyoPod playback is using:
+Current YoYoPod playback is using:
 
 ```text
 mpv -> ALSA default -> wm8960-soundcard -> bcm2835 I2S -> WM8960 codec
@@ -144,7 +142,7 @@ The Liblinphone shim currently links against:
 
 Important note:
 
-- there is **no PulseAudio daemon dependency in the current YoyoPod service flow**
+- there is **no PulseAudio daemon dependency in the current YoYoPod service flow**
 - but `libpulse.so.0` still appears as a transitive shared-library dependency of Liblinphone on this Pi
 
 ## What Is No Longer Part Of The Stack
@@ -165,7 +163,7 @@ At the time of capture:
 - `yoyopod@raouf.service` was healthy
 - `pisugar-server.service` was healthy
 - memory usage was approximately `231 MB / 416 MB`
-- YoyoPod had one long-lived `python3` process and one long-lived `mpv` child
+- YoYoPod had one long-lived `python3` process and one long-lived `mpv` child
 
 
 ## Cloud Integration Dependencies

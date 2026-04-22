@@ -1,8 +1,8 @@
 # Project Overview
 
-YoyoPod is an iPod-inspired Raspberry Pi application combining SIP calling and mpv-based local music playback behind a small-screen, button-driven UI. Target hardware is Raspberry Pi Zero 2W (416 MB RAM).
+YoYoPod is an iPod-inspired Raspberry Pi application combining SIP calling and mpv-based local music playback behind a small-screen, button-driven UI. Target hardware is Raspberry Pi Zero 2W (416 MB RAM).
 
-Three display/input modes are supported today: Pimoroni Display HAT Mini, PiSugar Whisplay, and browser-based simulation.
+Three display/input surfaces are supported today: PiSugar Whisplay hardware, Pimoroni/ST7789 hardware, and browser-based simulation. All display rendering runs through the shared LVGL path.
 
 ## Common Commands
 
@@ -13,6 +13,7 @@ uv run yoyopod setup verify-host
 
 # Run the app
 python yoyopod.py
+yoyopod build simulation
 python yoyopod.py --simulate
 
 # Local CI mirror
@@ -20,7 +21,7 @@ uv run python scripts/quality.py ci
 
 # Tests
 uv run pytest -q
-uv run pytest -q tests/test_fsm_runtime.py
+uv run pytest -q tests/core/test_fsm_runtime.py
 
 # Repo-owned code quality gate
 uv run python scripts/quality.py gate

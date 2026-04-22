@@ -21,8 +21,9 @@ def probe(
     """Check if the SIM7600 modem responds to AT commands."""
     from loguru import logger
 
+    from yoyopod.backends.network import AtCommandSet, SerialTransport, TransportError
     from yoyopod.config import ConfigManager
-    from yoyopod.network import NetworkManager
+    from yoyopod.integrations.network import NetworkManager
 
     configure_logging(verbose)
     config_path = resolve_config_dir(config_dir)
@@ -33,16 +34,12 @@ def probe(
         logger.error("network module disabled in config/network/cellular.yaml")
         raise typer.Exit(code=1)
 
-    from yoyopod.network.transport import SerialTransport, TransportError
-
     transport = SerialTransport(
         port=manager.config.serial_port,
         baud_rate=manager.config.baud_rate,
     )
     try:
         transport.open()
-        from yoyopod.network.at_commands import AtCommandSet
-
         at = AtCommandSet(transport)
         if at.ping():
             print("Modem OK")
@@ -66,9 +63,9 @@ def status(
     """Show modem status: signal, carrier, registration, PPP state."""
     from loguru import logger
 
+    from yoyopod.backends.network import Sim7600Backend
     from yoyopod.config import ConfigManager
-    from yoyopod.network import NetworkManager
-    from yoyopod.network.backend import Sim7600Backend
+    from yoyopod.integrations.network import NetworkManager
 
     configure_logging(verbose)
     config_path = resolve_config_dir(config_dir)

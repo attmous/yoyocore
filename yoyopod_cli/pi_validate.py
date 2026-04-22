@@ -55,7 +55,7 @@ class _CheckResult:
 def _print_summary(name: str, results: list[_CheckResult]) -> None:
     """Print a compact summary table for one validation command."""
     print("")
-    print(f"YoyoPod target validation summary: {name}")
+    print(f"YoYoPod target validation summary: {name}")
     print("=" * 48)
     for result in results:
         print(f"[{result.status.upper():4}] {result.name}: {result.details}")
@@ -272,6 +272,29 @@ def _display_check(
 ) -> tuple[_CheckResult, Any]:
     """Validate display initialization on target hardware."""
     from yoyopod.ui.display import Display, detect_hardware
+    from yoyopod.ui.lvgl_binding.binding import LvglBinding
+
+    def _render_lvgl_probe(display: Any, ui_backend: Any) -> None:
+        if not ui_backend.initialize():
+            raise RuntimeError("LVGL backend failed to initialize during smoke validation")
+
+        ui_backend.show_probe_scene(LvglBinding.SCENE_CARD)
+        ui_backend.force_refresh()
+        ui_backend.pump(16)
+
+        refresh_backend_kind = getattr(display, "refresh_backend_kind", None)
+        if callable(refresh_backend_kind):
+            refresh_backend_kind()
+
+        if hold_seconds <= 0:
+            return
+
+        remaining_seconds = hold_seconds
+        while remaining_seconds > 0:
+            slice_seconds = min(0.05, remaining_seconds)
+            time.sleep(slice_seconds)
+            ui_backend.pump(max(1, int(slice_seconds * 1000)))
+            remaining_seconds -= slice_seconds
 
     requested_hardware = str(app_config.get("display", {}).get("hardware", "auto")).lower()
     resolved_hardware = detect_hardware() if requested_hardware == "auto" else requested_hardware
@@ -293,14 +316,18 @@ def _display_check(
     try:
         display = Display(hardware=resolved_hardware, simulate=False)
         adapter = display.get_adapter()
+        ui_backend = display.get_ui_backend()
 
-        display.clear(display.COLOR_BLACK)
-        display.text("YoyoPod Pi smoke", 10, 40, color=display.COLOR_WHITE, font_size=18)
-        display.text("Display OK", 10, 75, color=display.COLOR_GREEN, font_size=18)
-        display.update()
+        if ui_backend is not None:
+            _render_lvgl_probe(display, ui_backend)
+        else:
+            display.clear(display.COLOR_BLACK)
+            display.text("YoYoPod Pi smoke", 10, 40, color=display.COLOR_WHITE, font_size=18)
+            display.text("Display OK", 10, 75, color=display.COLOR_GREEN, font_size=18)
+            display.update()
 
-        if hold_seconds > 0:
-            time.sleep(hold_seconds)
+            if hold_seconds > 0:
+                time.sleep(hold_seconds)
 
         if display.simulate:
             return (
@@ -321,6 +348,7 @@ def _display_check(
                 status="pass",
                 details=(
                     f"adapter={adapter.__class__.__name__}, "
+                    f"backend={display.backend_kind}, "
                     f"size={display.WIDTH}x{display.HEIGHT}, "
                     f"orientation={display.ORIENTATION}, "
                     f"requested={requested_hardware}, resolved={resolved_hardware}"
@@ -380,7 +408,7 @@ def _input_check(display: Any, app_config: dict[str, Any]) -> _CheckResult:
 def _power_check(config_dir: Path) -> _CheckResult:
     """Validate PiSugar reachability and report a live battery snapshot."""
     from yoyopod.config import ConfigManager
-    from yoyopod.power import PowerManager
+    from yoyopod.integrations.power import PowerManager
 
     config_manager = ConfigManager(config_dir=str(config_dir))
     manager = PowerManager.from_config_manager(config_manager)
@@ -415,7 +443,7 @@ def _power_check(config_dir: Path) -> _CheckResult:
 def _rtc_check(config_dir: Path) -> _CheckResult:
     """Validate PiSugar RTC reachability and report the current RTC state."""
     from yoyopod.config import ConfigManager
-    from yoyopod.power import PowerManager
+    from yoyopod.integrations.power import PowerManager
 
     config_manager = ConfigManager(config_dir=str(config_dir))
     manager = PowerManager.from_config_manager(config_manager)
@@ -457,7 +485,8 @@ def _music_check(
     expected_library: ProvisionedTestMusicLibrary | None = None,
 ) -> _CheckResult:
     """Validate music-backend startup and basic state queries."""
-    from yoyopod.audio import LocalMusicService, MpvBackend, MusicConfig
+    from yoyopod.backends.music import MpvBackend, MusicConfig
+    from yoyopod.integrations.music import LocalMusicService
 
     config = MusicConfig.from_media_settings(media_settings)
     backend = MpvBackend(config)
@@ -564,10 +593,9 @@ def _music_check(
 
 def _voip_check(config_dir: Path, registration_timeout: float) -> _CheckResult:
     """Validate Liblinphone startup and SIP registration."""
-    from yoyopod.communication.calling.manager import VoIPManager
-    from yoyopod.communication.integrations.liblinphone_binding import LiblinphoneBinding
-    from yoyopod.communication.models import VoIPConfig
+    from yoyopod.backends.voip import LiblinphoneBinding
     from yoyopod.config import ConfigManager
+    from yoyopod.integrations.call import VoIPConfig, VoIPManager
 
     config_manager = ConfigManager(config_dir=str(config_dir))
     voip_config = VoIPConfig.from_config_manager(config_manager)
@@ -645,7 +673,7 @@ _CONNECTED_CALL_STATES: set[str] = set()  # populated lazily below
 def _lazy_connected_call_states() -> set[str]:
     global _CONNECTED_CALL_STATES
     if not _CONNECTED_CALL_STATES:
-        from yoyopod.communication.models import CallState
+        from yoyopod.integrations.call import CallState
 
         _CONNECTED_CALL_STATES = {CallState.CONNECTED.value, CallState.STREAMS_RUNNING.value}
     return _CONNECTED_CALL_STATES
@@ -887,10 +915,9 @@ class _VoIPDrillRecorder:
 def _build_voip_manager_for_drill(config_dir: str) -> _VoIPManagerLike:
     from loguru import logger
 
-    from yoyopod.communication.calling.manager import VoIPManager
-    from yoyopod.communication.integrations.liblinphone_binding import LiblinphoneBinding
-    from yoyopod.communication.models import VoIPConfig
+    from yoyopod.backends.voip import LiblinphoneBinding
     from yoyopod.config import ConfigManager
+    from yoyopod.integrations.call import VoIPConfig, VoIPManager
 
     if LiblinphoneBinding.try_load() is None:
         logger.error(
@@ -909,7 +936,7 @@ def _iterate_interval_seconds(manager: _VoIPManagerLike) -> float:
 
 
 def _status_is_registered(status: dict[str, object]) -> bool:
-    from yoyopod.communication.models import RegistrationState
+    from yoyopod.integrations.call import RegistrationState
 
     return bool(status.get("registered")) and (
         str(status.get("registration_state")) == RegistrationState.OK.value
@@ -969,7 +996,7 @@ def _hold_registration_ok(
     *,
     hold_seconds: float,
 ) -> tuple[bool, str]:
-    from yoyopod.communication.models import RegistrationState
+    from yoyopod.integrations.call import RegistrationState
 
     deadline = time.monotonic() + hold_seconds
     interval = _iterate_interval_seconds(manager)
@@ -990,7 +1017,7 @@ def _wait_for_call_connection(
     *,
     timeout: float,
 ) -> tuple[bool, str, float]:
-    from yoyopod.communication.models import CallState
+    from yoyopod.integrations.call import CallState
 
     started_at = time.monotonic()
     deadline = started_at + timeout
@@ -1049,7 +1076,7 @@ def _wait_for_call_end(
     *,
     timeout: float,
 ) -> tuple[bool, str, float]:
-    from yoyopod.communication.models import CallState
+    from yoyopod.integrations.call import CallState
 
     started_at = time.monotonic()
     deadline = started_at + timeout
@@ -1224,7 +1251,7 @@ def _run_voip_reconnect_drill(
     """Verify that SIP registration drops and then recovers after a short network wobble."""
     from loguru import logger
 
-    from yoyopod.communication.models import RegistrationState
+    from yoyopod.integrations.call import RegistrationState
 
     manager = _build_voip_manager_for_drill(config_dir)
     recorder = _VoIPDrillRecorder(
@@ -1967,7 +1994,7 @@ def lvgl(
     ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
 ) -> None:
-    """Run a deterministic LVGL navigation and idle soak pass against YoyoPod."""
+    """Run a deterministic LVGL navigation and idle soak pass against YoYoPod."""
     from loguru import logger
 
     configure_logging(verbose)

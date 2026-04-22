@@ -24,7 +24,7 @@ from yoyopod.config import ConfigManager
 from yoyopod.network import NetworkManager
 from yoyopod.network.backend import Sim7600Backend
 
-app = FastAPI(title="YoyoPod GPS Demo")
+app = FastAPI(title="YoYoPod GPS Demo")
 
 _manager: NetworkManager | None = None
 _backend: Sim7600Backend | None = None

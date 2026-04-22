@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Audio system smoke demo for the current YoyoPod stack.
+Audio system smoke demo for the current YoYoPod stack.
 
 This demo no longer relies on the removed `AudioScreen`. Instead it renders
 audio state directly while exercising `AudioManager` and semantic input.
@@ -80,7 +80,7 @@ def render_audio_status(
 
 def main() -> int:
     """Run the audio demo."""
-    logger.info("Starting YoyoPod audio demo")
+    logger.info("Starting YoYoPod audio demo")
     logger.info("=" * 50)
 
     display = Display(simulate="--simulate" in sys.argv)

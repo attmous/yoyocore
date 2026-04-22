@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo application for Mopidy integration with the current YoyoPod UI stack.
+Demo application for Mopidy integration with the current YoYoPod UI stack.
 
 Controls:
 - `a`: Play or pause
@@ -40,7 +40,7 @@ logger.add(
 def main() -> int:
     """Run Mopidy streaming demo."""
     logger.info("=" * 60)
-    logger.info("YoyoPod Mopidy Streaming Demo")
+    logger.info("YoYoPod Mopidy Streaming Demo")
     logger.info("=" * 60)
 
     display = Display(simulate="--simulate" in sys.argv)

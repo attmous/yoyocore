@@ -2,7 +2,7 @@
 yoyopod — app launcher and CLI dispatcher.
 
 Usage:
-    yoyopod                      # Launch the YoyoPod app
+    yoyopod                      # Launch the YoYoPod app
     yoyopod deploy               # Sync code to the Pi and restart
     yoyopod status               # Pi health dashboard
     yoyopod logs [-f --errors]   # Tail logs from the Pi
@@ -24,7 +24,7 @@ from yoyopod_cli import __version__
 
 app = typer.Typer(
     name="yoyopod",
-    help="YoyoPod app launcher and CLI.",
+    help="YoYoPod app launcher and CLI.",
     no_args_is_help=False,
     add_completion=False,
 )
@@ -47,7 +47,7 @@ def _root(
         help="Show version and exit.",
     ),
 ) -> None:
-    """Launch the YoyoPod app when invoked with no subcommand."""
+    """Launch the YoYoPod app when invoked with no subcommand."""
     if ctx.invoked_subcommand is None:
         from yoyopod.main import main as launch_app
 
@@ -237,6 +237,10 @@ def _validate_shortcut(
 # --- dev utilities
 dev_app = typer.Typer(name="dev", help="Developer utilities.", no_args_is_help=True)
 app.add_typer(dev_app, name="dev")
+
+from yoyopod_cli import dev_profile as _dev_profile  # noqa: E402
+
+dev_app.add_typer(_dev_profile.app, name="profile")
 
 
 @dev_app.command()

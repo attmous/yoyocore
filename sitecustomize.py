@@ -1,4 +1,4 @@
-"""Process-wide Python startup tweaks for the YoyoPod repo."""
+"""Process-wide Python startup tweaks for the YoYoPod repo."""
 
 from __future__ import annotations
 

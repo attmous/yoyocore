@@ -100,5 +100,5 @@ Do not present dirty-tree sync as the normal way to validate a branch or PR.
 - Raspberry Pi Zero 2W (416 MB RAM)
 - SSH host, user, and stable project-dir defaults come from `deploy/pi-deploy.yaml` plus gitignored `deploy/pi-deploy.local.yaml`
 - Machine-local hostnames, usernames, and path overrides must stay out of tracked files
-- Default project dir on Pi: `/home/pi/YoyoPod_Core`
-- Default venv on Pi: `/home/pi/YoyoPod_Core/.venv`
+- Default project dir on Pi: `/home/pi/yoyopod-core`
+- Default venv on Pi: `/home/pi/yoyopod-core/.venv`

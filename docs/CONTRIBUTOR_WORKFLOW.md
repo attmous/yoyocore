@@ -1,6 +1,6 @@
 # Contributor Workflow
 
-This guide is the shortest path from fresh checkout to a credible YoyoPod contribution.
+This guide is the shortest path from fresh checkout to a credible YoYoPod contribution.
 
 It is not a full architecture document and it is not a board bringup manual.
 
@@ -45,6 +45,7 @@ Use `--with-remote-tools --with-github` together when you plan to both validate 
 Simulation run:
 
 ```bash
+yoyopod build simulation
 python yoyopod.py --simulate
 ```
 
@@ -75,12 +76,12 @@ Read:
 1. [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md)
 2. subsystem docs for the area you are touching
 3. `rules/architecture.md`
-4. the relevant files under `src/yoyopod/`
+4. the relevant files under `yoyopod/`
 
 Current reality:
 
 - `YoyoPodApp` is thinner than before, but runtime cleanup is still in progress
-- `src/yoyopod/runtime/boot.py` is still a hotspot, not a final architecture destination
+- `yoyopod/core/bootstrap/` is the current boot hotspot, not the final architecture destination
 - runtime/state/model cleanup should prefer clearer ownership over broad rewrites
 
 ### Raspberry Pi and setup work
@@ -137,16 +138,16 @@ uv run pytest -q
 Then add any focused commands relevant to your area, for example:
 
 ```bash
-python -m compileall src/yoyopod tests demos scripts
-uv run pytest -q tests/test_app_orchestration.py
-uv run pytest -q tests/test_setup_cli.py tests/test_pi_remote.py tests/test_cli.py
+python -m compileall yoyopod tests demos scripts
+uv run pytest -q tests/e2e/test_app_orchestration.py
+uv run pytest -q tests/cli/test_setup_cli.py tests/cli/test_cli.py
 ```
 
 If your change is outside the currently gated surface, say so plainly in the PR instead of pretending CI covered more than it did.
 
 ## What a good PR looks like here
 
-A good YoyoPod PR:
+A good YoYoPod PR:
 
 - stays within one coherent problem slice
 - updates docs when the contract changes
@@ -168,8 +169,11 @@ Watch for these recurring mistakes:
 
 These are good places to be extra careful:
 
-- `src/yoyopod/runtime/boot.py`
-- `src/yoyopod/app_context.py`
+- `yoyopod/core/bootstrap/`
+- `yoyopod/core/application.py`
+- `yoyopod/core/bus.py`
+- `yoyopod/core/scheduler.py`
+- `yoyopod/core/app_context.py`
 - duplicated domain/state models that drift across layers
 - setup/docs wording that can overstate what the new commands guarantee
 

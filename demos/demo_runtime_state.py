@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Split-FSM runtime demo for YoyoPod.
+Split-FSM runtime demo for YoYoPod.
 
 This demo exercises the current music FSM and derived app runtime state.
 """
@@ -39,7 +39,7 @@ logger.add(
 
 def main() -> int:
     """Run the split runtime demo."""
-    logger.info("Starting YoyoPod runtime-state demo")
+    logger.info("Starting YoYoPod runtime-state demo")
     logger.info("=" * 50)
 
     context = AppContext()

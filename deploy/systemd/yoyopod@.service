@@ -1,5 +1,5 @@
 [Unit]
-Description=YoyoPod portable VoIP/music appliance (%i)
+Description=YoYoPod portable VoIP/music appliance (%i)
 After=network-online.target sound.target pisugar-server.service
 Wants=network-online.target
 
@@ -11,7 +11,8 @@ WorkingDirectory=/home/%i
 Environment=PYTHONUNBUFFERED=1
 Environment=PATH=/home/%i/.local/bin:/usr/local/bin:/usr/bin:/bin
 EnvironmentFile=-/etc/default/yoyopod
-ExecStart=/usr/bin/env bash -lc 'PROJECT_DIR="${YOYOPOD_PROJECT_DIR:-$HOME/YoyoPod_Core}"; case "$PROJECT_DIR" in "~") PROJECT_DIR="$HOME" ;; "~/"*) PROJECT_DIR="$HOME/${PROJECT_DIR#~/}" ;; esac; if [ ! -f "$PROJECT_DIR/pyproject.toml" ] && [ -f "$HOME/yoyo-py/pyproject.toml" ]; then PROJECT_DIR="$HOME/yoyo-py"; fi; if [ ! -f "$PROJECT_DIR/pyproject.toml" ]; then echo "Could not find a YoyoPod checkout at $PROJECT_DIR" >&2; exit 1; fi; cd "$PROJECT_DIR"; exec uv run python yoyopod.py'
+ExecStartPre=/usr/bin/env bash -lc 'PROJECT_DIR="${YOYOPOD_PROJECT_DIR:-$HOME/yoyopod-core}"; case "$PROJECT_DIR" in "~") PROJECT_DIR="$HOME" ;; "~/"*) PROJECT_DIR="$HOME/${PROJECT_DIR#~/}" ;; esac; if [ ! -f "$PROJECT_DIR/pyproject.toml" ] && [ -f "$HOME/YoyoPod_Core/pyproject.toml" ]; then PROJECT_DIR="$HOME/YoyoPod_Core"; fi; if [ ! -f "$PROJECT_DIR/pyproject.toml" ] && [ -f "$HOME/yoyo-py/pyproject.toml" ]; then PROJECT_DIR="$HOME/yoyo-py"; fi; if [ ! -f "$PROJECT_DIR/pyproject.toml" ]; then echo "Could not find a YoYoPod checkout at $PROJECT_DIR" >&2; exit 1; fi; cd "$PROJECT_DIR"; exec uv run yoyopod build ensure-native'
+ExecStart=/usr/bin/env bash -lc 'PROJECT_DIR="${YOYOPOD_PROJECT_DIR:-$HOME/yoyopod-core}"; case "$PROJECT_DIR" in "~") PROJECT_DIR="$HOME" ;; "~/"*) PROJECT_DIR="$HOME/${PROJECT_DIR#~/}" ;; esac; if [ ! -f "$PROJECT_DIR/pyproject.toml" ] && [ -f "$HOME/YoyoPod_Core/pyproject.toml" ]; then PROJECT_DIR="$HOME/YoyoPod_Core"; fi; if [ ! -f "$PROJECT_DIR/pyproject.toml" ] && [ -f "$HOME/yoyo-py/pyproject.toml" ]; then PROJECT_DIR="$HOME/yoyo-py"; fi; if [ ! -f "$PROJECT_DIR/pyproject.toml" ]; then echo "Could not find a YoYoPod checkout at $PROJECT_DIR" >&2; exit 1; fi; cd "$PROJECT_DIR"; exec uv run python yoyopod.py'
 Restart=always
 RestartSec=5
 KillSignal=SIGTERM

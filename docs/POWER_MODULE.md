@@ -1,6 +1,6 @@
 # Power Module
 
-This document is the dedicated source of truth for YoyoPod's PiSugar-backed power subsystem.
+This document is the dedicated source of truth for YoYoPod's PiSugar-backed power subsystem.
 
 Current target hardware:
 - Raspberry Pi Zero 2W
@@ -25,41 +25,44 @@ This module is responsible for:
 ## Architecture
 
 Main files:
-- `src/yoyopod/power/models.py`
-- `src/yoyopod/power/backend.py`
-- `src/yoyopod/power/manager.py`
-- `src/yoyopod/power/policies.py`
-- `src/yoyopod/power/runtime.py`
-- `src/yoyopod/power/watchdog.py`
-- `src/yoyopod/power/events.py`
-- `src/yoyopod/coordinators/power.py`
-- `src/yoyopod/ui/screens/system/power.py`
-- `src/yoyopod/cli/pi/power.py` (`yoyopod pi power battery`, `yoyopod pi power rtc`)
+- `yoyopod/integrations/power/models.py`
+- `yoyopod/integrations/power/manager.py`
+- `yoyopod/integrations/power/events.py`
+- `yoyopod/integrations/power/policies.py`
+- `yoyopod/integrations/power/service.py`
+- `yoyopod/integrations/power/__init__.py`
+- `yoyopod/backends/power/pisugar.py`
+- `yoyopod/backends/power/watchdog.py`
+- `yoyopod/ui/screens/system/power_screen.py`
+- `yoyopod_cli/pi_power.py` (`yoyopod pi power battery`, `yoyopod pi power rtc`)
 
 Runtime flow:
 
 ```text
 YoyoPodApp
-  -> PowerRuntimeService
+  -> integrations.power.PowerRuntimeService
      -> PowerManager
      -> PiSugarBackend
         -> Unix socket or TCP PiSugar server transport
      -> PiSugarWatchdog
         -> i2cget / i2cset
-  -> PowerCoordinator
-     -> EventBus
+     -> Bus
      -> PowerSafetyPolicy
-     -> AppContext / CoordinatorRuntime
+     -> AppContext / AppStateRuntime
      -> current screen refresh
 ```
 
-The app schedules PiSugar polling and watchdog work through `PowerRuntimeService`,
-publishes typed power events, updates shared runtime state, and then applies safety
-or UI behavior from those events.
+The app schedules PiSugar polling and watchdog work through `integrations.power.PowerRuntimeService`,
+publishes typed power events, updates shared runtime state, refreshes visible power
+UI when needed, and then applies safety behavior from those events.
+
+`yoyopod/integrations/power/` is now the canonical public ownership seam for
+the power manager, typed models, power-domain events, and safety policy.
+The historical top-level `yoyopod/power/` facade has been removed.
 
 ## Backends And Transports
 
-`PowerManager` is the app-facing facade.
+`PowerManager` in `yoyopod/integrations/power/manager.py` is the app-facing facade.
 
 `PiSugarBackend` currently supports:
 - automatic transport selection
@@ -230,7 +233,7 @@ yoyopod remote rtc status --host rpi-zero
 The watchdog implementation is intentionally power-domain-owned but app-scheduled.
 
 Current model:
-- the app loop enables the PiSugar software watchdog through `PowerRuntimeService`
+- the main-thread loop in `yoyopod/core/loop.py` enables the PiSugar software watchdog through `integrations.power.PowerRuntimeService`
 - the app feeds it at a configured interval while healthy
 - ordinary app shutdown disables the watchdog
 - battery-driven emergency shutdown suppresses feeding without disabling it
@@ -245,7 +248,7 @@ Required system package:
 - `i2c-tools`
 
 Important expectation:
-- YoyoPod should be started by `systemd` on boot when watchdog mode is used
+- YoYoPod should be started by `systemd` on boot when watchdog mode is used
 
 Current production unit:
 - `deploy/systemd/yoyopod@.service`
@@ -255,7 +258,7 @@ Current production unit:
 There is now a dedicated `Power Status` screen in the standard menu flow.
 
 Implementation:
-- `src/yoyopod/ui/screens/system/power.py`
+- `yoyopod/ui/screens/system/power.py`
 
 Current screen design:
 - page 1: battery / charging / external power / voltage / RTC / alarm

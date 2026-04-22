@@ -1,4 +1,4 @@
-"""yoyopod_cli — flat CLI package for YoyoPod.
+"""yoyopod_cli — flat CLI package for YoYoPod.
 
 Entry point is `yoyopod_cli.main:run`. See COMMANDS.md for the full command reference.
 """

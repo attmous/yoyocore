@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo application for playlist browsing with the current YoyoPod UI stack.
+Demo application for playlist browsing with the current YoYoPod UI stack.
 
 Controls:
 - `a`: Select or load playlist
@@ -41,7 +41,7 @@ logger.add(
 def main() -> int:
     """Run playlist browsing demo."""
     logger.info("=" * 60)
-    logger.info("YoyoPod Playlist Browser Demo")
+    logger.info("YoYoPod Playlist Browser Demo")
     logger.info("=" * 60)
 
     display = Display(simulate="--simulate" in sys.argv)

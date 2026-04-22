@@ -1,56 +1,60 @@
-# YoyoPod Display HAL Architecture
+# YoYoPod Display HAL Architecture
 
-**Last updated:** 2026-04-02
-**Status:** Implemented
+**Last updated:** 2026-04-22
+**Status:** Current implementation
 
-This document describes the display abstraction layer that is now present in the codebase.
+This document describes the live display abstraction used by the LVGL-only
+runtime.
 
 ## Goals
 
-- support multiple display backends behind one API
 - keep screen code hardware-agnostic
-- preserve a backward-compatible `Display` facade
-- allow simulation without physical hardware
+- preserve the backward-compatible `Display` facade
+- use one render contract for both hardware and simulation
+- avoid duplicate preview-only layout engines
 
 ## Current Files
 
-- `src/yoyopod/ui/display/hal.py`: HAL interface
-- `src/yoyopod/ui/display/manager.py`: `Display` facade
-- `src/yoyopod/ui/display/factory.py`: adapter selection and auto-detection
-- `src/yoyopod/ui/display/adapters/pimoroni.py`
-- `src/yoyopod/ui/display/adapters/whisplay.py`
-- `src/yoyopod/ui/display/adapters/simulation.py`
+- `yoyopod/ui/display/hal.py`: HAL interface
+- `yoyopod/ui/display/manager.py`: `Display` facade
+- `yoyopod/ui/display/factory.py`: adapter selection and simulation startup
+- `yoyopod/ui/display/adapters/whisplay.py`: Whisplay hardware adapter
+- `yoyopod/ui/display/adapters/pimoroni.py`: Pimoroni/ST7789 hardware adapter
+- `yoyopod/ui/display/adapters/simulation.py`: simulation adapter on the shared LVGL path
+- `yoyopod/ui/display/rgb565.py`: framebuffer and PNG helpers used by the adapter
 
 ## Architecture
 
 ```text
 Display
   -> get_display(...)
-     -> DisplayHAL implementation
-        -> PimoroniDisplayAdapter
-        -> WhisplayDisplayAdapter
-        -> SimulationDisplayAdapter
+     -> WhisplayDisplayAdapter | PimoroniDisplayAdapter | SimulationDisplayAdapter
+        -> LVGL backend
+        -> hardware SPI flushes or browser preview transport
+        -> RGB565 framebuffer screenshots
 ```
 
-## Supported Adapters
+## Supported Runtime Surfaces
 
-### PimoroniDisplayAdapter
+### Whisplay hardware
 
-- 320x240
-- landscape
-- Display HAT Mini
-
-### WhisplayDisplayAdapter
-
-- 240x280
+- `240x280`
 - portrait
 - PiSugar Whisplay HAT
+- LVGL-only production path
 
-### SimulationDisplayAdapter
+### Pimoroni / ST7789 hardware
 
-- 240x280
+- `320x240`
+- landscape
+- LVGL-backed adapter over ST7789 SPI plus GPIO control
+
+### Simulation
+
+- `240x280`
 - portrait
-- browser rendering through `src/yoyopod/ui/web_server.py`
+- browser preview via `yoyopod/ui/display/adapters/simulation_web/server.py`
+- same LVGL/RGB565 render contract as hardware
 
 ## Backward Compatibility Contract
 
@@ -60,11 +64,13 @@ The facade exposes:
 
 - dimensions and orientation
 - shared color constants
-- drawing primitives
-- status bar rendering
-- backlight control
-- text measurement
-- cleanup
+- LVGL-aware display lifecycle
+- RGB565 region flushes
+- screenshots and cleanup
+
+Immediate raw drawing primitives still exist on the facade for compatibility,
+but the Whisplay adapter now rejects them at runtime because live rendering is
+scene-driven through LVGL.
 
 ## Selection Rules
 
@@ -73,15 +79,17 @@ The facade exposes:
 1. explicit `display.hardware` config
 2. `YOYOPOD_DISPLAY`
 3. Whisplay driver path detection
-4. `displayhatmini` import success
-5. simulation fallback
+4. simulation fallback
 
-## Known Gaps
+If `simulate=True`, simulation always uses the simulation adapter surface.
 
-- Whisplay discovery still depends on a hardcoded driver path
-- simulation is portrait-first even when mimicking other display classes
-- there is no pluggable adapter registration mechanism yet
+## Production Contract
+
+- Non-simulated Whisplay runs require `display.whisplay_renderer=lvgl`.
+- If the Whisplay driver, board init, or LVGL backend is unavailable, startup fails loudly.
+- There is no supported PIL renderer or alternate production display backend in the current runtime.
 
 ## Summary
 
-The display HAL is no longer a proposal. It exists and is the current display architecture used by `YoyoPodApp`.
+The display HAL is implemented and frozen around LVGL-backed Whisplay, Pimoroni,
+and simulation adapter surfaces.

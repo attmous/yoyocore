@@ -1,6 +1,6 @@
 # Raspberry Pi Dev Workflow
 
-This guide covers the normal dev-machine-to-board loop for YoyoPod.
+This guide covers the normal dev-machine-to-board loop for YoYoPod.
 
 The default contract is:
 
@@ -72,19 +72,19 @@ Optional environment defaults:
 
 ```bash
 export YOYOPOD_PI_HOST=rpi-zero
-export YOYOPOD_PI_PROJECT_DIR=~/YoyoPod_Core
+export YOYOPOD_PI_PROJECT_DIR=~/yoyopod-core
 ```
 
 On Windows PowerShell:
 
 ```powershell
 $env:YOYOPOD_PI_HOST="rpi-zero"
-$env:YOYOPOD_PI_PROJECT_DIR="~/YoyoPod_Core"
+$env:YOYOPOD_PI_PROJECT_DIR="~/yoyopod-core"
 ```
 
 If your actual deployed board uses a different stable checkout path, set that in
 your local override instead of assuming the repo default. For example, the live
-`piz` board in this environment uses `~/yoyo-py`.
+`piz` board in this environment uses `~/yoyopod-core`.
 
 ## Default Validate-On-Board Flow
 

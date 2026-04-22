@@ -1,6 +1,6 @@
 """yoyopod_cli/_pi_validate_helpers.py — inlined soak helpers for pi_validate.
 
-All helpers here were migrated from src/yoyopod/cli/pi/{stability,navigation}.py.
+All helpers here were migrated from yoyopod/cli/pi/{stability,navigation}.py.
 No imports from yoyopod.cli.* are allowed in this file.
 """
 
@@ -20,7 +20,7 @@ from yoyopod_cli.music_fixtures import (
     ProvisionedTestMusicLibrary,
     provision_test_music_library,
 )
-from yoyopod.events import UserActivityEvent
+from yoyopod.core.events import UserActivityEvent
 from yoyopod.ui.input import InputAction, InteractionProfile
 
 
@@ -70,6 +70,14 @@ class _NavigationSoakAppHandle(Protocol):
     @property
     def screen_power_service(self) -> Any:
         """Return the screen power service."""
+
+    @property
+    def scheduler(self) -> Any:
+        """Return the main-thread scheduler used by the soak app."""
+
+    @property
+    def bus(self) -> Any:
+        """Return the typed event bus."""
 
     @property
     def event_bus(self) -> Any:
@@ -152,8 +160,16 @@ class _YoyoPodAppNavigationSoakHandle:
         return self._app.screen_power_service
 
     @property
+    def scheduler(self) -> Any:
+        return self._app.scheduler
+
+    @property
+    def bus(self) -> Any:
+        return self._app.bus
+
+    @property
     def event_bus(self) -> Any:
-        return self._app.event_bus
+        return self._app.bus
 
     @property
     def context(self) -> Any:
@@ -204,7 +220,7 @@ def _default_app_factory(*, config_dir: str, simulate: bool) -> _NavigationSoakA
 
 
 # ---------------------------------------------------------------------------
-# Stability soak (ported from src/yoyopod/cli/pi/stability.py)
+# Stability soak (ported from yoyopod/cli/pi/stability.py)
 # Used by: `yoyopod_cli pi_validate stability` and `yoyopod_cli pi_validate lvgl`
 # ---------------------------------------------------------------------------
 
@@ -537,7 +553,9 @@ def _exercise_sleep_wake(app: _NavigationSoakAppHandle) -> str:
     if app.context is None or app.context.screen.awake:
         raise NavigationSoakError("screen did not enter sleep during soak")
 
-    app.event_bus.publish(UserActivityEvent(action_name="navigation_soak"))
+    app.scheduler.run_on_main(
+        lambda: app.bus.publish(UserActivityEvent(action_name="navigation_soak"))
+    )
     _pump_app(app, 0.35)
     if app.context is None or not app.context.screen.awake:
         raise NavigationSoakError("screen did not wake after simulated activity")
@@ -680,7 +698,7 @@ def run_navigation_idle_soak(
 
 
 # ---------------------------------------------------------------------------
-# Navigation soak (ported from src/yoyopod/cli/pi/navigation.py)
+# Navigation soak (ported from yoyopod/cli/pi/navigation.py)
 # Used by: `yoyopod_cli pi_validate navigation`
 # ---------------------------------------------------------------------------
 
@@ -1012,10 +1030,18 @@ class NavigationSoakRunner:
 
         self._require_screen("hub")
         hub_screen = cast(Any, self.app.screen_manager.get_current_screen())  # type: ignore[union-attr]
-        cards = [] if hub_screen is None else hub_screen._cards()
+        cards_getter = None if hub_screen is None else getattr(hub_screen, "cards", None)
+        if callable(cards_getter):
+            cards = list(cards_getter())
+        else:
+            legacy_cards_getter = (
+                None if hub_screen is None else getattr(hub_screen, "_cards", None)
+            )
+            cards = [] if legacy_cards_getter is None else list(legacy_cards_getter())
         if not cards:
             raise NavigationSoakFailure("hub has no cards to navigate")
-        return str(cards[hub_screen.selected_index % len(cards)].mode)
+        selected_index = int(getattr(hub_screen, "selected_index", 0))
+        return str(cards[selected_index % len(cards)].mode)
 
     def _listen_item_key(self) -> str:
         """Return the selected Listen landing item key."""
@@ -1108,7 +1134,8 @@ class NavigationSoakRunner:
 
         self._require_screen("now_playing")
         self._wait_for_playback_started(phase_label)
-        self._idle_phase(f"{phase_label}_idle", self.idle_seconds)
+        playback_idle_seconds = min(self.idle_seconds, 1.0)
+        self._idle_phase(f"{phase_label}_idle", playback_idle_seconds)
 
         self._simulate_action(
             InputAction.PLAY_PAUSE,
@@ -1132,7 +1159,7 @@ class NavigationSoakRunner:
             previous_track_name=previous_track_name,
             context_label=phase_label,
         )
-        self._idle_phase(f"{phase_label}_post_next_idle", self.idle_seconds)
+        self._idle_phase(f"{phase_label}_post_next_idle", playback_idle_seconds)
         self._simulate_action(
             InputAction.BACK,
             expected_screen=back_target,
@@ -1272,7 +1299,9 @@ class NavigationSoakRunner:
         if self.app.context is None or self.app.context.screen.awake:
             raise NavigationSoakFailure("screen did not enter sleep during navigation soak")
 
-        self.app.event_bus.publish(UserActivityEvent(action_name="navigation_soak"))
+        self.app.scheduler.run_on_main(
+            lambda: self.app.bus.publish(UserActivityEvent(action_name="navigation_soak"))
+        )
         self.pump.run_for(max(0.35, self.hold_seconds))
         if self.app.context is None or not self.app.context.screen.awake:
             raise NavigationSoakFailure("screen did not wake after simulated navigation activity")

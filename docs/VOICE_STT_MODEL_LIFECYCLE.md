@@ -1,6 +1,6 @@
 # Offline STT / Vosk Model Lifecycle
 
-This document is the source of truth for how YoyoPod keeps, drops, and
+This document is the source of truth for how YoYoPod keeps, drops, and
 measures offline Vosk speech-to-text models.
 
 ## Current lifecycle
@@ -90,7 +90,7 @@ Practical takeaway:
   process to its pre-load baseline
 
 That is why `vosk_model_keep_loaded=false` is documented as best effort only.
-For a long-lived process, clearing the cache removes YoyoPod's retained model
+For a long-lived process, clearing the cache removes YoYoPod's retained model
 reference, but native allocator behavior can still leave RSS above baseline.
 
 ## Operational guidance
@@ -99,6 +99,6 @@ reference, but native allocator behavior can still leave RSS above baseline.
   more important than idle-memory pressure.
 - Consider `false` only on constrained hardware where voice commands are used
   infrequently and reload latency is acceptable.
-- Do not expect `false` to behave like a hard memory cap. It bounds YoyoPod's
+- Do not expect `false` to behave like a hard memory cap. It bounds YoYoPod's
   retained model references; it does not force the OS to reclaim all native
   allocations immediately.

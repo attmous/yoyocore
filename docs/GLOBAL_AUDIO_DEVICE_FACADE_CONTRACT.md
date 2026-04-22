@@ -1,11 +1,11 @@
-# YoyoPod Global Audio Device Facade Contract
+# YoYoPod Global Audio Device Facade Contract
 
 **Last Updated:** 2026-04-10
 **Status:** Proposed
 
 ## Problem Statement
 
-YoyoPod currently reaches ALSA and device selection through multiple partially overlapping paths:
+YoYoPod currently reaches ALSA and device selection through multiple partially overlapping paths:
 
 - music playback uses `media_audio.alsa_device` plus `OutputVolumeController`
 - Liblinphone receives its own playback, ringer, capture, and media device IDs
@@ -34,19 +34,19 @@ That means the app does not yet have one global audio hardware contract. Device 
 
 ### Music
 
-- `src/yoyopod/audio/music/process.py` launches `mpv` with one ALSA target
-- `src/yoyopod/audio/volume.py` owns app-facing output volume and writes selected ALSA output controls
+- `yoyopod/backends/music/process.py` launches `mpv` with one ALSA target
+- `yoyopod/core/audio_volume.py` owns app-facing output volume and writes selected ALSA output controls
 
 ### Calls
 
 - `config/device/hardware.yaml` carries shared communication audio device IDs
-- `src/yoyopod/communication/calling/backend.py` directly issues startup `amixer` capture-tuning commands
+- `yoyopod/backends/voip/liblinphone.py` directly issues startup `amixer` capture-tuning commands
 
 ### Voice Commands
 
-- `src/yoyopod/voice/capture.py` resolves `arecord` capture candidates
-- `src/yoyopod/voice/output.py` resolves `aplay` playback candidates
-- `src/yoyopod/voice/tts.py` depends on that playback helper for spoken prompts
+- `yoyopod/backends/voice/capture.py` resolves `arecord` capture candidates
+- `yoyopod/backends/voice/output.py` resolves `aplay` playback candidates
+- `yoyopod/backends/voice/tts.py` depends on that playback helper for spoken prompts
 
 The effect is that one physical audio stack is managed by several different policy owners.
 
@@ -54,7 +54,7 @@ The effect is that one physical audio stack is managed by several different poli
 
 ### 1. The application owns one resolved audio hardware profile
 
-At startup, YoyoPod must resolve one effective audio hardware profile for the app run.
+At startup, YoYoPod must resolve one effective audio hardware profile for the app run.
 
 That profile should include:
 
@@ -115,8 +115,8 @@ Add one app-facing facade, for example:
 
 Suggested home:
 
-- `src/yoyopod/audio/devices.py`
-- or `src/yoyopod/audio/hardware.py`
+- `yoyopod/core/hardware.py`
+- or a focused `yoyopod/core/audio_hardware.py` split if the model grows
 
 Primary responsibilities:
 

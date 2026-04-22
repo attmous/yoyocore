@@ -1,8 +1,8 @@
 # Setup and System Dependency Contract
 
-This document defines the baseline repo-owned setup and verification contract for YoyoPod Core.
+This document defines the baseline repo-owned setup and verification contract for YoYoPod Core.
 
-Issue [`#87`](https://github.com/moustafattia/YoyoPod_Core/issues/87) is the work that turned this from wishful docs into executable commands. This file documents the contract those commands implement.
+Issue [`#87`](https://github.com/moustafattia/yoyopod-core/issues/87) is the work that turned this from wishful docs into executable commands. This file documents the contract those commands implement.
 
 ## Why this exists
 
@@ -151,7 +151,6 @@ These are not universal for every contributor machine, but the repo should still
 See:
 
 - `docs/CUBIE_A7Z_BRINGUP.md`
-- `docs/CUBIE_A7Z_PIMORONI_SETUP.md`
 
 ## Repo-owned configuration contract
 

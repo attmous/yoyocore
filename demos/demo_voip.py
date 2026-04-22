@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Demo application for VoIP calling with the current YoyoPod UI stack.
+Demo application for VoIP calling with the current YoYoPod UI stack.
 
 Controls:
 - `a`: Select, answer, or confirm
@@ -45,7 +45,7 @@ logger.add(
 def main() -> int:
     """Run VoIP demo."""
     logger.info("=" * 60)
-    logger.info("YoyoPod VoIP Demo")
+    logger.info("YoYoPod VoIP Demo")
     logger.info("=" * 60)
 
     display = Display(simulate="--simulate" in sys.argv)

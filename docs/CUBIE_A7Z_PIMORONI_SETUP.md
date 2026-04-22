@@ -1,14 +1,18 @@
 # Cubie A7Z + Pimoroni Display HAT Mini Setup
 
-This document covers the one-time board setup required to run YoyoPod with the Pimoroni Display HAT Mini (320x240, 4-button, RGB LED) on the Radxa Cubie A7Z.
+> Historical note: this document describes an older non-Whisplay bringup path.
+> It is kept for board-history context only and is not part of the current
+> supported LVGL-only product runtime.
 
-The Pimoroni HAT was designed for the Raspberry Pi. On the Cubie, the Pi-specific `displayhatmini` library does not work. YoyoPod uses a custom driver that talks to the ST7789 display controller directly over `spidev` and reads buttons via `gpiod`.
+This document covers the one-time board setup required to run YoYoPod with the Pimoroni Display HAT Mini (320x240, 4-button, RGB LED) on the Radxa Cubie A7Z.
+
+The Pimoroni HAT was designed for the Raspberry Pi. On the Cubie, the Pi-specific `displayhatmini` library does not work. YoYoPod uses a custom driver that talks to the ST7789 display controller directly over `spidev` and reads buttons via `gpiod`.
 
 ## Prerequisites
 
 - Radxa Cubie A7Z with Debian Bullseye and vendor BSP kernel `5.15.147-18-a733`
 - SPI1 enabled via `sun60iw2p1-spi1-spidev.dtbo` overlay (see `docs/CUBIE_A7Z_BRINGUP.md`)
-- YoyoPod project deployed at `~/YoyoPod_Core` with Python 3.12 venv
+- YoYoPod project deployed at `~/yoyopod-core` with Python 3.12 venv
 - `dtc` (device tree compiler) installed: `sudo apt install device-tree-compiler`
 
 ## Pin Mapping
@@ -192,7 +196,7 @@ sudo systemctl disable disable-i2s0.service
 sudo reboot
 ```
 
-## Step 3: Configure YoyoPod
+## Step 3: Configure YoYoPod
 
 The GPIO pin mapping is already configured in the tracked board overlays under
 `config/boards/radxa-cubie-a7z/`, especially `device/hardware.yaml`. No manual
@@ -201,7 +205,7 @@ config changes are needed.
 ### Launch with Pimoroni display
 
 ```bash
-cd ~/YoyoPod_Core
+cd ~/yoyopod-core
 YOYOPOD_DISPLAY=pimoroni YOYOPOD_CONFIG_BOARD=radxa-cubie-a7z .venv/bin/python yoyopod.py
 ```
 
@@ -229,7 +233,7 @@ The following has been validated on-device:
 - Backlight on/off via gpiod
 - All 4 buttons (A, B, X, Y) read via gpiod with debounce and long-press
 - RGB LED toggle via gpiod
-- Full YoyoPod app: menu screen, navigation, screen transitions
+- Full YoYoPod app: menu screen, navigation, screen transitions
 - Screen timeout and wake via button press
 - PIL-based rendering path (not LVGL)
 
@@ -239,7 +243,7 @@ The following has been validated on-device:
 - **Button X requires I2S0 disabled.** Re-enabling I2S0 (for WM8960 audio) will block Button X.
 - **SPI `no_cs` not supported** by the Allwinner SPI driver. The driver uses hardware CS on PIN_24 (CS0) which does not reach the Pimoroni HAT's CE1 trace (PIN_26). Software CS via GPIO on PIN_26 is used as a fallback.
 - **Whisplay adapter import side effects.** The Whisplay vendor driver claims GPIO pins at import time. Display adapter imports are lazy to prevent this, but importing the Whisplay adapter module (e.g., for testing) while Pimoroni is active will cause GPIO conflicts.
-- **gpiod 1.x API.** The Cubie runs gpiod 1.6.2 (lowercase `gpiod.chip()`). A compatibility layer at `src/yoyopod/ui/gpiod_compat.py` normalizes this with the gpiod 2.x API.
+- **gpiod 1.x API.** The Cubie runs gpiod 1.6.2 (lowercase `gpiod.chip()`). A compatibility layer at `yoyopod/ui/gpiod_compat.py` normalizes this with the gpiod 2.x API.
 
 ## Switching Back to Whisplay
 

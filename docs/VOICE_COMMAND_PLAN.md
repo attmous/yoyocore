@@ -8,7 +8,7 @@
 
 ## Goal
 
-Add local voice commands and spoken device responses to YoyoPod using:
+Add local voice commands and spoken device responses to YoYoPod using:
 
 - `vosk` small model for offline speech-to-text
 - `espeak-ng` for offline text-to-speech
@@ -162,11 +162,11 @@ Add a local voice service boundary with two parts:
 
 Suggested implementation structure:
 
-- `src/yoyopod/voice/stt.py`
-- `src/yoyopod/voice/tts.py`
-- `src/yoyopod/voice/commands.py`
-- `src/yoyopod/voice/service.py`
-- `src/yoyopod/voice/models.py`
+- `yoyopod/voice/stt.py`
+- `yoyopod/voice/tts.py`
+- `yoyopod/integrations/voice/commands.py`
+- `yoyopod/voice/service.py`
+- `yoyopod/voice/models.py`
 
 ### Backend Requirements
 

@@ -146,6 +146,7 @@ python yoyopod.py
 Simulation:
 
 ```bash
+yoyopod build simulation
 python yoyopod.py --simulate
 ```
 
@@ -189,6 +190,19 @@ uv run python scripts/quality.py audit
 ```
 
 The staged gate contract and exact target set live in [`QUALITY_GATES.md`](QUALITY_GATES.md).
+
+Profiling and bounded branch-to-branch benchmarks:
+
+```bash
+uv run yoyopod dev profile tools
+uv run yoyopod dev profile targets
+uv run yoyopod dev profile cprofile --target simulate-bootstrap
+uv run yoyopod dev profile pyinstrument --target simulate-loop --iterations 300 --html
+uv run yoyopod dev profile pyperf --target scaffold-loop --fast
+```
+
+For the full Pi-focused profiling path, including `py-spy`, `perf`, and the
+repo's coordinator-loop diagnostics, see [`PI_PROFILING_WORKFLOW.md`](PI_PROFILING_WORKFLOW.md).
 
 Target-side validation suite:
 

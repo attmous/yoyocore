@@ -83,7 +83,7 @@ TEST_TONE_SPECS: tuple[TestToneSpec, ...] = (
 TEST_PLAYLIST_SPECS: tuple[TestPlaylistSpec, ...] = (
     TestPlaylistSpec(
         relative_path="yoyopod-validation-set.m3u",
-        title="YoyoPod Validation Set",
+        title="YoYoPod Validation Set",
         tracks=TEST_TONE_SPECS,
     ),
 )

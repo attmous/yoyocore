@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate test audio files for YoyoPod.
+Generate test audio files for YoYoPod.
 
 Creates simple WAV files with different tones for testing audio playback.
 """

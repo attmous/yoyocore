@@ -1,10 +1,10 @@
 # Ask Screen Design Specification
 
 **Status:** Design target for the unified `Ask` experience, not the standalone current implementation contract
-**Source:** Figma YoyoPod-Design, node `43:4677` (Ask section)
+**Source:** Figma YoYoPod-Design, node `43:4677` (Ask section)
 **Extracted:** 2026-04-10
 **Target:** 240x280 Whisplay portrait display
-**Rendering path:** PIL fallback in `src/yoyopod/ui/screens/navigation/ask.py`
+**Rendering path:** LVGL-driven Ask scene in `yoyopod/ui/screens/navigation/ask/__init__.py`
 
 > Current note: use this file for intended interaction and visual design. For what actually exists on `main`, trust `docs/SYSTEM_ARCHITECTURE.md`, the current `AskScreen` implementation, and the current router/screen registration code.
 
@@ -125,7 +125,7 @@ All states share the same 240x280 frame structure:
 ### Colors
 
 - Icon circle background: `rgba(255, 208, 0, 0.15)` — use `(255, 208, 0)` at 15% alpha blended with background, which yields approximately `(74, 69, 45)` when blended over `#2A2D35`
-- Or if PIL supports it, draw a filled circle with the blended color
+- Use the live theme/display primitives to draw a filled circle with the blended color
 - Icon: use existing `draw_icon("ask", ...)` with `ASK.accent` color `(255, 208, 0)`
 - Heading: white `(255, 255, 255)` — existing `INK`
 - Subtitle text: `(255, 208, 0)` — existing `ASK.accent`
@@ -162,9 +162,9 @@ All states share the same 240x280 frame structure:
 | Heading | "Listening" (white, same font) |
 | Subtitle | "Speak now..." (same `#FFD000` accent, same Inter SemiBold 14px) |
 
-### Glow implementation in PIL
+### Glow implementation in the live runtime
 
-The glow effect can be approximated in PIL by:
+The glow effect can be approximated by:
 1. Drawing a slightly larger, semi-transparent yellow circle behind the main icon circle
 2. Or simply using a brighter circle fill without glow (acceptable simplification for 240x280)
 
@@ -203,12 +203,12 @@ Blended circle color at 25% alpha over `#2A2D35`: approximately `(95, 86, 48)`
 | Subtitle | "Just a moment..." — **Inter Regular 14px, `#7A7D84` (MUTED_DIM)** — NOT yellow |
 | HintBar | Single centered text "Processing..." — no left/right split |
 
-### Icon rotation in PIL
+### Icon rotation in the live runtime
 
 The icon rotation can be implemented by:
 - If using `draw_icon`, pass a rotation parameter or pre-rotate the icon image
-- Or draw the standard icon and note that exact rotation is a nice-to-have for PIL (the LVGL path can handle it natively)
-- Acceptable simplification: use the standard icon without rotation in PIL, noting the design intent
+- Or draw the standard icon and note that exact rotation is a nice-to-have if the retained scene does not expose it directly
+- Acceptable simplification: use the standard icon without rotation while preserving the design intent
 
 ### HintBar
 
@@ -392,7 +392,7 @@ The business logic doesn't change — only the visual presentation and screen ar
 
 ## Existing Theme Helpers To Reuse
 
-From `src/yoyopod/ui/screens/theme.py`:
+From `yoyopod/ui/screens/theme.py`:
 - `render_header()` — status bar with time, battery, mode chip
 - `render_footer()` — hint bar with help text
 - `draw_icon()` — icon rendering
@@ -404,7 +404,7 @@ From `src/yoyopod/ui/screens/theme.py`:
 
 ### Helpers that may need addition
 
-- **Circle fill** — a filled circle (not just rounded rectangle) for the icon background. Check if `rounded_panel` with equal width/height and radius=56 works, or use PIL's `ImageDraw.ellipse`.
+- **Circle fill** — a filled circle (not just rounded rectangle) for the icon background. Check if `rounded_panel` with equal width/height and radius=56 works, or use the display/theme primitives directly.
 - **Centered text at specific Y** — the current code already does this pattern; just follow the existing `(WIDTH - text_width) // 2` pattern.
 
 ---

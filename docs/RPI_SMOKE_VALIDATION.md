@@ -91,9 +91,9 @@ What each command checks:
 Useful flags:
 
 - `yoyopod pi validate music --timeout 10`
-- `yoyopod pi validate music --test-music-dir ~/YoyoPod_Test_Music`
+- `yoyopod pi validate music --test-music-dir ~/YoYoPod_Test_Music`
 - `yoyopod pi validate voip --timeout 15`
-- `yoyopod pi validate navigation --with-playback --test-music-dir ~/YoyoPod_Test_Music`
+- `yoyopod pi validate navigation --with-playback --test-music-dir ~/YoYoPod_Test_Music`
 - `yoyopod pi validate navigation --cycles 3 --idle-seconds 5 --tail-idle-seconds 20`
 - `yoyopod remote validate --branch <branch> --sha <commit> --with-navigation`
 - `yoyopod pi validate stability --cycles 3 --hold-seconds 0.3`
@@ -242,7 +242,7 @@ Use this when Whisplay rendering feels fast but you still want a hardware pass f
 
 ```bash
 yoyopod pi validate navigation
-yoyopod pi validate navigation --with-playback --test-music-dir ~/YoyoPod_Test_Music
+yoyopod pi validate navigation --with-playback --test-music-dir ~/YoYoPod_Test_Music
 yoyopod remote validate --branch <branch> --sha <commit> --with-navigation
 ```
 

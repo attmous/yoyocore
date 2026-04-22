@@ -1,11 +1,11 @@
 [project]
 name = "yoyopod"
 version = "0.1.0"
-description = "YoyoPod integrated VoIP and local-first mpv player for Raspberry Pi"
+description = "YoYoPod integrated VoIP and local-first mpv player for Raspberry Pi"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    { name = "YoyoPod Team" }
+    { name = "YoYoPod Team" }
 ]
 keywords = ["yoyopod", "raspberry-pi", "voip", "mpv", "audio-player", "local-first"]
 classifiers = [
@@ -18,12 +18,11 @@ classifiers = [
 
 dependencies = [
     "cffi>=1.17.0",
-    "pillow>=10.0.0",
+    "displayhatmini>=0.0.2; platform_system == 'Linux'",
     "pygame>=2.5.0",
     "requests>=2.31.0",
     "loguru>=0.7.0",
     "gpiod<2; platform_system == 'Linux'",
-    "displayhatmini>=0.0.1; platform_system == 'Linux'",
     "pyyaml>=6.0.3",
     "vosk>=0.3.45",
     "flask>=3.0.0",
@@ -41,10 +40,14 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.1.0",
+    "pytest-timeout>=2.4.0",
     "black>=24.0.0",
     "ruff>=0.3.0",
     "mypy>=1.8.0",
     "types-PyYAML",
+    "pyinstrument>=5.0.0",
+    "pyperf>=2.8.0",
+    "py-spy>=0.4.1",
 ]
 
 [project.scripts]
@@ -55,7 +58,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/yoyopod", "yoyopod_cli"]
+packages = ["yoyopod", "yoyopod_cli"]
 
 [tool.black]
 line-length = 100
@@ -70,7 +73,6 @@ python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
-mypy_path = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -78,19 +80,19 @@ testpaths = ["tests"]
 [tool.yoyopod_quality]
 gate_format_paths = [
     "scripts/quality.py",
-    "src/yoyopod/main.py",
+    "yoyopod/main.py",
     "yoyopod_cli",
 ]
 gate_lint_paths = [
     "scripts/quality.py",
-    "src/yoyopod/main.py",
+    "yoyopod/main.py",
     "yoyopod_cli",
 ]
 gate_type_paths = [
     "scripts/quality.py",
-    "src/yoyopod/main.py",
+    "yoyopod/main.py",
     "yoyopod_cli",
 ]
 audit_format_paths = ["."]
 audit_lint_paths = ["."]
-audit_type_paths = ["src/yoyopod"]
+audit_type_paths = ["yoyopod"]

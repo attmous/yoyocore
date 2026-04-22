@@ -213,7 +213,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Create the command-line parser."""
 
     parser = argparse.ArgumentParser(
-        description="Run repo-owned quality commands for YoyoPod Core."
+        description="Run repo-owned quality commands for YoYoPod Core."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser(

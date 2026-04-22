@@ -30,7 +30,7 @@ class HostPaths:
 class PiPaths:
     """Default Pi-side paths (overridable via pi-deploy.local.yaml)."""
 
-    project_dir: str = "~/YoyoPod_Core"
+    project_dir: str = "~/yoyopod-core"
     venv: str = ".venv"
     start_cmd: str = "python yoyopod.py"
     log_file: str = "logs/yoyopod.log"
@@ -38,7 +38,7 @@ class PiPaths:
     pid_file: str = "/tmp/yoyopod.pid"
     screenshot_path: str = "/tmp/yoyopod_screenshot.png"
     test_music_target_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR
-    startup_marker: str = "YoyoPod starting"
+    startup_marker: str = "YoYoPod starting"
     kill_processes: tuple[str, ...] = ("python", "linphonec")
     rsync_exclude: tuple[str, ...] = (
         ".git/",
