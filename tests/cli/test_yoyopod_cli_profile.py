@@ -10,6 +10,12 @@ from yoyopod_cli.main import app
 runner = CliRunner()
 
 
+def _invoke_help(*args: str):
+    """Render deterministic help output regardless of terminal environment."""
+
+    return runner.invoke(app, list(args), color=False, terminal_width=120)
+
+
 def test_build_profile_script_command_points_at_repo_script() -> None:
     command = build_profile_script_command("list-targets")
 
@@ -18,14 +24,14 @@ def test_build_profile_script_command_points_at_repo_script() -> None:
 
 
 def test_dev_help_lists_profile_group() -> None:
-    result = runner.invoke(app, ["dev", "--help"])
+    result = _invoke_help("dev", "--help")
 
     assert result.exit_code == 0
     assert "profile" in result.output
 
 
 def test_dev_profile_help_lists_commands() -> None:
-    result = runner.invoke(app, ["dev", "profile", "--help"])
+    result = _invoke_help("dev", "profile", "--help")
 
     assert result.exit_code == 0
     output = result.output
@@ -37,7 +43,7 @@ def test_dev_profile_help_lists_commands() -> None:
 
 
 def test_dev_profile_cprofile_help() -> None:
-    result = runner.invoke(app, ["dev", "profile", "cprofile", "--help"])
+    result = _invoke_help("dev", "profile", "cprofile", "--help")
 
     assert result.exit_code == 0
     output = result.output
@@ -47,7 +53,7 @@ def test_dev_profile_cprofile_help() -> None:
 
 
 def test_dev_profile_pyperf_help() -> None:
-    result = runner.invoke(app, ["dev", "profile", "pyperf", "--help"])
+    result = _invoke_help("dev", "profile", "pyperf", "--help")
 
     assert result.exit_code == 0
     output = result.output
