@@ -68,11 +68,11 @@ def test_hub_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
     assert binding.hub_build_calls == 1
     assert len(binding.hub_sync_payloads) == 1
     first_payload = binding.hub_sync_payloads[-1]
-    assert first_payload["title"] == "Listen"
+    assert first_payload["title"] == "Watch"
     assert first_payload["subtitle"] == ""
     assert first_payload["footer"] == "Tap = Next | 2x Tap = Open"
     assert first_payload["selected_index"] == 0
-    assert first_payload["total_cards"] == 4
+    assert first_payload["total_cards"] == 5
     assert first_payload["voip_state"] == 1
     assert first_payload["battery_percent"] == 77
     assert first_payload["charging"] is True
@@ -82,7 +82,7 @@ def test_hub_screen_reuses_retained_lvgl_view_across_exit_and_reentry() -> None:
     screen.render()
 
     second_payload = binding.hub_sync_payloads[-1]
-    assert second_payload["title"] == "Talk"
+    assert second_payload["title"] == "Listen"
     assert second_payload["selected_index"] == 1
 
     screen.exit()
