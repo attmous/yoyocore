@@ -131,6 +131,7 @@ class AskScreen(Screen):
         self._quick_command = False
         self._ptt_active = False
         self._auto_return_timer = None
+        self._auto_return_token = 0
         self._lvgl_view: "ScreenView | None" = None
         self._entry_cycle_token = 0
         self._bind_voice_runtime()
@@ -498,14 +499,30 @@ class AskScreen(Screen):
         if not self._quick_command:
             return
         self._cancel_auto_return()
-        self._auto_return_timer = threading.Timer(2.0, self._auto_pop)
+        self._auto_return_token += 1
+        token = self._auto_return_token
+        self._auto_return_timer = threading.Timer(2.0, lambda: self._auto_pop(token))
         self._auto_return_timer.daemon = True
         self._auto_return_timer.start()
 
-    def _auto_pop(self) -> None:
+    def _auto_pop(self, token: int | None = None) -> None:
         """Return to the previous screen via the action scheduler."""
 
         self._auto_return_timer = None
+        if token is not None and token != self._auto_return_token:
+            return
+        if not self._quick_command:
+            return
+
+        current_screen = None
+        if self.screen_manager is not None:
+            get_current_screen = getattr(self.screen_manager, "get_current_screen", None)
+            if callable(get_current_screen):
+                current_screen = get_current_screen()
+            else:
+                current_screen = getattr(self.screen_manager, "current_screen", None)
+        if self.screen_manager is not None and current_screen is not self:
+            return
 
         def apply_pop() -> None:
             self.request_route("back")
@@ -524,6 +541,7 @@ class AskScreen(Screen):
     def _cancel_auto_return(self) -> None:
         """Cancel any pending auto-return timer."""
 
+        self._auto_return_token += 1
         if self._auto_return_timer is not None:
             self._auto_return_timer.cancel()
             self._auto_return_timer = None

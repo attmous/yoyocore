@@ -1104,8 +1104,10 @@ def test_ask_screen_auto_pop_applies_back_route_immediately() -> None:
 
     applied_requests: list[tuple[NavigationRequest, AskScreen | None]] = []
     ask = AskScreen(display=object(), context=AppContext())
+    ask.set_quick_command(True)
     manager = SimpleNamespace(
         action_scheduler=None,
+        get_current_screen=lambda: ask,
         apply_navigation_request=lambda request, source_screen=None: applied_requests.append(
             (request, source_screen)
         )
@@ -1117,6 +1119,34 @@ def test_ask_screen_auto_pop_applies_back_route_immediately() -> None:
     ask._auto_pop()
 
     assert applied_requests == [(NavigationRequest.route("back"), ask)]
+    assert ask.consume_navigation_request() is None
+
+
+def test_ask_screen_auto_pop_ignores_stale_timer_tokens() -> None:
+    """A stale timer callback should not pop a newer Ask session."""
+
+    applied_requests: list[tuple[NavigationRequest, AskScreen | None]] = []
+    ask = AskScreen(display=object(), context=AppContext())
+    ask.set_quick_command(True)
+    manager = SimpleNamespace(
+        action_scheduler=None,
+        get_current_screen=lambda: ask,
+        apply_navigation_request=lambda request, source_screen=None: applied_requests.append(
+            (request, source_screen)
+        )
+        or True,
+    )
+    ask.set_screen_manager(manager)
+    ask.set_route_name("ask")
+
+    ask._schedule_auto_return()
+    stale_token = ask._auto_return_token
+    ask._cancel_auto_return()
+    ask.set_quick_command(True)
+
+    ask._auto_pop(stale_token)
+
+    assert applied_requests == []
     assert ask.consume_navigation_request() is None
 
 
@@ -1147,3 +1177,27 @@ def test_hub_back_triggers_hold_ask_route(display: Display) -> None:
 
     assert screen_manager.current_screen is ask
     assert ask._quick_command is True
+
+
+def test_hub_select_clears_stale_quick_command_for_normal_ask(display: Display) -> None:
+    """Selecting Ask from the hub should open the normal Ask flow, not stale hold-to-ask mode."""
+
+    context = AppContext()
+    input_manager = InputManager()
+    screen_manager = ScreenManager(display, input_manager)
+
+    hub = HubScreen(display, context)
+    ask = AskScreen(display=display, context=context)
+    hub.render = lambda: None
+    ask.render = lambda: None
+
+    screen_manager.register_screen("hub", hub)
+    screen_manager.register_screen("ask", ask)
+    screen_manager.replace_screen("hub")
+
+    ask.set_quick_command(True)
+    hub.selected_index = 2
+    input_manager.simulate_action(InputAction.SELECT)
+
+    assert screen_manager.current_screen is ask
+    assert ask._quick_command is False

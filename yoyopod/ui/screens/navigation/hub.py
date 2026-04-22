@@ -180,7 +180,12 @@ class HubScreen(Screen):
 
     def on_select(self, data=None) -> None:
         """Open the selected root card."""
-        self.request_route("select", payload=self.cards()[self.selected_index].title)
+        selected_card = self.cards()[self.selected_index]
+        if selected_card.mode == "ask" and self.screen_manager is not None:
+            ask_screen = self.screen_manager.screens.get("ask")
+            if ask_screen is not None and hasattr(ask_screen, "set_quick_command"):
+                ask_screen.set_quick_command(False)
+        self.request_route("select", payload=selected_card.title)
 
     def on_back(self, data=None) -> None:
         """Open Ask in quick-command mode (hold-to-ask shortcut)."""
