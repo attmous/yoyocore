@@ -41,7 +41,7 @@ class _NavigationSoakAppHandle(Protocol):
     event_bus: Any
     context: Any
     _voip_iterate_interval_seconds: float
-    _screen_timeout_seconds: float | None
+    _screen_timeout_seconds: float
     _last_user_activity_at: float
     _shutdown_completed: bool
 

@@ -1817,8 +1817,6 @@ def stability(
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable DEBUG logging.")] = False,
 ) -> None:
     """Run a repeated navigation and idle stability pass on the target checkout."""
-    from yoyopod.app import YoyoPodApp
-
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR
     try:
@@ -1832,9 +1830,6 @@ def stability(
             with_music=with_music,
             provision_test_music=provision_test_music,
             test_music_dir=resolved_music_dir,
-            app_factory=lambda *, config_dir, simulate: YoyoPodApp(
-                config_dir=config_dir, simulate=simulate
-            ),
         )
     except NavigationSoakError as exc:
         from loguru import logger
@@ -1904,7 +1899,6 @@ def navigation(
 ) -> None:
     """Run the one-button target navigation and idle stability soak on LVGL hardware."""
     from loguru import logger
-    from yoyopod.app import YoyoPodApp
 
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR
@@ -1919,9 +1913,6 @@ def navigation(
         provision_test_music=provision_test_music,
         test_music_dir=resolved_music_dir,
         skip_sleep=skip_sleep,
-        app_factory=lambda *, config_dir, simulate: YoyoPodApp(
-            config_dir=config_dir, simulate=simulate
-        ),
     )
     if ok:
         logger.info("Navigation soak passed: {}", details)
@@ -1978,7 +1969,6 @@ def lvgl(
 ) -> None:
     """Run a deterministic LVGL navigation and idle soak pass against YoyoPod."""
     from loguru import logger
-    from yoyopod.app import YoyoPodApp
 
     configure_logging(verbose)
     resolved_music_dir = test_music_dir or DEFAULT_TEST_MUSIC_TARGET_DIR
@@ -1993,9 +1983,6 @@ def lvgl(
             with_music=with_music,
             provision_test_music=provision_test_music,
             test_music_dir=resolved_music_dir,
-            app_factory=lambda *, config_dir, simulate: YoyoPodApp(
-                config_dir=config_dir, simulate=simulate
-            ),
         )
     except NavigationSoakError as exc:
         logger.error(f"LVGL soak failed: {exc}")
