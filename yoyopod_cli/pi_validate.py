@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Protocol, cast
 
 import typer
 
-from yoyopod_cli._pi_validate_helpers import (
+from yoyopod_cli.pi_validate_helpers import (
     NavigationSoakError,
     run_navigation_idle_soak,
     run_navigation_soak,

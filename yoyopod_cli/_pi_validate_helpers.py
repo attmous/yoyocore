@@ -11,7 +11,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterator, cast
+from typing import Any, Callable, Iterator, Protocol, cast
 
 from loguru import logger
 
@@ -23,8 +23,185 @@ from yoyopod_cli.music_fixtures import (
 from yoyopod.events import UserActivityEvent
 from yoyopod.ui.input import InputAction, InteractionProfile
 
-if TYPE_CHECKING:
+
+class _NavigationSoakAppHandle(Protocol):
+    """Minimal runtime surface used by soak helpers."""
+
+    @property
+    def config_dir(self) -> str:
+        """Return the config directory used for the soak app."""
+
+    @property
+    def simulate(self) -> bool:
+        """Return whether the soak app is running in simulation mode."""
+
+    @property
+    def display(self) -> Any:
+        """Return the active display facade."""
+
+    @property
+    def screen_manager(self) -> Any:
+        """Return the active screen manager."""
+
+    @property
+    def input_manager(self) -> Any:
+        """Return the active input manager."""
+
+    @property
+    def local_music_service(self) -> Any:
+        """Return the local music service used by the soak."""
+
+    @property
+    def music_backend(self) -> Any:
+        """Return the music backend used by the soak."""
+
+    @property
+    def runtime_loop(self) -> Any:
+        """Return the runtime loop service."""
+
+    @property
+    def recovery_service(self) -> Any:
+        """Return the recovery service."""
+
+    @property
+    def power_runtime(self) -> Any:
+        """Return the power runtime facade."""
+
+    @property
+    def screen_power_service(self) -> Any:
+        """Return the screen power service."""
+
+    @property
+    def event_bus(self) -> Any:
+        """Return the typed event bus."""
+
+    @property
+    def context(self) -> Any:
+        """Return the shared runtime context."""
+
+    def setup(self) -> bool:
+        """Initialize app resources."""
+
+    def stop(self) -> None:
+        """Shut down app resources."""
+
+    @property
+    def voip_iterate_interval_seconds(self) -> float:
+        """Return the configured runtime-loop VoIP iterate cadence."""
+
+    @property
+    def screen_timeout_seconds(self) -> float:
+        """Return the configured inactivity timeout used for screen sleep."""
+
+    @property
+    def shutdown_completed(self) -> bool:
+        """Return whether the app completed shutdown during the soak."""
+
+    def simulate_inactivity(self, *, idle_for_seconds: float) -> None:
+        """Pretend the app has been idle long enough to trigger sleep."""
+
+
+@dataclass(slots=True)
+class _YoyoPodAppNavigationSoakHandle:
+    """Adapter that exposes a stable soak surface for ``YoyoPodApp``."""
+
+    _app: Any
+
+    @property
+    def config_dir(self) -> str:
+        return str(self._app.config_dir)
+
+    @property
+    def simulate(self) -> bool:
+        return bool(self._app.simulate)
+
+    @property
+    def display(self) -> Any:
+        return self._app.display
+
+    @property
+    def screen_manager(self) -> Any:
+        return self._app.screen_manager
+
+    @property
+    def input_manager(self) -> Any:
+        return self._app.input_manager
+
+    @property
+    def local_music_service(self) -> Any:
+        return self._app.local_music_service
+
+    @property
+    def music_backend(self) -> Any:
+        return self._app.music_backend
+
+    @property
+    def runtime_loop(self) -> Any:
+        return self._app.runtime_loop
+
+    @property
+    def recovery_service(self) -> Any:
+        return self._app.recovery_service
+
+    @property
+    def power_runtime(self) -> Any:
+        return self._app.power_runtime
+
+    @property
+    def screen_power_service(self) -> Any:
+        return self._app.screen_power_service
+
+    @property
+    def event_bus(self) -> Any:
+        return self._app.event_bus
+
+    @property
+    def context(self) -> Any:
+        return self._app.context
+
+    def setup(self) -> bool:
+        return bool(self._app.setup())
+
+    def stop(self) -> None:
+        self._app.stop()
+
+    @property
+    def voip_iterate_interval_seconds(self) -> float:
+        runtime_loop = self.runtime_loop
+        if runtime_loop is None:
+            raise NavigationSoakError("runtime loop is unavailable for navigation soak")
+        return float(runtime_loop.configured_voip_iterate_interval_seconds)
+
+    @property
+    def screen_timeout_seconds(self) -> float:
+        return float(getattr(self._app, "_screen_timeout_seconds", 0.0))
+
+    @property
+    def shutdown_completed(self) -> bool:
+        return bool(getattr(self._app, "_shutdown_completed", False))
+
+    def simulate_inactivity(self, *, idle_for_seconds: float) -> None:
+        setattr(
+            self._app,
+            "_last_user_activity_at",
+            time.monotonic() - max(0.0, idle_for_seconds),
+        )
+
+
+class _NavigationSoakAppFactory(Protocol):
+    """Factory for constructing a narrow app handle for soak execution."""
+
+    def __call__(self, *, config_dir: str, simulate: bool) -> _NavigationSoakAppHandle:
+        """Create a new app handle for a soak run."""
+
+
+def _default_app_factory(*, config_dir: str, simulate: bool) -> _NavigationSoakAppHandle:
+    """Default app factory used when callers do not provide one."""
+
     from yoyopod.app import YoyoPodApp
+
+    return _YoyoPodAppNavigationSoakHandle(YoyoPodApp(config_dir=config_dir, simulate=simulate))
+
 
 # ---------------------------------------------------------------------------
 # Stability soak (ported from src/yoyopod/cli/pi/stability.py)
@@ -245,7 +422,7 @@ def _temporary_env(updates: dict[str, str]) -> Iterator[None]:
                 os.environ[name] = previous
 
 
-def _pump_app(app: "YoyoPodApp", duration_seconds: float) -> None:
+def _pump_app(app: _NavigationSoakAppHandle, duration_seconds: float) -> None:
     """Pump the coordinator-thread services without entering the full app loop."""
 
     deadline = time.monotonic() + max(0.0, duration_seconds)
@@ -260,7 +437,7 @@ def _pump_app(app: "YoyoPodApp", duration_seconds: float) -> None:
         time.sleep(0.05)
 
 
-def _current_route(app: "YoyoPodApp") -> str:
+def _current_route(app: _NavigationSoakAppHandle) -> str:
     """Return the current route name or a stable placeholder."""
 
     if app.screen_manager is None or app.screen_manager.current_screen is None:
@@ -271,7 +448,7 @@ def _current_route(app: "YoyoPodApp") -> str:
     return str(app.screen_manager.current_screen.name)
 
 
-def _dispatch_action(app: "YoyoPodApp", action: InputAction) -> None:
+def _dispatch_action(app: _NavigationSoakAppHandle, action: InputAction) -> None:
     """Drive one semantic action through the same screen handler path as live input."""
 
     if app.screen_manager is None or app.screen_manager.current_screen is None:
@@ -301,7 +478,7 @@ def _reset_selection(screen: object) -> None:
 
 
 def _wait_for_route(
-    app: "YoyoPodApp",
+    app: _NavigationSoakAppHandle,
     route_name: str,
     *,
     timeout_seconds: float,
@@ -321,7 +498,7 @@ def _wait_for_route(
 
 
 def _wait_for_track(
-    app: "YoyoPodApp",
+    app: _NavigationSoakAppHandle,
     *,
     timeout_seconds: float,
     expected_library: ProvisionedTestMusicLibrary | None,
@@ -351,11 +528,11 @@ def _wait_for_track(
     )
 
 
-def _exercise_sleep_wake(app: "YoyoPodApp") -> str:
+def _exercise_sleep_wake(app: _NavigationSoakAppHandle) -> str:
     """Force one idle sleep/wake cycle against the current app instance."""
 
-    timeout_seconds = max(1.0, float(app._screen_timeout_seconds or 0.0))
-    app._last_user_activity_at = time.monotonic() - timeout_seconds - 1.0
+    timeout_seconds = max(1.0, app.screen_timeout_seconds)
+    app.simulate_inactivity(idle_for_seconds=timeout_seconds + 1.0)
     _pump_app(app, 0.35)
     if app.context is None or app.context.screen.awake:
         raise NavigationSoakError("screen did not enter sleep during soak")
@@ -398,10 +575,13 @@ def run_navigation_idle_soak(
     with_music: bool = False,
     provision_test_music: bool = True,
     test_music_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR,
+    app_factory: _NavigationSoakAppFactory | None = None,
 ) -> NavigationSoakReport:
     """Run the deterministic target-side navigation and idle stability soak."""
 
-    from yoyopod.app import YoyoPodApp
+    if app_factory is None:
+        # Test seam so helper unit tests do not need to import the full runtime.
+        app_factory = _default_app_factory
 
     music_dir, expected_library = _prepare_validation_music_dir(
         with_music=with_music,
@@ -413,7 +593,7 @@ def run_navigation_idle_soak(
         env_updates["YOYOPOD_MUSIC_DIR"] = str(music_dir)
 
     with _temporary_env(env_updates):
-        app = YoyoPodApp(config_dir=config_dir, simulate=simulate)
+        app = app_factory(config_dir=config_dir, simulate=simulate)
         if not app.setup():
             raise NavigationSoakError("app setup failed")
 
@@ -580,7 +760,7 @@ def _temporary_env_var(name: str, value: str | None) -> Iterator[None]:
 class _RuntimePump:
     """Drive the app loop without entering the long-running production loop."""
 
-    def __init__(self, app: "YoyoPodApp", stats: NavigationSoakStats) -> None:
+    def __init__(self, app: _NavigationSoakAppHandle, stats: NavigationSoakStats) -> None:
         self._app = app
         self._stats = stats
         self._last_screen_update = time.time()
@@ -591,7 +771,7 @@ class _RuntimePump:
 
         deadline = time.monotonic() + max(0.0, duration_seconds)
         while time.monotonic() < deadline:
-            time.sleep(min(0.05, max(0.01, self._app._voip_iterate_interval_seconds)))
+            time.sleep(min(0.05, max(0.01, self._app.voip_iterate_interval_seconds)))
             monotonic_now = time.monotonic()
             current_time = time.time()
             iteration_started_at = time.monotonic()
@@ -614,7 +794,7 @@ class _RuntimePump:
             snapshot = self._app.runtime_loop.timing_snapshot(now=monotonic_now)
             self._stats.observe_snapshot(snapshot)
 
-            if self._app._shutdown_completed:
+            if self._app.shutdown_completed:
                 raise NavigationSoakFailure(
                     "app completed shutdown unexpectedly during navigation soak"
                 )
@@ -637,6 +817,7 @@ class NavigationSoakRunner:
         provision_test_music: bool,
         test_music_dir: str,
         skip_sleep: bool,
+        app_factory: _NavigationSoakAppFactory | None = None,
     ) -> None:
         self.config_dir = config_dir
         self.cycles = max(1, cycles)
@@ -649,13 +830,13 @@ class NavigationSoakRunner:
         self.skip_sleep = skip_sleep
 
         self.stats = NavigationSoakStats()
-        self._app: "YoyoPodApp | None" = None
+        self._app: _NavigationSoakAppHandle | None = None
         self._pump: _RuntimePump | None = None
+        # Test seam so unit tests can drive the runner without importing YoyoPodApp.
+        self._app_factory = _default_app_factory if app_factory is None else app_factory
 
     def run(self) -> tuple[bool, str]:
         """Run the full soak and return success plus one-line details."""
-
-        from yoyopod.app import YoyoPodApp
 
         music_dir_override = None
         if self.with_playback and self.provision_test_music:
@@ -667,7 +848,7 @@ class NavigationSoakRunner:
             )
 
         with _temporary_env_var("YOYOPOD_MUSIC_DIR", music_dir_override):
-            app = YoyoPodApp(config_dir=self.config_dir, simulate=False)
+            app = self._app_factory(config_dir=self.config_dir, simulate=False)
             self._app = app
             if not app.setup():
                 try:
@@ -708,7 +889,7 @@ class NavigationSoakRunner:
         return True, self._summary_details()
 
     @property
-    def app(self) -> "YoyoPodApp":
+    def app(self) -> _NavigationSoakAppHandle:
         """Return the active app or raise when the runner is uninitialized."""
 
         if self._app is None:
@@ -1081,12 +1262,12 @@ class NavigationSoakRunner:
             self.stats.sleep_wake_status = "skipped"
             return
 
-        timeout_seconds = float(self.app._screen_timeout_seconds or 0.0)
+        timeout_seconds = self.app.screen_timeout_seconds
         if timeout_seconds <= 0.0:
             self.stats.sleep_wake_status = "timeout_disabled"
             return
 
-        self.app._last_user_activity_at = time.monotonic() - timeout_seconds - 1.0
+        self.app.simulate_inactivity(idle_for_seconds=timeout_seconds + 1.0)
         self.pump.run_for(max(0.35, self.hold_seconds))
         if self.app.context is None or self.app.context.screen.awake:
             raise NavigationSoakFailure("screen did not enter sleep during navigation soak")
@@ -1110,6 +1291,7 @@ def run_navigation_soak(
     provision_test_music: bool = True,
     test_music_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR,
     skip_sleep: bool = False,
+    app_factory: _NavigationSoakAppFactory | None = None,
 ) -> tuple[bool, str]:
     """Run the target-hardware navigation and idle stability soak."""
 
@@ -1123,5 +1305,6 @@ def run_navigation_soak(
         provision_test_music=provision_test_music,
         test_music_dir=test_music_dir,
         skip_sleep=skip_sleep,
+        app_factory=app_factory,
     )
     return runner.run()

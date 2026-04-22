@@ -1,6 +1,12 @@
 """Tests for yoyopod_cli.pi_validate."""
 from __future__ import annotations
 
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 from typer.testing import CliRunner
 
 from yoyopod_cli.pi_validate import app
@@ -11,6 +17,42 @@ def _collect_option_names(click_cmd: object) -> set[str]:
     for param in getattr(click_cmd, "params", []):
         names.update(getattr(param, "opts", []))
     return names
+
+
+def test_stability_commands_import_without_app_runtime() -> None:
+    """Importing the validate command set should not eagerly import the full app runtime."""
+
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    pythonpath_parts = [str(repo_root / "src"), str(repo_root)]
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+
+    command = """
+import importlib
+import sys
+import json
+
+importlib.import_module("yoyopod_cli.pi_validate")
+
+loaded = "yoyopod.app" in sys.modules
+print(json.dumps(loaded))
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", command],
+        capture_output=True,
+        check=True,
+        cwd=str(repo_root),
+        env=env,
+        text=True,
+    )
+    assert not json.loads(result.stdout), (
+        "yoyopod_cli.pi_validate imported the full app runtime: "
+        f"loaded={result.stdout.strip()}"
+    )
 
 
 def test_deploy_help() -> None:

@@ -4,6 +4,7 @@ import sys
 from types import ModuleType, SimpleNamespace
 
 from yoyopod_cli import _pi_validate_helpers as helpers
+from yoyopod_cli import pi_validate_helpers as public_helpers
 
 
 def test_wait_for_route_accepts_transition_completed_in_final_pump(
@@ -27,6 +28,58 @@ def test_wait_for_route_accepts_transition_completed_in_final_pump(
     monkeypatch.setattr(helpers, "_pump_app", fake_pump_app)
 
     helpers._wait_for_route(object(), "ask", timeout_seconds=1.0)
+
+
+def test_default_app_factory_wraps_imported_app_with_stable_soak_surface(
+    monkeypatch,
+) -> None:
+    class _FakeApp:
+        def __init__(self, *, config_dir: str, simulate: bool) -> None:
+            self.config_dir = config_dir
+            self.simulate = simulate
+            self.display = SimpleNamespace(backend_kind="lvgl")
+            self.screen_manager = None
+            self.input_manager = None
+            self.local_music_service = None
+            self.music_backend = None
+            self.runtime_loop = SimpleNamespace(configured_voip_iterate_interval_seconds=0.25)
+            self.recovery_service = None
+            self.power_runtime = None
+            self.screen_power_service = None
+            self.event_bus = None
+            self.context = None
+            self._screen_timeout_seconds = 12.5
+            self._shutdown_completed = True
+            self._last_user_activity_at = 0.0
+
+        def setup(self) -> bool:
+            return True
+
+        def stop(self) -> None:
+            return None
+
+    fake_app_module = ModuleType("yoyopod.app")
+    fake_app_module.YoyoPodApp = _FakeApp
+    monkeypatch.setitem(sys.modules, "yoyopod.app", fake_app_module)
+    monkeypatch.setattr(helpers.time, "monotonic", lambda: 100.0)
+
+    handle = helpers._default_app_factory(config_dir="test-config", simulate=True)
+    wrapped_app = getattr(handle, "_app")
+
+    assert handle.config_dir == "test-config"
+    assert handle.simulate is True
+    assert handle.voip_iterate_interval_seconds == 0.25
+    assert handle.screen_timeout_seconds == 12.5
+    assert handle.shutdown_completed is True
+
+    handle.simulate_inactivity(idle_for_seconds=7.0)
+
+    assert wrapped_app._last_user_activity_at == 93.0
+
+
+def test_public_pi_validate_helpers_alias_reexports_internal_helpers() -> None:
+    assert public_helpers.run_navigation_soak is helpers.run_navigation_soak
+    assert public_helpers.run_navigation_idle_soak is helpers.run_navigation_idle_soak
 
 
 def test_navigation_idle_soak_resets_hub_selection_between_cycles(
