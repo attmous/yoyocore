@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from .types import CheckResult
 
 if TYPE_CHECKING:
-    from yoyopod.cli.pi.music_fixtures import ProvisionedTestMusicLibrary
+    from yoyopod_cli.music_fixtures import ProvisionedTestMusicLibrary
     from yoyopod.config import MediaConfig
 
 
@@ -20,7 +20,7 @@ def _prepare_music_validation_library(
     test_music_dir: str,
 ) -> "ProvisionedTestMusicLibrary | None":
     """Provision the deterministic validation music library and point smoke at it."""
-    from yoyopod.cli.pi.music_fixtures import provision_test_music_library
+    from yoyopod_cli.music_fixtures import provision_test_music_library
 
     if not provision_test_music:
         return None

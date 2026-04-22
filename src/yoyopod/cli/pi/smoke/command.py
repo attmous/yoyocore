@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 import typer
 
-from yoyopod.cli.common import configure_logging, resolve_config_dir
-from yoyopod.cli.pi.music_fixtures import DEFAULT_TEST_MUSIC_TARGET_DIR
+from yoyopod_cli.common import configure_logging, resolve_config_dir
+from yoyopod_cli.music_fixtures import DEFAULT_TEST_MUSIC_TARGET_DIR
 from yoyopod.cli.pi.smoke.display import _display_check
 from yoyopod.cli.pi.smoke.environment import _environment_check
 from yoyopod.cli.pi.smoke.input import _input_check

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from yoyopod.cli.pi.music_fixtures import DEFAULT_TEST_MUSIC_TARGET_DIR
+from yoyopod_cli._pi_validate_helpers import NavigationSoakError, run_navigation_idle_soak
+from yoyopod_cli.music_fixtures import DEFAULT_TEST_MUSIC_TARGET_DIR
 
 from .types import CheckResult
 
@@ -17,8 +18,6 @@ def _lvgl_soak_check(
     test_music_dir: str = DEFAULT_TEST_MUSIC_TARGET_DIR,
 ) -> CheckResult:
     """Run the target navigation and idle soak on the active LVGL app path."""
-    from yoyopod.cli.pi.stability import NavigationSoakError, run_navigation_idle_soak
-
     try:
         report = run_navigation_idle_soak(
             config_dir=str(config_dir),

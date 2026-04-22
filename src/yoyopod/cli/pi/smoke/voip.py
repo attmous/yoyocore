@@ -12,7 +12,7 @@ def _voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
     """Validate Liblinphone startup and SIP registration."""
     from yoyopod.config import ConfigManager
     from yoyopod.backends.voip import LiblinphoneBinding
-from yoyopod.integrations.call import VoIPConfig, VoIPManager
+    from yoyopod.integrations.call import VoIPConfig, VoIPManager
 
     config_manager = ConfigManager(config_dir=str(config_dir))
     voip_config = VoIPConfig.from_config_manager(config_manager)
