@@ -353,3 +353,41 @@ def test_navigation_soak_runner_hub_mode_uses_public_cards_method() -> None:
     )
 
     assert runner._hub_mode() == "talk"
+
+
+def test_navigation_soak_runner_clips_playback_idle_to_avoid_exhausting_fixture_tracks() -> None:
+    """Playback dwell should stay short enough that the tiny validation queue is still skippable."""
+
+    idle_calls: list[tuple[str, float]] = []
+    simulated_actions: list[str] = []
+    runner = helpers.NavigationSoakRunner(
+        config_dir="config",
+        cycles=1,
+        hold_seconds=0.1,
+        idle_seconds=3.0,
+        tail_idle_seconds=0.0,
+        with_playback=True,
+        provision_test_music=False,
+        test_music_dir="music",
+        skip_sleep=True,
+    )
+    runner._pump = SimpleNamespace(run_for=lambda _seconds: None)
+    runner._require_screen = lambda screen_name: None
+    runner._wait_for_playback_started = lambda context_label: None
+    runner._wait_for_track_change = lambda **_kwargs: None
+    runner._current_track_name = lambda: "Alpha Beacon"
+    runner._idle_phase = lambda label, seconds: idle_calls.append((label, seconds))
+    runner._simulate_action = lambda action, **kwargs: simulated_actions.append(kwargs["label"])
+
+    runner._exercise_now_playing(phase_label="shuffle_playback", back_target="listen")
+
+    assert idle_calls == [
+        ("shuffle_playback_idle", 1.0),
+        ("shuffle_playback_post_next_idle", 1.0),
+    ]
+    assert simulated_actions == [
+        "shuffle_playback pause",
+        "shuffle_playback resume",
+        "shuffle_playback next track",
+        "shuffle_playback back",
+    ]

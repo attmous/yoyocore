@@ -937,7 +937,8 @@ class NavigationSoakRunner:
 
         self._require_screen("now_playing")
         self._wait_for_playback_started(phase_label)
-        self._idle_phase(f"{phase_label}_idle", self.idle_seconds)
+        playback_idle_seconds = min(self.idle_seconds, 1.0)
+        self._idle_phase(f"{phase_label}_idle", playback_idle_seconds)
 
         self._simulate_action(
             InputAction.PLAY_PAUSE,
@@ -961,7 +962,7 @@ class NavigationSoakRunner:
             previous_track_name=previous_track_name,
             context_label=phase_label,
         )
-        self._idle_phase(f"{phase_label}_post_next_idle", self.idle_seconds)
+        self._idle_phase(f"{phase_label}_post_next_idle", playback_idle_seconds)
         self._simulate_action(
             InputAction.BACK,
             expected_screen=back_target,
