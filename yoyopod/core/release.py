@@ -24,9 +24,22 @@ class ReleaseInfo:
     channel: str
     released_at: str
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.version, str):
+            raise ValueError(
+                f"version must be str, got {type(self.version).__name__}"
+            )
+        if not isinstance(self.channel, str):
+            raise ValueError(
+                f"channel must be str, got {type(self.channel).__name__}"
+            )
+        if not isinstance(self.released_at, str):
+            raise ValueError(
+                f"released_at must be str, got {type(self.released_at).__name__}"
+            )
+
 
 _DEFAULT_MANIFEST_PATH = "/opt/yoyopod/current/manifest.json"
-_DEFAULT_STATE_DIR = Path.home() / ".local" / "share" / "yoyopod"
 
 
 def _manifest_path() -> Path:
@@ -44,6 +57,8 @@ def current_release() -> ReleaseInfo | None:
         return None
     try:
         raw = json.loads(path.read_text())
+        if not isinstance(raw, dict):
+            return None
         return ReleaseInfo(
             version=raw["version"],
             channel=raw["channel"],
@@ -59,6 +74,6 @@ def state_dir() -> Path:
     Honours YOYOPOD_STATE_DIR (set by the slot launcher on the Pi).
     """
     override = os.environ.get("YOYOPOD_STATE_DIR")
-    if override:
+    if override:  # empty string treated as unset
         return Path(override)
-    return _DEFAULT_STATE_DIR
+    return Path.home() / ".local" / "share" / "yoyopod"

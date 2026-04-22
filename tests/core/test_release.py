@@ -54,6 +54,7 @@ def test_current_release_reads_manifest(
     assert info is not None
     assert info.version == "2026.04.22-abc123"
     assert info.channel == "dev"
+    assert info.released_at == "2026-04-22T10:00:00Z"
 
 
 def test_current_release_returns_none_on_corrupt_manifest(
@@ -61,6 +62,35 @@ def test_current_release_returns_none_on_corrupt_manifest(
 ) -> None:
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text("{not valid json")
+    monkeypatch.setenv("YOYOPOD_RELEASE_MANIFEST", str(manifest_path))
+    assert current_release() is None
+
+
+def test_current_release_returns_none_on_non_dict_json_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text("[1, 2, 3]")  # valid JSON, wrong shape
+    monkeypatch.setenv("YOYOPOD_RELEASE_MANIFEST", str(manifest_path))
+    assert current_release() is None
+
+
+def test_current_release_returns_none_on_non_string_fields(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "version": 123,  # int, not str
+                "channel": "dev",
+                "released_at": "2026-04-22T10:00:00Z",
+                "artifacts": {"full": {"type": "full", "sha256": "a" * 64, "size": 10}},
+                "requires": {"min_os_version": "0.0.0", "min_battery_pct": 0, "min_free_mb": 0},
+            }
+        )
+    )
     monkeypatch.setenv("YOYOPOD_RELEASE_MANIFEST", str(manifest_path))
     assert current_release() is None
 
