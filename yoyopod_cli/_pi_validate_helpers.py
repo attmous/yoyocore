@@ -842,15 +842,23 @@ class NavigationSoakRunner:
 
         raise NavigationSoakFailure(f"could not reach {target_value} on {expected_screen}")
 
-    def _hub_mode(self) -> str:
-        """Return the selected hub card mode."""
+    def _hub_card_key(self) -> str:
+        """Return the selected hub card title as a stable lowercase key."""
 
         self._require_screen("hub")
         hub_screen = cast(Any, self.app.screen_manager.get_current_screen())  # type: ignore[union-attr]
-        cards = [] if hub_screen is None else hub_screen._cards()
+        if hub_screen is None:
+            cards: list[Any] = []
+        else:
+            cards_fn = getattr(hub_screen, "cards", None)
+            if callable(cards_fn):
+                cards = list(cards_fn())
+            else:
+                legacy_cards_fn = getattr(hub_screen, "_cards", None)
+                cards = list(legacy_cards_fn()) if callable(legacy_cards_fn) else []
         if not cards:
             raise NavigationSoakFailure("hub has no cards to navigate")
-        return str(cards[hub_screen.selected_index % len(cards)].mode)
+        return str(cards[hub_screen.selected_index % len(cards)].title).lower()
 
     def _listen_item_key(self) -> str:
         """Return the selected Listen landing item key."""
@@ -862,14 +870,14 @@ class NavigationSoakRunner:
             raise NavigationSoakFailure("listen screen has no items to navigate")
         return str(items[listen_screen.selected_index % len(items)].key)
 
-    def _move_hub_to(self, mode: str) -> None:
-        """Advance the hub carousel until one mode is selected."""
+    def _move_hub_to(self, card_key: str) -> None:
+        """Advance the hub carousel until one card title is selected."""
 
         self._advance_until(
             expected_screen="hub",
-            target_value=mode,
-            current_value=self._hub_mode,
-            label=f"hub advance to {mode}",
+            target_value=card_key,
+            current_value=self._hub_card_key,
+            label=f"hub advance to {card_key}",
             max_steps=8,
         )
 

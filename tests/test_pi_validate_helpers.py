@@ -51,6 +51,50 @@ def test_reset_selection_skips_watch_card_when_hub_exposes_it() -> None:
     assert screen.selected_index == 1
 
 
+def test_navigation_runner_hub_card_key_uses_public_cards_api() -> None:
+    class _Card:
+        def __init__(self, title: str) -> None:
+            self.title = title
+
+    class _HubScreen:
+        route_name = "hub"
+        name = "hub"
+
+        def __init__(self) -> None:
+            self.selected_index = 4
+
+        def cards(self) -> list[_Card]:
+            return [_Card("Watch"), _Card("Listen"), _Card("Talk"), _Card("Ask"), _Card("Setup")]
+
+    class _ScreenManager:
+        def __init__(self) -> None:
+            self.current_screen = _HubScreen()
+
+        def get_current_screen(self) -> _HubScreen:
+            return self.current_screen
+
+    class _App:
+        def __init__(self) -> None:
+            self.screen_manager = _ScreenManager()
+
+    runner = helpers.NavigationSoakRunner(
+        config_dir="config",
+        cycles=1,
+        hold_seconds=0.1,
+        idle_seconds=0.0,
+        tail_idle_seconds=0.0,
+        with_playback=False,
+        provision_test_music=False,
+        test_music_dir="",
+        skip_sleep=True,
+    )
+    runner._app = _App()
+
+    assert runner._hub_card_key() == "setup"
+    runner._app.screen_manager.current_screen.selected_index = 0
+    assert runner._hub_card_key() == "watch"
+
+
 def test_navigation_idle_soak_resets_hub_selection_between_cycles(
     monkeypatch,
 ) -> None:
