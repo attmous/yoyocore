@@ -833,10 +833,18 @@ class NavigationSoakRunner:
 
         self._require_screen("hub")
         hub_screen = cast(Any, self.app.screen_manager.get_current_screen())  # type: ignore[union-attr]
-        cards = [] if hub_screen is None else hub_screen._cards()
+        cards_getter = None if hub_screen is None else getattr(hub_screen, "cards", None)
+        if callable(cards_getter):
+            cards = list(cards_getter())
+        else:
+            legacy_cards_getter = (
+                None if hub_screen is None else getattr(hub_screen, "_cards", None)
+            )
+            cards = [] if legacy_cards_getter is None else list(legacy_cards_getter())
         if not cards:
             raise NavigationSoakFailure("hub has no cards to navigate")
-        return str(cards[hub_screen.selected_index % len(cards)].mode)
+        selected_index = int(getattr(hub_screen, "selected_index", 0))
+        return str(cards[selected_index % len(cards)].mode)
 
     def _listen_item_key(self) -> str:
         """Return the selected Listen landing item key."""

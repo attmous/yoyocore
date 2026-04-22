@@ -320,3 +320,36 @@ def test_navigation_idle_soak_preserves_hub_progress_within_cycle(
     )
 
     assert report.final_route == "ask"
+
+
+def test_navigation_soak_runner_hub_mode_uses_public_cards_method() -> None:
+    class _Card:
+        def __init__(self, mode: str) -> None:
+            self.mode = mode
+
+    class _HubScreen:
+        route_name = "hub"
+
+        def __init__(self) -> None:
+            self.selected_index = 1
+
+        def cards(self) -> list[_Card]:
+            return [_Card("listen"), _Card("talk"), _Card("ask")]
+
+    hub_screen = _HubScreen()
+    runner = helpers.NavigationSoakRunner(
+        config_dir="config",
+        cycles=1,
+        hold_seconds=0.1,
+        idle_seconds=0.0,
+        tail_idle_seconds=0.0,
+        with_playback=False,
+        provision_test_music=False,
+        test_music_dir="music",
+        skip_sleep=True,
+    )
+    runner._app = SimpleNamespace(
+        screen_manager=SimpleNamespace(get_current_screen=lambda: hub_screen),
+    )
+
+    assert runner._hub_mode() == "talk"
