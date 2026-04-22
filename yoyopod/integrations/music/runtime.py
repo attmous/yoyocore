@@ -73,13 +73,28 @@ class MusicRuntime:
         """Keep playback state aligned with music-backend connectivity."""
         if available:
             logger.info(f"Music backend connected ({reason or 'ready'})")
-            if self.screen_manager is not None:
-                self.screen_manager.refresh_now_playing_screen()
+            self._refresh_visible_music_screen()
             return
 
         logger.warning(f"Music backend unavailable ({reason or 'unknown'})")
         self.runtime.call_interruption_policy.clear()
         self.runtime.music_fsm.transition("stop")
         self.runtime.sync_app_state(f"music_{reason or 'unavailable'}")
-        if self.screen_manager is not None:
-            self.screen_manager.refresh_now_playing_screen()
+        self._refresh_visible_music_screen()
+
+    def _refresh_visible_music_screen(self) -> None:
+        """Refresh the visible music screen that depends on backend availability."""
+
+        if self.screen_manager is None:
+            return
+
+        current_screen = getattr(self.screen_manager, "current_screen", None)
+        current_route = getattr(current_screen, "route_name", None)
+        if current_route in {"playlists", "now_playing"} and hasattr(
+            self.screen_manager,
+            "refresh_current_screen",
+        ):
+            self.screen_manager.refresh_current_screen()
+            return
+
+        self.screen_manager.refresh_now_playing_screen()

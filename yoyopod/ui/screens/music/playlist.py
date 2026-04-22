@@ -161,8 +161,21 @@ class PlaylistScreen(Screen):
             self.loading = False
             self.render()
 
+    def _should_retry_offline_fetch(self) -> bool:
+        """Return True when one visible offline state can recover immediately."""
+
+        if self.loading or self.playlists or self.error_message != "Music offline":
+            return False
+
+        music_service = self._resolve_music_service()
+        return music_service is not None and music_service.is_available
+
     def render(self) -> None:
         """Render the local playlist browser."""
+        if self._should_retry_offline_fetch():
+            self.fetch_playlists()
+            return
+
         lvgl_view = self._ensure_lvgl_view()
         if lvgl_view is None:
             raise RuntimeError("PlaylistScreen requires an initialized LVGL backend")

@@ -23,11 +23,18 @@ class StubRuntime:
 
 
 class StubScreenManager:
-    def __init__(self) -> None:
+    def __init__(self, route_name: str | None = None) -> None:
         self.now_playing_refreshes = 0
+        self.current_screen_refreshes = 0
+        self.current_screen = (
+            None if route_name is None else type("Screen", (), {"route_name": route_name})()
+        )
 
     def refresh_now_playing_screen(self) -> None:
         self.now_playing_refreshes += 1
+
+    def refresh_current_screen(self) -> None:
+        self.current_screen_refreshes += 1
 
 
 def test_local_music_service_scans_playlists_with_track_counts_and_loads_local_only(
@@ -164,3 +171,18 @@ def test_music_runtime_records_recent_local_tracks(tmp_path: Path) -> None:
     )
 
     assert [entry.title for entry in store.list_recent()] == ["Alpha"]
+
+
+def test_music_runtime_refreshes_visible_playlist_screen_on_availability_change() -> None:
+    runtime_owner = MusicRuntime(
+        runtime=StubRuntime(),
+        screen_manager=StubScreenManager(route_name="playlists"),
+        local_music_service=None,
+    )
+
+    runtime_owner.handle_availability_change(True, "connected")
+
+    screen_manager = runtime_owner.screen_manager
+    assert screen_manager is not None
+    assert screen_manager.current_screen_refreshes == 1
+    assert screen_manager.now_playing_refreshes == 0

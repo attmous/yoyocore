@@ -203,3 +203,31 @@ def test_playlist_screen_syncs_error_state_through_lvgl(tmp_path: Path) -> None:
     assert payload["page_text"] is None
     assert payload["empty_title"] == "Music hiccup"
     assert payload["empty_subtitle"] == "Music offline"
+
+
+def test_playlist_screen_recovers_after_music_backend_connects(tmp_path: Path) -> None:
+    """PlaylistScreen should repopulate after a late music-backend connection."""
+
+    music_dir = tmp_path / "Music"
+    music_dir.mkdir()
+    _write_playlist(music_dir / "Alpha.m3u", 3)
+
+    binding = FakeLvglBinding()
+    display = FakeLvglDisplay(binding)
+    backend = MockMusicBackend()
+    screen = PlaylistScreen(
+        display,
+        AppContext(interaction_profile=InteractionProfile.ONE_BUTTON),
+        music_service=LocalMusicService(backend, music_dir=music_dir),
+    )
+
+    screen.enter()
+    screen.render()
+    assert binding.playlist_sync_payloads[-1]["items"] == []
+    assert binding.playlist_sync_payloads[-1]["empty_subtitle"] == "Music offline"
+
+    backend.start()
+    screen.render()
+
+    assert binding.playlist_sync_payloads[-1]["items"] == ["Alpha"]
+    assert binding.playlist_sync_payloads[-1]["badges"] == ["3"]
