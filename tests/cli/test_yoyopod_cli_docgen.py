@@ -25,6 +25,16 @@ def test_docgen_contains_pi_commands() -> None:
         assert cmd in md
 
 
+def test_docgen_contains_dev_commands() -> None:
+    md = generate_commands_md(app)
+
+    assert "## `yoyopod dev`" in md
+    assert "`yoyopod dev docs`" in md
+    assert "`yoyopod dev profile cprofile`" in md
+    assert "`yoyopod dev profile pyinstrument`" in md
+    assert "`yoyopod dev profile pyperf`" in md
+
+
 def test_docgen_does_not_contain_cut_commands() -> None:
     md = generate_commands_md(app)
     for cut in (

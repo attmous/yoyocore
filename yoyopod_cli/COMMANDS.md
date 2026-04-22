@@ -75,4 +75,9 @@ For live help, use `yoyopod <cmd> --help`.
 | Command | What it does |
 |---|---|
 | `yoyopod dev docs` | Regenerate yoyopod_cli/COMMANDS.md from the live Typer tree. |
+| `yoyopod dev profile cprofile` | Profile one bounded target with cProfile. |
+| `yoyopod dev profile pyinstrument` | Profile one bounded target with pyinstrument. |
+| `yoyopod dev profile pyperf` | Benchmark one bounded target with pyperf command. |
+| `yoyopod dev profile targets` | List the bounded profiling targets. |
+| `yoyopod dev profile tools` | Show which profiling tools are available in this environment. |
 
