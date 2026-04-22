@@ -40,6 +40,21 @@ def build_message_store(config: VoIPConfig) -> VoIPMessageStore:
     return VoIPMessageStore(config.message_store_dir)
 
 
+def test_voip_config_requires_server_and_identity_for_backend_start(tmp_path: Path) -> None:
+    """Backend startup should only proceed when the canonical SIP minimum is configured."""
+
+    config = build_config(tmp_path)
+
+    assert config.is_backend_start_configured() is True
+
+    config.sip_identity = ""
+    assert config.is_backend_start_configured() is False
+
+    config.sip_identity = "sip:alice@sip.example.com"
+    config.sip_server = ""
+    assert config.is_backend_start_configured() is False
+
+
 def lookup_contact_name(sip_address: str | None) -> str:
     """Resolve one address to a deterministic display name for tests."""
 

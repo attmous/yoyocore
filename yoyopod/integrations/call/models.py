@@ -138,6 +138,11 @@ class VoIPConfig:
 
         return self.sip_server.strip().lower() == LINPHONE_HOSTED_SIP_SERVER
 
+    def is_backend_start_configured(self) -> bool:
+        """Return whether the native backend has the minimum required startup config."""
+
+        return bool(self.sip_server.strip()) and bool(self.sip_identity.strip())
+
     def effective_file_transfer_server_url(self) -> str:
         """Return the configured or inferred file-transfer endpoint."""
 

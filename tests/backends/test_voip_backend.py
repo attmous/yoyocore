@@ -252,6 +252,20 @@ def test_liblinphone_backend_starts_and_drains_native_events() -> None:
     )
 
 
+def test_voip_manager_skips_backend_start_when_identity_missing() -> None:
+    """VoIPManager should fail fast before touching the backend when SIP identity is absent."""
+
+    binding = FakeBinding()
+    config = build_config()
+    config.sip_identity = ""
+    manager = VoIPManager(config, backend=LiblinphoneBackend(config, binding=binding))
+
+    assert manager.start() is False
+    assert binding.initialized is False
+    assert binding.started is False
+    assert manager.registration_state == RegistrationState.FAILED
+
+
 def test_liblinphone_backend_infers_linphone_hosted_servers() -> None:
     """Hosted Linphone accounts should inherit the same messaging defaults as the official client."""
 

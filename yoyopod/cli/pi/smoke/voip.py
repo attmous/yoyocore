@@ -24,11 +24,11 @@ def _voip_check(config_dir: Path, registration_timeout: float) -> CheckResult:
             details="Liblinphone shim is unavailable; run yoyopod build liblinphone on the Pi",
         )
 
-    if not voip_config.sip_identity:
+    if not voip_config.is_backend_start_configured():
         return CheckResult(
             name="voip",
             status="fail",
-            details="sip_identity is empty in config/communication/calling.yaml",
+            details="VoIP start config is incomplete in config/communication/calling.yaml",
         )
 
     manager = VoIPManager(

@@ -24,7 +24,7 @@ from yoyopod.integrations.call.events import (
     RegistrationChangedEvent,
     VoIPAvailabilityChangedEvent,
 )
-from yoyopod.integrations.call.models import CallState, RegistrationState
+from yoyopod.integrations.call.models import CallState, RegistrationState, VoIPConfig
 from yoyopod.integrations.music.events import (
     MusicAvailabilityChangedEvent,
     PlaybackStateChangedEvent,
@@ -1362,6 +1362,23 @@ def test_recovery_service_schedules_music_reconnect_off_main_thread() -> None:
     assert scheduled_attempts == [0.0]
     assert app._music_recovery.in_flight
     assert app._voip_recovery.next_attempt_at == 1.0
+
+
+def test_recovery_service_skips_unconfigured_voip_recovery() -> None:
+    """Unprovisioned SIP config should not trigger a blocking backend restart attempt."""
+
+    app = YoyoPodApp(simulate=True)
+    app.voip_manager = FakeRecoveringVoIPManager([True])
+    app.voip_manager.config = VoIPConfig(
+        sip_server="sip.example.com",
+        sip_identity="",
+    )
+
+    app.recovery_service.attempt_voip_recovery(0.0)
+
+    assert app.voip_manager.start_calls == 0
+    assert app._voip_recovery.next_attempt_at == app._RECOVERY_MAX_DELAY_SECONDS
+    assert app._voip_recovery.delay_seconds == app._RECOVERY_MAX_DELAY_SECONDS
 
 
 def test_recovery_service_no_longer_owns_power_runtime_helpers() -> None:

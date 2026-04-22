@@ -290,6 +290,22 @@ class RuntimeRecoveryService:
             self.app._voip_recovery.reset()
             return
 
+        voip_config = getattr(self.app.voip_manager, "config", None)
+        if (
+            voip_config is not None
+            and hasattr(voip_config, "is_backend_start_configured")
+            and not voip_config.is_backend_start_configured()
+        ):
+            if recovery_now < self.app._voip_recovery.next_attempt_at:
+                return
+
+            logger.info("Skipping VoIP recovery: SIP identity/server not configured")
+            self.app._voip_recovery.next_attempt_at = (
+                recovery_now + self.app._RECOVERY_MAX_DELAY_SECONDS
+            )
+            self.app._voip_recovery.delay_seconds = self.app._RECOVERY_MAX_DELAY_SECONDS
+            return
+
         if recovery_now < self.app._voip_recovery.next_attempt_at:
             return
 

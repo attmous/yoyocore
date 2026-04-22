@@ -125,6 +125,13 @@ class VoIPManager:
         if self.running:
             return True
 
+        if not self.config.is_backend_start_configured():
+            logger.warning("VoIP start skipped: SIP identity/server not configured")
+            self._update_registration_state(RegistrationState.FAILED)
+            self._notify_availability_change(False, "start_unconfigured")
+            self._notify_message_summary_change()
+            return False
+
         self.running = self.backend.start()
         if not self.running:
             self._update_registration_state(RegistrationState.FAILED)
