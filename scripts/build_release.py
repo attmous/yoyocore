@@ -1,0 +1,190 @@
+"""Build a self-contained release slot directory from the repo.
+
+Produces:
+  <output_root>/<version>/
+    ├── app/              # yoyopod + yoyopod_cli source trees
+    ├── venv/             # uv-resolved site-packages (skipped with --skip-venv)
+    ├── bin/launch        # copy of deploy/scripts/launch.sh
+    ├── assets/           # currently empty; reserved for fonts/images
+    └── manifest.json     # schema-v1 release manifest
+
+The output is rsync-ready: every path is relative, the launch script is
+executable, and the manifest's `full` artifact records a sha256 + size of
+a tarball of this directory (the tarball is also written alongside so
+future OTA can serve it).
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import hashlib
+import shutil
+import subprocess
+import sys
+import tarfile
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
+
+from yoyopod_cli.release_manifest import (  # noqa: E402
+    Artifact,
+    ReleaseManifest,
+    Requirements,
+    dump_manifest,
+)
+
+
+PACKAGE_DIRS: tuple[str, ...] = ("yoyopod", "yoyopod_cli")
+
+
+def compute_version(*, fallback_date: str, git_sha: str | None) -> str:
+    """Return a version string of the form YYYY.MM.DD-<short-sha|dev>."""
+    date_part = fallback_date.replace("-", ".")
+    suffix = git_sha[:8] if git_sha else "dev"
+    return f"{date_part}-{suffix}"
+
+
+def _copy_sources(repo_root: Path, dest_app: Path) -> None:
+    dest_app.mkdir(parents=True, exist_ok=True)
+    for pkg in PACKAGE_DIRS:
+        src = repo_root / pkg
+        if not src.is_dir():
+            raise FileNotFoundError(f"expected source package at {src}")
+        shutil.copytree(
+            src,
+            dest_app / pkg,
+            ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache"),
+        )
+
+
+def _copy_launcher(repo_root: Path, dest_bin: Path) -> None:
+    dest_bin.mkdir(parents=True, exist_ok=True)
+    src = repo_root / "deploy" / "scripts" / "launch.sh"
+    if not src.exists():
+        raise FileNotFoundError(f"launcher script missing: {src}")
+    target = dest_bin / "launch"
+    shutil.copy(src, target)
+    target.chmod(0o755)
+
+
+def _resolve_venv(repo_root: Path, dest_venv: Path, python_version: str) -> None:
+    """Resolve aarch64 wheels into dest_venv/ via `uv pip install --target`.
+
+    Requires network access. Callers can skip via skip_venv=True in tests
+    or for a fast local dry-run.
+    """
+    dest_venv.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "uv", "pip", "install",
+        "--target", str(dest_venv),
+        "--python-version", python_version,
+        "--only-binary", ":all:",
+        "--requirement", str(repo_root / "pyproject.toml"),
+    ]
+    subprocess.run(cmd, check=True)
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+def _make_tarball(slot_dir: Path, out_path: Path) -> None:
+    with tarfile.open(out_path, "w:gz") as tf:
+        tf.add(slot_dir, arcname=slot_dir.name)
+
+
+def build(
+    *,
+    repo_root: Path,
+    output_root: Path,
+    version: str,
+    channel: str,
+    skip_venv: bool = False,
+    python_version: str = "3.12",
+) -> Path:
+    """Produce a slot directory at <output_root>/<version>/.
+
+    Returns the slot directory path.
+    """
+    slot_dir = output_root / version
+    if slot_dir.exists():
+        raise FileExistsError(f"output slot already exists: {slot_dir}")
+    slot_dir.mkdir(parents=True)
+
+    _copy_sources(repo_root, slot_dir / "app")
+    _copy_launcher(repo_root, slot_dir / "bin")
+    (slot_dir / "assets").mkdir(exist_ok=True)
+
+    if skip_venv:
+        (slot_dir / "venv").mkdir()
+    else:
+        _resolve_venv(repo_root, slot_dir / "venv", python_version)
+
+    tarball = output_root / f"{version}.tar.gz"
+    _make_tarball(slot_dir, tarball)
+
+    manifest = ReleaseManifest(
+        version=version,
+        channel=channel,  # type: ignore[arg-type]
+        released_at=dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace(
+            "+00:00", "Z"
+        ),
+        artifacts={
+            "full": Artifact(
+                type="full",
+                sha256=_sha256(tarball),
+                size=tarball.stat().st_size,
+                url=None,
+                base_version=None,
+            ),
+        },
+        requires=Requirements(min_os_version="0.0.0", min_battery_pct=0, min_free_mb=100),
+    )
+    dump_manifest(manifest, slot_dir / "manifest.json")
+    return slot_dir
+
+
+def _git_sha(repo_root: Path) -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        )
+        return out.decode().strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Build a YoyoPod release slot.")
+    parser.add_argument("--output", type=Path, required=True, help="Output root dir")
+    parser.add_argument("--channel", choices=["dev", "beta", "stable"], default="dev")
+    parser.add_argument("--version", type=str, default=None)
+    parser.add_argument("--skip-venv", action="store_true", help="Skip wheel resolution")
+    parser.add_argument("--python-version", default="3.12")
+    args = parser.parse_args()
+
+    repo_root = _REPO_ROOT
+    version = args.version or compute_version(
+        fallback_date=dt.date.today().isoformat(),
+        git_sha=_git_sha(repo_root),
+    )
+    slot = build(
+        repo_root=repo_root,
+        output_root=args.output,
+        version=version,
+        channel=args.channel,
+        skip_venv=args.skip_venv,
+        python_version=args.python_version,
+    )
+    print(str(slot))
+
+
+if __name__ == "__main__":
+    main()
