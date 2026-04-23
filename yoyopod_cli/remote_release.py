@@ -428,6 +428,28 @@ def _download_remote_artifact(conn: RemoteConnection, remote_path: str, local_pa
     return subprocess.run(scp_cmd, check=False).returncode
 
 
+def _install_release_from_url(
+    conn: object,
+    *,
+    url: str,
+    first_deploy: bool,
+    force: bool,
+) -> int:
+    """Invoke the Pi-side installer script against one published artifact URL."""
+    installer = f"{_slots().bin_dir()}/install-release.sh"
+    command = [
+        "sudo",
+        installer,
+        f"--root={_slots().root}",
+        f"--url={url}",
+    ]
+    if first_deploy:
+        command.append("--first-deploy")
+    if force:
+        command.append("--force")
+    return _run_slot_remote(conn, " ".join(shlex.quote(part) for part in command), tty=True)
+
+
 @app.command("push")
 def push(
     ctx: typer.Context,
@@ -636,3 +658,34 @@ def build_pi(
             )
 
     typer.echo(str(local_artifact))
+
+
+@app.command("install-url")
+def install_url(
+    ctx: typer.Context,
+    url: str = typer.Argument(..., help="HTTPS URL of the published slot tarball."),
+    first_deploy: bool = typer.Option(
+        False,
+        "--first-deploy",
+        help=(
+            "Acknowledge there is no rollback path yet "
+            "(required when previous symlink doesn't exist on the Pi)."
+        ),
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Overwrite an existing non-active slot version on the Pi.",
+    ),
+) -> None:
+    """Download and install one published slot artifact on the Pi."""
+
+    conn = _conn(ctx)
+    rc = _install_release_from_url(
+        conn,
+        url=url,
+        first_deploy=first_deploy,
+        force=force,
+    )
+    if rc != 0:
+        raise typer.Exit(code=rc)

@@ -7,7 +7,9 @@
 # - Installs yoyopod-slot.service + yoyopod-rollback.service
 # - Writes /etc/default/yoyopod-slot with the invoking user/group
 # - Copies deploy/scripts/rollback.sh to /opt/yoyopod/bin/rollback.sh
+# - Copies deploy/scripts/install_release.sh to /opt/yoyopod/bin/install-release.sh
 # - Optional: migrates config + data from ~/yoyopod-core/ to /opt/yoyopod/state/
+# - Optional: installs a first release artifact after bootstrap
 #
 # Requires sudo. Invoke as the user who will run the app:
 #   sudo -E deploy/scripts/bootstrap_pi.sh --migrate
@@ -20,15 +22,27 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 ROOT="/opt/yoyopod"
 MIGRATE=0
+RELEASE_ARCHIVE=""
+RELEASE_URL=""
 for arg in "$@"; do
     case "$arg" in
         --migrate) MIGRATE=1 ;;
         --root=*) ROOT="${arg#--root=}" ;;
+        --release-archive=*) RELEASE_ARCHIVE="${arg#--release-archive=}" ;;
+        --release-url=*) RELEASE_URL="${arg#--release-url=}" ;;
         --root) echo "use --root=<path> form" >&2; exit 2 ;;
-        --help|-h) echo "Usage: $0 [--migrate] [--root=<path>]"; exit 0 ;;
+        --help|-h)
+            echo "Usage: $0 [--migrate] [--root=<path>] [--release-archive=<path>] [--release-url=<url>]"
+            exit 0
+            ;;
         *) echo "unknown arg: $arg" >&2; exit 2 ;;
     esac
 done
+
+if [ -n "${RELEASE_ARCHIVE}" ] && [ -n "${RELEASE_URL}" ]; then
+    echo "bootstrap: pass only one of --release-archive or --release-url" >&2
+    exit 2
+fi
 
 if [ "${EUID}" -ne 0 ]; then
     echo "bootstrap: must run as root (use sudo -E)" >&2
@@ -48,6 +62,9 @@ install -d -m 0755 -o "${INVOKING_USER}" -g "${INVOKING_GROUP}" \
 install -m 0755 -o root -g root \
     "${REPO_ROOT}/deploy/scripts/rollback.sh" \
     "${ROOT}/bin/rollback.sh"
+install -m 0755 -o root -g root \
+    "${REPO_ROOT}/deploy/scripts/install_release.sh" \
+    "${ROOT}/bin/install-release.sh"
 
 # 3. Install systemd units.
 install -m 0644 -o root -g root \
@@ -62,6 +79,19 @@ if [ "${ROOT}" != "/opt/yoyopod" ]; then
     sed -i "s|/opt/yoyopod|${ROOT}|g" \
         "${UNIT_DIR}/yoyopod-slot.service" \
         "${UNIT_DIR}/yoyopod-rollback.service"
+fi
+
+if [ -n "${RELEASE_ARCHIVE}" ] || [ -n "${RELEASE_URL}" ]; then
+    INSTALL_CMD=("${ROOT}/bin/install-release.sh" "--root=${ROOT}" "--first-deploy")
+    if [ -n "${RELEASE_ARCHIVE}" ]; then
+        INSTALL_CMD+=("--artifact=${RELEASE_ARCHIVE}")
+    fi
+    if [ -n "${RELEASE_URL}" ]; then
+        INSTALL_CMD+=("--url=${RELEASE_URL}")
+    fi
+    echo "bootstrap: install initial release"
+    "${INSTALL_CMD[@]}"
+    systemctl enable --now yoyopod-slot.service
 fi
 
 # 4. EnvironmentFile with the user/group the slot service should run as.
@@ -103,8 +133,11 @@ cat <<EOF
 bootstrap complete.  slot root: ${ROOT}
 
 Next steps on the dev machine:
-  uv run python scripts/build_release.py --output ./build/releases --channel dev
-  yoyopod remote release push ./build/releases/<version> --first-deploy
+  uv run yoyopod remote release build-pi --output ./build/releases --channel dev
+  yoyopod remote release push ./build/releases/<version>.tar.gz --first-deploy
+
+Or install a published CI/release artifact directly:
+  yoyopod remote release install-url <artifact-url> --first-deploy
 
 Then on the Pi:
   sudo systemctl enable --now yoyopod-slot.service

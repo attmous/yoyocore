@@ -25,6 +25,8 @@ Current contract:
 - `yoyopod remote release push` accepts either a slot directory or a `.tar.gz` artifact
 - Pi-side hydration is now a legacy compatibility path used only with `--hydrate-on-target`
 - `yoyopod remote release build-pi` builds a self-contained artifact on the Pi checkout and downloads it locally
+- CI and tagged releases can publish a ready-to-install ARM64 slot tarball
+- `deploy/scripts/install_release.sh` installs a published slot tarball directly under `/opt/yoyopod`
 - tracked repo `config/` is bundled into every slot
 - `YOYOPOD_STATE_DIR` exists for persistent state, but runtime config is still read
   from the slot's bundled `./config`
@@ -153,6 +155,14 @@ That value must match `slot.root` in `deploy/pi-deploy.local.yaml`.
 After bootstrap completes, `yoyopod remote release ...` no longer needs this
 checkout to remain on the Pi.
 
+If you already have a published slot artifact URL, bootstrap can also install it
+immediately:
+
+```bash
+cd ~/yoyopod-core
+sudo -E ./deploy/scripts/bootstrap_pi.sh --release-url=<artifact-url>
+```
+
 ### 4. Build the first self-contained slot
 
 On the dev machine:
@@ -188,6 +198,13 @@ If you have not stored `host` and `user` locally yet:
 
 ```bash
 uv run yoyopod remote --host rpi-zero --user tifo release push build/releases/<version>.tar.gz --first-deploy
+```
+
+If the artifact was published by CI or a tagged GitHub release, you can install
+it on the Pi without a local build directory:
+
+```bash
+uv run yoyopod remote --host rpi-zero --user tifo release install-url <artifact-url> --first-deploy
 ```
 
 ### 6. Enable boot-time startup
@@ -273,6 +290,12 @@ Now push the first slot release:
 uv run yoyopod remote --host rpi-zero --user tifo release push build/releases/<version>.tar.gz --first-deploy
 ```
 
+Or install the published release asset directly:
+
+```bash
+uv run yoyopod remote --host rpi-zero --user tifo release install-url <artifact-url> --first-deploy
+```
+
 After the push succeeds:
 
 ```bash
@@ -314,6 +337,13 @@ uv run yoyopod remote release push build/releases/<version>.tar.gz
 uv run yoyopod remote release status
 ```
 
+For published artifacts:
+
+```bash
+uv run yoyopod remote release install-url <artifact-url>
+uv run yoyopod remote release status
+```
+
 What happens during `release push`:
 
 1. upload the new slot to `/opt/yoyopod/releases/<version>/`
@@ -324,6 +354,15 @@ What happens during `release push`:
 5. atomically flip `current` and `previous`
 6. restart `yoyopod-slot.service`
 7. run a shell-only live probe against the active systemd unit and active slot path
+
+What happens during `release install-url`:
+
+1. download the published tarball on the Pi
+2. safely extract it into a staging dir
+3. run slot preflight using the slot-local runtime
+4. atomically flip `current` and `previous`
+5. restart `yoyopod-slot.service`
+6. run the same shell-only live probe
 
 ## Rollback
 

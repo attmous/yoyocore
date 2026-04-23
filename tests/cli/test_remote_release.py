@@ -768,3 +768,33 @@ def test_build_pi_keep_remote_skips_cleanup(
     result = runner.invoke(release_app, ["build-pi", "--output", str(tmp_path), "--keep-remote"])
     assert result.exit_code == 0, result.stdout
     run_remote_mock.assert_not_called()
+
+
+@patch("yoyopod_cli.remote_release._conn")
+@patch("yoyopod_cli.remote_release.run_remote")
+def test_install_url_invokes_root_installer_script_directly(
+    run_remote_mock: MagicMock,
+    conn: MagicMock,
+) -> None:
+    conn.return_value = _fake_conn()
+    run_remote_mock.return_value = 0
+
+    result = runner.invoke(
+        release_app,
+        [
+            "install-url",
+            "https://example.com/yoyopod-slot-v0.2.0-linux-arm64.tar.gz",
+            "--first-deploy",
+            "--force",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    command = run_remote_mock.call_args[0][1]
+    assert "sudo" in command
+    assert "/opt/yoyopod/bin/install-release.sh" in command
+    assert "--root=/opt/yoyopod" in command
+    assert "--url=https://example.com/yoyopod-slot-v0.2.0-linux-arm64.tar.gz" in command
+    assert "--first-deploy" in command
+    assert "--force" in command
+    assert run_remote_mock.call_args.kwargs["workdir"] is None
+    assert run_remote_mock.call_args.kwargs["tty"] is True
