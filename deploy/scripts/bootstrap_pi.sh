@@ -97,9 +97,16 @@ bootstrap complete.
 
 Next steps on the dev machine:
   uv run python scripts/build_release.py --output ./build/releases --channel dev
-  yoyopod remote release push ./build/releases/<version>
+  yoyopod remote release push ./build/releases/<version> --first-deploy
 
 Then on the Pi:
   sudo systemctl enable --now yoyopod-slot.service
+
+NOTE: the running app does not yet honour YOYOPOD_STATE_DIR/config/ —
+the config loader still reads from the slot's relative ./config dir.
+Migrated config in /opt/yoyopod/state/config/ will be unused until that
+follow-up ticket lands. For now, the app runs with default settings.
+This does NOT affect VoIP/music functionality if your old config was
+already merged into the slot's config/ dir at build time.
 
 EOF
