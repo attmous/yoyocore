@@ -36,6 +36,15 @@ def _write_slot(tmp_path: Path, version: str) -> Path:
     return slot
 
 
+def _fake_conn() -> MagicMock:
+    """Return a mock RemoteConnection with test-safe host/user attributes."""
+    conn = MagicMock()
+    conn.host = "test-pi.local"
+    conn.user = "pi"
+    return conn
+
+
+@patch("yoyopod_cli.remote_release._conn")
 @patch("yoyopod_cli.remote_release._rsync_to_pi")
 @patch("yoyopod_cli.remote_release._run_preflight_on_pi")
 @patch("yoyopod_cli.remote_release._flip_symlinks_on_pi")
@@ -45,8 +54,10 @@ def test_push_runs_build_rsync_preflight_flip_live(
     flip: MagicMock,
     preflight: MagicMock,
     rsync: MagicMock,
+    conn: MagicMock,
     tmp_path: Path,
 ) -> None:
+    conn.return_value = _fake_conn()
     slot = _write_slot(tmp_path, "2026.04.22-abc")
     rsync.return_value = 0
     preflight.return_value = 0
@@ -62,15 +73,20 @@ def test_push_runs_build_rsync_preflight_flip_live(
     live_probe.assert_called_once()
 
 
+@patch("yoyopod_cli.remote_release._conn")
 @patch("yoyopod_cli.remote_release._rsync_to_pi")
 @patch("yoyopod_cli.remote_release._run_preflight_on_pi")
 @patch("yoyopod_cli.remote_release._flip_symlinks_on_pi")
+@patch("yoyopod_cli.remote_release._cleanup_remote_slot")
 def test_push_aborts_and_cleans_up_on_preflight_fail(
+    cleanup: MagicMock,
     flip: MagicMock,
     preflight: MagicMock,
     rsync: MagicMock,
+    conn: MagicMock,
     tmp_path: Path,
 ) -> None:
+    conn.return_value = _fake_conn()
     slot = _write_slot(tmp_path, "2026.04.22-abc")
     rsync.return_value = 0
     preflight.return_value = 1
@@ -78,8 +94,10 @@ def test_push_aborts_and_cleans_up_on_preflight_fail(
     result = runner.invoke(release_app, ["push", str(slot)])
     assert result.exit_code != 0
     flip.assert_not_called()
+    cleanup.assert_called_once_with("2026.04.22-abc")
 
 
+@patch("yoyopod_cli.remote_release._conn")
 @patch("yoyopod_cli.remote_release._rsync_to_pi")
 @patch("yoyopod_cli.remote_release._run_preflight_on_pi")
 @patch("yoyopod_cli.remote_release._flip_symlinks_on_pi")
@@ -91,8 +109,10 @@ def test_push_rolls_back_on_live_fail(
     flip: MagicMock,
     preflight: MagicMock,
     rsync: MagicMock,
+    conn: MagicMock,
     tmp_path: Path,
 ) -> None:
+    conn.return_value = _fake_conn()
     slot = _write_slot(tmp_path, "2026.04.22-abc")
     rsync.return_value = 0
     preflight.return_value = 0
@@ -128,3 +148,31 @@ def test_status_prints_current_and_previous(status: MagicMock) -> None:
     assert result.exit_code == 0
     assert "2026.04.22-abc" in result.stdout
     assert "2026.04.20-def" in result.stdout
+
+
+@patch("yoyopod_cli.remote_release._conn")
+@patch("yoyopod_cli.remote_release._rsync_to_pi")
+@patch("yoyopod_cli.remote_release._run_preflight_on_pi")
+@patch("yoyopod_cli.remote_release._flip_symlinks_on_pi")
+@patch("yoyopod_cli.remote_release._run_live_probe_on_pi")
+@patch("yoyopod_cli.remote_release._rollback_on_pi")
+def test_push_surfaces_rollback_failure_when_rollback_also_fails(
+    rollback: MagicMock,
+    live: MagicMock,
+    flip: MagicMock,
+    preflight: MagicMock,
+    rsync: MagicMock,
+    conn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    conn.return_value = _fake_conn()
+    slot = _write_slot(tmp_path, "2026.04.22-abc")
+    rsync.return_value = 0
+    preflight.return_value = 0
+    flip.return_value = 0
+    live.return_value = 1
+    rollback.return_value = 2  # rollback also fails
+
+    result = runner.invoke(release_app, ["push", str(slot)])
+    assert result.exit_code != 0
+    assert "rollback also failed" in (result.stderr or result.stdout).lower()
