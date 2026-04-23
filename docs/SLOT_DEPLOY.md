@@ -6,7 +6,8 @@ Use slot deploy when you want immutable release directories under `/opt/yoyopod`
 atomic `current`/`previous` flips, and rollback support. The running app lives
 under `/opt/yoyopod`. As of the current implementation, `yoyopod remote release`
 no longer depends on a repo checkout on the Pi; the older `remote sync`,
-`remote validate`, and `remote setup` flows still do.
+`remote validate`, and `remote setup` flows still do, but they no longer require
+`uv` to be installed on the Pi.
 
 ## Current Status
 
@@ -89,6 +90,10 @@ The older `yoyopod remote sync`, `yoyopod remote validate`, and
 `yoyopod remote setup` flows still use the configured `project_dir` and therefore
 still need a stable checkout on the board.
 
+Those legacy checkout-based flows now bootstrap and use the checkout-local
+`.venv/bin/python` directly. In other words: keep the checkout if you still use
+those flows, but you do not need a separate `uv` install on the board anymore.
+
 If you still use those legacy remote flows, the default checkout path is:
 
 ```bash
@@ -122,7 +127,8 @@ uv run yoyopod remote verify-setup --with-pisugar
 ```
 
 Add `--with-network` and/or `--with-voice` if that board needs the modem or
-voice stack.
+voice stack. `remote setup` now creates or refreshes the checkout `.venv` with
+plain Python tooling on the board instead of relying on `uv`.
 
 ### 3. Bootstrap the slot-deploy root
 
@@ -331,12 +337,15 @@ ssh tifo@rpi-zero 'readlink -f /opt/yoyopod/current && readlink -f /opt/yoyopod/
 
 These are the issues found while bringing the flow up on a real Pi Zero 2W.
 
-### Release commands no longer need a repo checkout, but legacy remote flows still do
+### Release commands no longer need a repo checkout; legacy remote flows still do
 
 `yoyopod remote release ...` now talks directly to `/opt/yoyopod`, so it does not
 need `~/yoyopod-core` after bootstrap. The older `remote sync`, `remote validate`,
 and `remote setup` flows still depend on `project_dir`, so only remove the checkout
 if you are intentionally dropping those workflows.
+
+Those legacy checkout-based flows no longer require `uv` on the board, though:
+they bootstrap and use the checkout-local `.venv` directly.
 
 ### First deploy has no safety net
 

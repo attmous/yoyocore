@@ -13,7 +13,7 @@ from typing import Annotated
 
 import typer
 
-from yoyopod_cli.common import REPO_ROOT
+from yoyopod_cli.common import REPO_ROOT, checkout_python_path
 from yoyopod.core import SETUP_TRACKED_CONFIG_FILES
 
 app = typer.Typer(
@@ -26,6 +26,7 @@ TRACKED_CONFIG_PATHS: tuple[Path, ...] = tuple(
     REPO_ROOT / relative_path for relative_path in SETUP_TRACKED_CONFIG_FILES
 )
 CORE_PI_PACKAGES: tuple[str, ...] = (
+    "python3-venv",
     "mpv",
     "ffmpeg",
     "liblinphone-dev",
@@ -50,6 +51,13 @@ NATIVE_ARTIFACTS: tuple[Path, ...] = (
     / "build"
     / "libyoyopod_liblinphone_shim.so",
 )
+PI_VENV_DIR = ".venv"
+
+
+def _pi_venv_python(venv_dir: str = PI_VENV_DIR) -> str:
+    """Return the checkout-local Python path for the Pi setup virtualenv."""
+
+    return checkout_python_path(venv_dir)
 
 
 @dataclass(frozen=True)
@@ -179,11 +187,13 @@ def build_pi_setup_commands(
     with_voice: bool,
     with_network: bool,
     with_pisugar: bool,
+    venv_dir: str = PI_VENV_DIR,
     skip_uv_sync: bool = False,
     skip_builds: bool = False,
 ) -> tuple[SetupCommand, ...]:
     """Build the on-device Raspberry Pi bootstrap command sequence."""
 
+    venv_python = _pi_venv_python(venv_dir)
     commands: list[SetupCommand] = [
         SetupCommand("apt-update", ("sudo", "apt", "update")),
         SetupCommand(
@@ -202,12 +212,39 @@ def build_pi_setup_commands(
         ),
     ]
     if not skip_uv_sync:
-        commands.append(SetupCommand("uv-sync-dev", ("uv", "sync", "--extra", "dev")))
+        commands.extend(
+            (
+                SetupCommand("venv-create", ("python3", "-m", "venv", venv_dir)),
+                SetupCommand(
+                    "pip-upgrade",
+                    (
+                        venv_python,
+                        "-m",
+                        "pip",
+                        "install",
+                        "--upgrade",
+                        "pip",
+                        "setuptools",
+                        "wheel",
+                    ),
+                ),
+                SetupCommand(
+                    "pip-install-dev",
+                    (venv_python, "-m", "pip", "install", "-e", ".[dev]"),
+                ),
+            )
+        )
     if not skip_builds:
         commands.extend(
             (
-                SetupCommand("build-liblinphone", ("uv", "run", "yoyopod", "build", "liblinphone")),
-                SetupCommand("build-lvgl", ("uv", "run", "yoyopod", "build", "lvgl")),
+                SetupCommand(
+                    "build-liblinphone",
+                    (venv_python, "-m", "yoyopod_cli.main", "build", "liblinphone"),
+                ),
+                SetupCommand(
+                    "build-lvgl",
+                    (venv_python, "-m", "yoyopod_cli.main", "build", "lvgl"),
+                ),
             )
         )
     return tuple(commands)
@@ -241,7 +278,8 @@ def collect_pi_setup_checks(
 
     checks: list[SetupCheck] = []
     checks.extend(_file_check(path) for path in TRACKED_CONFIG_PATHS)
-    checks.append(_tool_check("uv"))
+    checks.append(_tool_check("python3"))
+    checks.append(_file_check(REPO_ROOT / _pi_venv_python()))
     checks.extend(
         _apt_package_check(package)
         for package in pi_package_list(

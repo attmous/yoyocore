@@ -24,11 +24,12 @@ The Raspberry Pi should reuse one stable checkout path, configured by `project_d
 Exception: `yoyopod remote release ...` no longer needs that checkout after the
 board has been bootstrapped for slot deploy. The checkout is still required for
 the legacy `remote sync`, `remote validate`, and `remote setup` flows described
-in this guide.
+in this guide, but those legacy flows now use the checkout-local `.venv`
+directly and do not require `uv` to be installed on the Pi.
 
 Why this is the default:
 
-- `uv sync` is expensive on Pi Zero hardware
+- Python environment refreshes are expensive on Pi Zero hardware
 - native LVGL and Liblinphone rebuilds can be expensive
 - repeated fresh copies waste time
 - the service unit, logs, PID file, and restart flow all assume one stable path
@@ -70,6 +71,8 @@ uv run yoyopod remote verify-setup --with-pisugar
 ```
 
 Add `--with-voice` and/or `--with-network` when the target needs the TTS or modem paths. `--with-pisugar` is the normal Whisplay and PiSugar path because it pulls in the `pisugar-server` package and service check.
+`remote setup` now bootstraps the board checkout with `python3 -m venv` and
+`pip install -e '.[dev]'`, so the Pi no longer needs a separate `uv` install.
 
 Examples:
 
@@ -132,7 +135,6 @@ yoyopod remote validate --branch <branch> --sha <commit> --with-power --with-rtc
 yoyopod remote validate --branch <branch> --sha <commit> --with-navigation
 yoyopod remote validate --branch <branch> --sha <commit> --with-music --with-navigation
 yoyopod remote validate --branch <branch> --sha <commit> --with-lvgl-soak
-yoyopod remote validate --branch <branch> --sha <commit> --skip-uv-sync
 ```
 
 When `--with-music` is enabled, the Pi-side smoke flow seeds the deterministic validation library into the configured `test_music_target_dir` before it exercises the music backend.
@@ -149,7 +151,7 @@ The seeded validation library is explicit and stable:
 1. stops if the local worktree is dirty
 2. verifies the requested branch is pushed
 3. syncs the stable Pi checkout to the branch and exact SHA
-4. runs `uv sync --extra dev` unless skipped
+4. uses the checkout-local `.venv/bin/python` to run the Pi-side validation commands
 5. runs `yoyopod pi validate deploy`
 6. runs the requested target-side validation checks
 7. restarts the app
