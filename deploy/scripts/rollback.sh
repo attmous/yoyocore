@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+# deploy/scripts/rollback.sh
+#
+# Rollback: swap `current` and `previous` symlinks, then restart the service.
+# Intended to be called by yoyopod-rollback.service (triggered by
+# yoyopod-slot.service's OnFailure=) or manually by an operator.
+#
+# Contract:
+#   * /opt/yoyopod/current must be a symlink
+#   * /opt/yoyopod/previous must be a symlink
+# If either precondition fails, exit nonzero and DO NOT touch anything.
+
+set -euo pipefail
+
+ROOT="${YOYOPOD_ROOT:-/opt/yoyopod}"
+CURRENT="${ROOT}/current"
+PREVIOUS="${ROOT}/previous"
+
+if [ ! -L "${CURRENT}" ]; then
+    echo "rollback: ${CURRENT} is not a symlink" >&2
+    exit 2
+fi
+if [ ! -L "${PREVIOUS}" ]; then
+    echo "rollback: ${PREVIOUS} is not a symlink (nothing to roll back to)" >&2
+    exit 2
+fi
+
+# Swap current <-> previous atomically via a temp rename dance.
+# Linux rename(2) of a symlink over another symlink on the same filesystem is atomic.
+TMP="${ROOT}/current.tmp"
+ln -sfn "$(readlink "${CURRENT}")" "${TMP}"
+ln -sfn "$(readlink "${PREVIOUS}")" "${CURRENT}.new"
+mv -T "${CURRENT}.new" "${CURRENT}"
+mv -T "${TMP}" "${PREVIOUS}.new"
+mv -T "${PREVIOUS}.new" "${PREVIOUS}"
+
+echo "rollback: swapped current <- $(readlink "${CURRENT}")"
+
+# Only attempt systemctl if we're on a systemd host (skipped in tests).
+if command -v systemctl >/dev/null 2>&1 && [ -z "${YOYOPOD_SKIP_SYSTEMCTL:-}" ]; then
+    systemctl restart yoyopod-slot.service
+fi
