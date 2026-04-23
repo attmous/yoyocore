@@ -1,0 +1,124 @@
+name: Review finding — Docs
+description: File a documentation finding from a codebase review (stale, missing, inaccurate, or contradictory docs).
+title: "[Docs] "
+labels: ["docs", "review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for documentation findings produced during a codebase review.
+        See `.github/ISSUE_TEMPLATE/README.md` for the reviewer contract.
+
+  - type: input
+    id: finding-id
+    attributes:
+      label: Finding ID
+      description: Short reviewer-assigned ID, e.g. `D01`. Optional but helpful for cross-referencing a review summary issue.
+      placeholder: D01
+    validations:
+      required: false
+
+  - type: input
+    id: source-commit-sha
+    attributes:
+      label: Source commit SHA
+      description: The exact commit SHA the finding was observed against.
+      placeholder: 8f624ed2...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: doc-problem
+    attributes:
+      label: Doc problem
+      description: What's wrong with the documentation?
+      options:
+        - stale
+        - missing
+        - inaccurate
+        - contradictory
+    validations:
+      required: true
+
+  - type: input
+    id: doc-location
+    attributes:
+      label: Doc location
+      description: Path to the affected doc, or "N/A — doc missing" if the doc should exist but does not.
+      placeholder: docs/SYSTEM_ARCHITECTURE.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-it-should-say
+    attributes:
+      label: What it should say
+      description: The corrected or intended content. Optional — reviewers may flag a problem without yet knowing the resolution.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - critical
+        - high
+        - medium
+        - low
+    validations:
+      required: true
+
+  - type: dropdown
+    id: effort
+    attributes:
+      label: Effort
+      options:
+        - small
+        - medium
+        - large
+    validations:
+      required: true
+
+  - type: textarea
+    id: files-affected
+    attributes:
+      label: Files affected
+      description: Doc paths (plus any related code paths), one per line.
+      placeholder: |
+        docs/SYSTEM_ARCHITECTURE.md
+        yoyopod/core/application.py
+    validations:
+      required: true
+
+  - type: textarea
+    id: finding
+    attributes:
+      label: Finding
+      description: What the doc currently says (or fails to say), observed at the pinned SHA.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Who's misled and how. What decisions are people making based on the stale/inaccurate content.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-direction
+    attributes:
+      label: Suggested direction
+      description: Observational, not prescriptive. What the correct narrative should convey rather than verbatim replacement text (that goes in "What it should say").
+    validations:
+      required: false
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Links to related docs, rules, or prior issues.
+    validations:
+      required: false
