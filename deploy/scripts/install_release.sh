@@ -170,6 +170,7 @@ _preflight_slot() {
 
     YOYOPOD_APP_PATH="${app_path}" \
     YOYOPOD_RELEASE_MANIFEST="${manifest_path}" \
+    PYTHONDONTWRITEBYTECODE=1 \
     "${python_bin}" -c \
         "import os, sys; sys.path.insert(0, os.environ['YOYOPOD_APP_PATH']); from yoyopod_cli.health import app; app()" \
         preflight --slot "${slot_dir}"
@@ -178,6 +179,8 @@ _preflight_slot() {
 _live_probe() {
     local root="$1"
     local version="$2"
+    local stable=0
+    local required_stable=5
 
     for _ in $(seq 1 60); do
         if systemctl is-active --quiet yoyopod-slot.service; then
@@ -189,10 +192,19 @@ _live_probe() {
                 cwd="$(readlink -f "/proc/${pid}/cwd" 2>/dev/null || true)"
                 if [ -n "${current_path}" ] && [ "${cwd}" = "${current_path}" ] && \
                     [ "$(basename "${current_path}")" = "${version}" ]; then
-                    echo "install-release: live version=${version}"
-                    return 0
+                    stable=$((stable + 1))
+                    if [ "${stable}" -ge "${required_stable}" ]; then
+                        echo "install-release: live version=${version}"
+                        return 0
+                    fi
+                else
+                    stable=0
                 fi
+            else
+                stable=0
             fi
+        else
+            stable=0
         fi
         sleep 1
     done
@@ -233,6 +245,10 @@ if [ "${FIRST_DEPLOY}" -ne 1 ] && [ ! -L "${ROOT}/previous" ]; then
 fi
 
 cp -a "${SLOT_DIR}" "${TARGET_DIR}"
+if [ "${EUID}" -eq 0 ]; then
+    RELEASE_OWNER="$(stat -c '%u:%g' "${ROOT}/releases")"
+    chown -R "${RELEASE_OWNER}" "${TARGET_DIR}"
+fi
 chmod 755 "${TARGET_DIR}/bin/launch"
 
 echo "install-release: preflight ${VERSION}"
