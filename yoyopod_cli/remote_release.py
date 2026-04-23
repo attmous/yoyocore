@@ -13,7 +13,7 @@ from pathlib import Path
 
 import typer
 
-from yoyopod_cli.common import checkout_python_path
+from yoyopod_cli.common import checkout_python_path, shell_quote_preserving_home
 from yoyopod_cli.paths import SlotPaths, load_pi_paths, load_slot_paths
 from yoyopod_cli.release_manifest import ReleaseManifest, load_manifest, validate_release_version
 from yoyopod_cli.remote_shared import RemoteConnection, pi_conn
@@ -110,7 +110,9 @@ def _safe_extract_tarball(artifact: Path, destination: Path) -> None:
         members = handle.getmembers()
         member_names = [member.name.rstrip("/") for member in members]
         for member in members:
-            if member.issym() or member.islnk():
+            if member.islnk():
+                raise ValueError(f"tarball contains unsafe hard link: {member.name}")
+            if member.issym():
                 link_target = ((destination / member.name).parent / member.linkname).resolve()
                 try:
                     link_target.relative_to(destination_root)
@@ -353,8 +355,9 @@ def _cleanup_remote_slot(conn: object, version: str) -> None:
 
 
 def _check_rollback_available(conn: object) -> int:
-    """Return 0 if previous symlink exists as a symlink on the Pi, nonzero otherwise."""
-    cmd = f"test -L {shlex.quote(_slots().previous_path())}"
+    """Return 0 if previous resolves to an existing rollback target."""
+    previous_path = shlex.quote(_slots().previous_path())
+    cmd = f'test -L {previous_path} && target=$(readlink -e {previous_path}) && test -n "$target"'
     return _run_slot_remote(conn, cmd)
 
 
@@ -389,7 +392,7 @@ def _slot_exists_state(conn: object, version: str) -> str:
 def _remote_build_pi_command(*, channel: str, version: str | None, python_version: str) -> str:
     """Return one checkout-based remote command that builds a self-contained artifact."""
     pi = load_pi_paths()
-    python_bin = shlex.quote(checkout_python_path(pi.venv))
+    python_bin = shell_quote_preserving_home(checkout_python_path(pi.venv))
     version_arg = f" --version {shlex.quote(version)}" if version else ""
     return (
         "set -euo pipefail; "
@@ -656,29 +659,31 @@ def build_pi(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=2) from exc
 
-    local_output = output.resolve()
-    local_output.mkdir(parents=True, exist_ok=True)
-    local_artifact = local_output / Path(built.artifact_path).name
-    if local_artifact.exists() and not force:
-        typer.echo(
-            f"local artifact already exists: {local_artifact}\n" "Pass --force to overwrite it.",
-            err=True,
-        )
-        raise typer.Exit(code=2)
-
-    typer.echo(f"download -> {local_artifact}")
-    rc = _download_remote_artifact(conn, built.artifact_path, local_artifact)
-    if rc != 0:
-        typer.echo("download failed", err=True)
-        raise typer.Exit(code=rc)
-
-    if not keep_remote:
-        cleanup_rc = _run_slot_remote(conn, f"rm -rf {shlex.quote(built.build_root)}")
-        if cleanup_rc != 0:
+    try:
+        local_output = output.resolve()
+        local_output.mkdir(parents=True, exist_ok=True)
+        local_artifact = local_output / Path(built.artifact_path).name
+        if local_artifact.exists() and not force:
             typer.echo(
-                f"warning: remote cleanup failed for {built.build_root} (exit {cleanup_rc})",
+                f"local artifact already exists: {local_artifact}\n"
+                "Pass --force to overwrite it.",
                 err=True,
             )
+            raise typer.Exit(code=2)
+
+        typer.echo(f"download -> {local_artifact}")
+        rc = _download_remote_artifact(conn, built.artifact_path, local_artifact)
+        if rc != 0:
+            typer.echo("download failed", err=True)
+            raise typer.Exit(code=rc)
+    finally:
+        if not keep_remote:
+            cleanup_rc = _run_slot_remote(conn, f"rm -rf {shlex.quote(built.build_root)}")
+            if cleanup_rc != 0:
+                typer.echo(
+                    f"warning: remote cleanup failed for {built.build_root} (exit {cleanup_rc})",
+                    err=True,
+                )
 
     typer.echo(str(local_artifact))
 

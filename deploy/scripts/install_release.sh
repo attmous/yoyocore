@@ -104,7 +104,9 @@ with tarfile.open(artifact, "r:*") as handle:
     members = handle.getmembers()
     member_names = [member.name.rstrip("/") for member in members]
     for member in members:
-        if member.issym() or member.islnk():
+        if member.islnk():
+            raise SystemExit(f"install-release: tarball contains unsafe hard link: {member.name}")
+        if member.issym():
             link_target = ((stage_dir / member.name).parent / member.linkname).resolve()
             try:
                 link_target.relative_to(stage_dir)

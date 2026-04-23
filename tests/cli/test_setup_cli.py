@@ -188,6 +188,7 @@ def test_collect_pi_setup_checks_require_packages_native_artifacts_and_service(
         "which",
         lambda program: "/usr/bin/python3" if program == "python3" else None,
     )
+
     def fake_run(command, check=False, capture_output=False, text=False):
         if command[:2] == ["dpkg-query", "-W"]:
             return SimpleNamespace(returncode=0, stdout="install ok installed", stderr="")
@@ -234,6 +235,41 @@ def test_collect_pi_setup_checks_uses_configured_venv_path(tmp_path, monkeypatch
 
     assert any(
         "custom-venv" in check.label and check.label.endswith("python") and check.ok
+        for check in checks
+    )
+
+
+def test_collect_pi_setup_checks_expands_home_relative_venv_path(tmp_path, monkeypatch) -> None:
+    home = tmp_path / "home"
+    custom_python = home / ".venv" / "bin" / "python"
+    custom_python.parent.mkdir(parents=True)
+    custom_python.write_text("ok\n", encoding="utf-8")
+
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(setup_cli_module, "TRACKED_CONFIG_PATHS", ())
+    monkeypatch.setattr(setup_cli_module, "NATIVE_ARTIFACTS", ())
+    monkeypatch.setattr(setup_cli_module, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(setup_cli_module, "load_pi_paths", lambda: PiPaths(venv="~/.venv"))
+    monkeypatch.setattr(
+        setup_cli_module.shutil,
+        "which",
+        lambda program: "/usr/bin/python3" if program == "python3" else None,
+    )
+    monkeypatch.setattr(
+        setup_cli_module.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            returncode=0,
+            stdout="install ok installed",
+            stderr="",
+        ),
+    )
+
+    checks = collect_pi_setup_checks(with_voice=False, with_network=False, with_pisugar=False)
+
+    assert any(
+        check.label.replace("\\", "/").endswith("home/.venv/bin/python") and check.ok
         for check in checks
     )
 

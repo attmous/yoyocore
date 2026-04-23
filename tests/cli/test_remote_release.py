@@ -306,6 +306,32 @@ def test_safe_extract_tarball_allows_internal_venv_symlink(
     _safe_extract_tarball(artifact, tmp_path / "stage")
 
 
+def test_safe_extract_tarball_rejects_hardlink(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from yoyopod_cli.remote_release import _safe_extract_tarball
+
+    artifact = tmp_path / "hardlink.tar.gz"
+    with tarfile.open(artifact, "w:gz") as handle:
+        target = tarfile.TarInfo("slot/target")
+        target.size = 0
+        handle.addfile(target)
+        link = tarfile.TarInfo("slot/link")
+        link.type = tarfile.LNKTYPE
+        link.linkname = "slot/target"
+        handle.addfile(link)
+
+    monkeypatch.setattr(tarfile.TarFile, "extractall", lambda *args, **kwargs: None)
+
+    try:
+        _safe_extract_tarball(artifact, tmp_path / "stage")
+    except ValueError as exc:
+        assert "hard link" in str(exc).lower()
+    else:
+        raise AssertionError("expected hardlink tarball to be rejected")
+
+
 @patch("yoyopod_cli.remote_release._slot_exists_state")
 @patch("yoyopod_cli.remote_release._check_rollback_available")
 @patch("yoyopod_cli.remote_release._conn")
@@ -844,6 +870,37 @@ def test_build_pi_downloads_artifact_and_cleans_up_remote_root(
 @patch("yoyopod_cli.remote_release.run_remote")
 @patch("yoyopod_cli.remote_release.run_remote_capture")
 @patch("yoyopod_cli.remote_release.subprocess.run")
+def test_build_pi_cleans_up_remote_root_when_local_artifact_already_exists(
+    run_mock: MagicMock,
+    capture: MagicMock,
+    run_remote_mock: MagicMock,
+    conn: MagicMock,
+    tmp_path: Path,
+) -> None:
+    conn.return_value = _fake_conn()
+    remote_result = MagicMock()
+    remote_result.returncode = 0
+    remote_result.stdout = (
+        "YOYOPOD_BUILD_ROOT=/tmp/yoyopod-release-build.abcd12\n"
+        "YOYOPOD_SLOT=/tmp/yoyopod-release-build.abcd12/2026.04.22-abc\n"
+        "YOYOPOD_ARTIFACT=/tmp/yoyopod-release-build.abcd12/2026.04.22-abc.tar.gz\n"
+    )
+    remote_result.stderr = ""
+    capture.return_value = remote_result
+    run_remote_mock.return_value = 0
+    (tmp_path / "2026.04.22-abc.tar.gz").write_text("already here\n", encoding="utf-8")
+
+    result = runner.invoke(release_app, ["build-pi", "--output", str(tmp_path)])
+
+    assert result.exit_code == 2
+    run_mock.assert_not_called()
+    assert "rm -rf /tmp/yoyopod-release-build.abcd12" in run_remote_mock.call_args[0][1]
+
+
+@patch("yoyopod_cli.remote_release._conn")
+@patch("yoyopod_cli.remote_release.run_remote")
+@patch("yoyopod_cli.remote_release.run_remote_capture")
+@patch("yoyopod_cli.remote_release.subprocess.run")
 def test_build_pi_keep_remote_skips_cleanup(
     run_mock: MagicMock,
     capture: MagicMock,
@@ -869,6 +926,34 @@ def test_build_pi_keep_remote_skips_cleanup(
     result = runner.invoke(release_app, ["build-pi", "--output", str(tmp_path), "--keep-remote"])
     assert result.exit_code == 0, result.stdout
     run_remote_mock.assert_not_called()
+
+
+def test_remote_build_pi_preserves_home_relative_venv(monkeypatch) -> None:
+    from yoyopod_cli.paths import PiPaths
+    from yoyopod_cli.remote_release import _remote_build_pi_command
+
+    monkeypatch.setattr(
+        "yoyopod_cli.remote_release.load_pi_paths",
+        lambda: PiPaths(venv="~/.venv"),
+    )
+
+    command = _remote_build_pi_command(channel="dev", version=None, python_version="3.12")
+
+    assert '"$HOME/.venv/bin/python" -m yoyopod_cli.main build ensure-native' in command
+    assert "'~/.venv/bin/python'" not in command
+
+
+@patch("yoyopod_cli.remote_release._run_slot_remote")
+def test_check_rollback_available_requires_resolved_target(run_remote_mock: MagicMock) -> None:
+    from yoyopod_cli.remote_release import _check_rollback_available
+
+    run_remote_mock.return_value = 0
+
+    assert _check_rollback_available(_fake_conn()) == 0
+    command = run_remote_mock.call_args[0][1]
+    assert "test -L /opt/yoyopod/previous" in command
+    assert "readlink -e /opt/yoyopod/previous" in command
+    assert 'test -n "$target"' in command
 
 
 @patch("yoyopod_cli.remote_release._conn")

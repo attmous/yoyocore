@@ -61,6 +61,17 @@ def _pi_venv_python(venv_dir: str = PI_VENV_DIR) -> str:
     return checkout_python_path(venv_dir)
 
 
+def _pi_venv_python_check_path(venv_dir: str = PI_VENV_DIR) -> Path:
+    """Return the filesystem path to the configured Pi setup virtualenv Python."""
+
+    python_path = Path(_pi_venv_python(venv_dir))
+    if python_path.is_absolute():
+        return python_path
+    if str(python_path).startswith("~"):
+        return python_path.expanduser()
+    return REPO_ROOT / python_path
+
+
 @dataclass(frozen=True)
 class SetupCommand:
     """One executable setup step."""
@@ -281,7 +292,7 @@ def collect_pi_setup_checks(
     pi = load_pi_paths()
     checks.extend(_file_check(path) for path in TRACKED_CONFIG_PATHS)
     checks.append(_tool_check("python3"))
-    checks.append(_file_check(REPO_ROOT / _pi_venv_python(pi.venv)))
+    checks.append(_file_check(_pi_venv_python_check_path(pi.venv)))
     checks.extend(
         _apt_package_check(package)
         for package in pi_package_list(
