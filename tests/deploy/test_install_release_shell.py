@@ -90,6 +90,13 @@ def test_install_release_uses_slot_state_tmp_and_supports_file_urls(tmp_path: Pa
     assert "install-release: skipping systemctl" in result.stdout
 
 
+def test_install_release_live_probe_requires_extended_stability() -> None:
+    script = INSTALL_RELEASE_SH.read_text(encoding="utf-8")
+
+    assert "local required_stable=120" in script
+    assert 'local last_pid=""' in script
+
+
 def test_install_release_rejects_path_like_manifest_version(tmp_path: Path) -> None:
     artifact = _make_slot_artifact(tmp_path, "safe-slot", manifest_version="../../escape")
     root = tmp_path / "yoyopod"

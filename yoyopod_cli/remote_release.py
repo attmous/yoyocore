@@ -326,15 +326,22 @@ def _live_status_shell(service: str = "yoyopod-slot.service") -> str:
     )
 
 
-def _run_live_probe_on_pi(conn: object, version: str, timeout_s: int = 60) -> int:
+def _run_live_probe_on_pi(
+    conn: object,
+    version: str,
+    timeout_s: int = 180,
+    required_stable_s: int = 120,
+) -> int:
     """Poll the Pi until the new version reports as live, or timeout."""
     current_path = _slots().current_path()
     live_cmd = _live_status_shell()
     cmd = (
-        "stable=0; required_stable=5; "
+        f"stable=0; required_stable={required_stable_s}; last_pid=; "
         f"for i in $(seq 1 {timeout_s}); do "
         f"slot=$(readlink -f {shlex.quote(current_path)} 2>/dev/null || true) && "
+        "pid=$(systemctl show -p MainPID --value yoyopod-slot.service 2>/dev/null || true); "
         f'if {live_cmd} && [ "$(basename "$slot")" = {shlex.quote(version)} ]; then '
+        'if [ "$pid" != "$last_pid" ]; then stable=0; last_pid="$pid"; fi; '
         "stable=$((stable + 1)); "
         f'if [ "$stable" -ge "$required_stable" ]; then echo "version={version}"; exit 0; fi; '
         "else stable=0; fi; "

@@ -767,7 +767,8 @@ def test_live_probe_command_uses_shell_only_status_check(run_remote_mock: MagicM
     assert "systemctl is-active --quiet" in cmd
     assert "/proc/$pid/cwd" in cmd
     assert 'basename "$slot"' in cmd
-    assert "required_stable=5" in cmd
+    assert "required_stable=120" in cmd
+    assert "last_pid=" in cmd
     assert "stable=$((stable + 1))" in cmd
     assert "YOYOPOD_RELEASE_MANIFEST=" not in cmd
     assert "from yoyopod_cli.health import app; app()" not in cmd

@@ -200,9 +200,10 @@ _live_probe() {
     local root="$1"
     local version="$2"
     local stable=0
-    local required_stable=5
+    local required_stable=120
+    local last_pid=""
 
-    for _ in $(seq 1 60); do
+    for _ in $(seq 1 180); do
         if systemctl is-active --quiet yoyopod-slot.service; then
             local pid
             pid="$(systemctl show -p MainPID --value yoyopod-slot.service 2>/dev/null || true)"
@@ -212,6 +213,10 @@ _live_probe() {
                 cwd="$(readlink -f "/proc/${pid}/cwd" 2>/dev/null || true)"
                 if [ -n "${current_path}" ] && [ "${cwd}" = "${current_path}" ] && \
                     [ "$(basename "${current_path}")" = "${version}" ]; then
+                    if [ "${pid}" != "${last_pid}" ]; then
+                        stable=0
+                        last_pid="${pid}"
+                    fi
                     stable=$((stable + 1))
                     if [ "${stable}" -ge "${required_stable}" ]; then
                         echo "install-release: live version=${version}"
