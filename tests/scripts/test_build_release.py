@@ -14,6 +14,8 @@ from yoyopod_cli.slot_contract import (
     SLOT_PYTHON_BIN,
     SLOT_PYTHON_STDLIB_MARKER,
     SLOT_VENV_PYTHON,
+    slot_python_bin,
+    slot_python_stdlib_marker,
 )
 
 _SCRIPTS_DIR = str(Path(__file__).resolve().parents[2] / "scripts")
@@ -77,6 +79,11 @@ def test_build_writes_manifest(tmp_path: Path) -> None:
     assert manifest["artifacts"]["full"]["size"] > 0
     with tarfile.open(out / "2026.04.22-test.tar.gz", "r:gz") as handle:
         assert "2026.04.22-test/manifest.json" in handle.getnames()
+        bundled_manifest = json.loads(
+            handle.extractfile("2026.04.22-test/manifest.json").read().decode("utf-8")  # type: ignore[union-attr]
+        )
+    assert bundled_manifest == manifest
+    assert bundled_manifest["artifacts"]["full"]["sha256"] != "0" * 64
 
 
 def test_build_writes_runtime_requirements_from_pyproject(tmp_path: Path) -> None:
@@ -378,6 +385,19 @@ def test_build_rejects_invalid_channel(tmp_path: Path) -> None:
         )
 
 
+def test_build_rejects_path_like_version_before_creating_output(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="version"):
+        build_release.build(
+            repo_root=tmp_path / "repo",
+            output_root=tmp_path / "out",
+            version="../../escape",
+            channel="dev",
+            skip_venv=True,
+        )
+
+    assert not (tmp_path / "escape").exists()
+
+
 def test_build_copies_native_runtime_artifacts_when_present(tmp_path: Path) -> None:
     fake_repo = tmp_path / "repo"
     (fake_repo / "yoyopod").mkdir(parents=True)
@@ -478,3 +498,52 @@ def test_build_with_venv_validates_self_contained_runtime_contract(tmp_path: Pat
     assert (slot / SLOT_PYTHON_STDLIB_MARKER).is_file()
     for relative in APP_NATIVE_RUNTIME_ARTIFACTS:
         assert (slot / "app" / relative).is_file()
+
+
+def test_build_self_contained_contract_uses_requested_python_version(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_repo = tmp_path / "repo"
+    (fake_repo / "yoyopod").mkdir(parents=True)
+    (fake_repo / "yoyopod" / "__init__.py").write_text("")
+    (fake_repo / "yoyopod_cli").mkdir()
+    (fake_repo / "yoyopod_cli" / "__init__.py").write_text("")
+    (fake_repo / "pyproject.toml").write_text("[project]\nname='x'\nversion='0.0.1'\n")
+    (fake_repo / "deploy" / "scripts").mkdir(parents=True)
+    launch = fake_repo / "deploy" / "scripts" / "launch.sh"
+    launch.write_text("#!/bin/sh\nexit 0\n")
+    launch.chmod(0o755)
+    (fake_repo / "config" / "app").mkdir(parents=True)
+    (fake_repo / "config" / "app" / "core.yaml").write_text("test: true\n")
+    for relative in APP_NATIVE_RUNTIME_ARTIFACTS:
+        target = fake_repo / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("shim\n")
+
+    def _fake_resolve_venv(dest_venv: Path, requirements_path: Path, python_version: str) -> None:
+        del requirements_path
+        python_bin = dest_venv / "bin" / "python"
+        python_bin.parent.mkdir(parents=True, exist_ok=True)
+        python_bin.write_text("#!/bin/sh\nexit 0\n")
+        python_bin.chmod(0o755)
+        runtime_python = dest_venv.parent / slot_python_bin(python_version)
+        runtime_python.parent.mkdir(parents=True, exist_ok=True)
+        runtime_python.write_text("python\n", encoding="utf-8")
+        runtime_stdlib = dest_venv.parent / slot_python_stdlib_marker(python_version)
+        runtime_stdlib.parent.mkdir(parents=True, exist_ok=True)
+        runtime_stdlib.write_text("# stdlib marker\n", encoding="utf-8")
+
+    monkeypatch.setattr(build_release, "_resolve_venv", _fake_resolve_venv)
+
+    slot = build_release.build(
+        repo_root=fake_repo,
+        output_root=tmp_path / "out",
+        version="2026.04.22-py311",
+        channel="dev",
+        skip_venv=False,
+        python_version="3.11",
+    )
+
+    assert (slot / slot_python_bin("3.11")).is_file()
+    assert (slot / slot_python_stdlib_marker("3.11")).is_file()

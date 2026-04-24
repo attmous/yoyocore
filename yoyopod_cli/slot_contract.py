@@ -32,8 +32,27 @@ SELF_CONTAINED_REQUIRED_FILES: tuple[Path, ...] = (
 )
 
 
-def missing_self_contained_paths(slot_dir: Path) -> tuple[Path, ...]:
+def slot_python_bin(python_version: str = "3.12") -> Path:
+    return Path("python") / "bin" / f"python{python_version}"
+
+
+def slot_python_stdlib_marker(python_version: str = "3.12") -> Path:
+    return Path("python") / "lib" / f"python{python_version}" / "os.py"
+
+
+def self_contained_required_files(python_version: str = "3.12") -> tuple[Path, ...]:
+    return (
+        SLOT_VENV_PYTHON,
+        slot_python_bin(python_version),
+        slot_python_stdlib_marker(python_version),
+        *SLOT_NATIVE_RUNTIME_ARTIFACTS,
+    )
+
+
+def missing_self_contained_paths(slot_dir: Path, python_version: str = "3.12") -> tuple[Path, ...]:
     """Return the slot-relative files a self-contained release still lacks."""
+
+    required_files = self_contained_required_files(python_version)
 
     # The launch interpreter must be an actual file inside the slot. A venv
     # symlink to the build host's Python can pass Path.is_file(), but is not
@@ -44,7 +63,7 @@ def missing_self_contained_paths(slot_dir: Path) -> tuple[Path, ...]:
             SLOT_VENV_PYTHON,
             *(
                 relative
-                for relative in SELF_CONTAINED_REQUIRED_FILES
+                for relative in required_files
                 if relative != SLOT_VENV_PYTHON
                 if not (slot_dir / relative).is_file()
             ),
@@ -52,13 +71,13 @@ def missing_self_contained_paths(slot_dir: Path) -> tuple[Path, ...]:
 
     return tuple(
         relative
-        for relative in SELF_CONTAINED_REQUIRED_FILES
+        for relative in required_files
         if relative != SLOT_VENV_PYTHON
         if not (slot_dir / relative).is_file()
     )
 
 
-def is_self_contained_slot(slot_dir: Path) -> bool:
+def is_self_contained_slot(slot_dir: Path, python_version: str = "3.12") -> bool:
     """Return True when the slot contains its own runtime Python and native shims."""
 
-    return not missing_self_contained_paths(slot_dir)
+    return not missing_self_contained_paths(slot_dir, python_version)

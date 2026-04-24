@@ -464,6 +464,43 @@ def test_push_rolls_back_on_live_fail(
     rollback.assert_called_once()
 
 
+@patch("yoyopod_cli.remote_release._slot_exists_state")
+@patch("yoyopod_cli.remote_release._check_rollback_available")
+@patch("yoyopod_cli.remote_release._conn")
+@patch("yoyopod_cli.remote_release._rsync_to_pi")
+@patch("yoyopod_cli.remote_release._hydrate_slot_on_pi")
+@patch("yoyopod_cli.remote_release._run_preflight_on_pi")
+@patch("yoyopod_cli.remote_release._flip_symlinks_on_pi")
+@patch("yoyopod_cli.remote_release._run_live_probe_on_pi")
+@patch("yoyopod_cli.remote_release._rollback_on_pi")
+def test_push_rolls_back_on_flip_or_restart_fail(
+    rollback: MagicMock,
+    live: MagicMock,
+    flip: MagicMock,
+    preflight: MagicMock,
+    hydrate: MagicMock,
+    rsync: MagicMock,
+    conn: MagicMock,
+    check_rb: MagicMock,
+    state: MagicMock,
+    tmp_path: Path,
+) -> None:
+    conn.return_value = _fake_conn()
+    check_rb.return_value = 0
+    state.return_value = "NEW"
+    slot = _write_slot(tmp_path, "2026.04.22-abc", self_contained=True)
+    rsync.return_value = 0
+    preflight.return_value = 0
+    flip.return_value = 1
+
+    result = runner.invoke(release_app, ["push", str(slot)])
+
+    assert result.exit_code != 0
+    hydrate.assert_not_called()
+    live.assert_not_called()
+    rollback.assert_called_once()
+
+
 def test_push_rejects_non_slot_directory(tmp_path: Path) -> None:
     bogus = tmp_path / "not_a_slot"
     bogus.mkdir()

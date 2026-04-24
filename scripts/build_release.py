@@ -36,6 +36,7 @@ try:
         ReleaseManifest,
         Requirements,
         dump_manifest,
+        validate_release_version,
     )
     from yoyopod_cli.slot_contract import (
         APP_NATIVE_RUNTIME_ARTIFACTS,
@@ -48,6 +49,7 @@ except ImportError:
         ReleaseManifest,
         Requirements,
         dump_manifest,
+        validate_release_version,
     )
     from yoyopod_cli.slot_contract import (  # noqa: E402
         APP_NATIVE_RUNTIME_ARTIFACTS,
@@ -299,10 +301,10 @@ def _copy_native_runtime_artifacts(repo_root: Path, dest_app: Path, *, required:
         shutil.copy2(src, dest)
 
 
-def _validate_self_contained_slot(slot_dir: Path) -> None:
+def _validate_self_contained_slot(slot_dir: Path, python_version: str) -> None:
     """Raise when the slot does not satisfy the self-contained runtime contract."""
 
-    missing = missing_self_contained_paths(slot_dir)
+    missing = missing_self_contained_paths(slot_dir, python_version)
     if not missing:
         return
     rendered = ", ".join(str(path.as_posix()) for path in missing)
@@ -360,6 +362,7 @@ def build(
     valid_channels = ("dev", "beta", "stable")
     if channel not in valid_channels:
         raise ValueError(f"channel must be one of {valid_channels}, got {channel!r}")
+    validate_release_version(version)
 
     slot_dir = output_root / version
     if slot_dir.exists():
@@ -377,7 +380,7 @@ def build(
         (slot_dir / "venv").mkdir()
     else:
         _resolve_venv(slot_dir / "venv", slot_dir / "runtime-requirements.txt", python_version)
-        _validate_self_contained_slot(slot_dir)
+        _validate_self_contained_slot(slot_dir, python_version)
 
     tarball = output_root / f"{version}.tar.gz"
     manifest = ReleaseManifest(
@@ -416,6 +419,7 @@ def build(
         signature=manifest.signature,
     )
     dump_manifest(manifest, slot_dir / "manifest.json")
+    _make_tarball(slot_dir, tarball)
     return slot_dir
 
 

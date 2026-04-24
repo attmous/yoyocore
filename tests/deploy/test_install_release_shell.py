@@ -19,7 +19,9 @@ INSTALL_RELEASE_SH = (
 )
 
 
-def _make_slot_artifact(tmp_path: Path, version: str, *, manifest_version: str | None = None) -> Path:
+def _make_slot_artifact(
+    tmp_path: Path, version: str, *, manifest_version: str | None = None
+) -> Path:
     slot = tmp_path / version
     artifact = tmp_path / f"{version}.tar.gz"
 
@@ -113,3 +115,85 @@ def test_install_release_rejects_path_like_manifest_version(tmp_path: Path) -> N
     assert result.returncode != 0
     assert "unsafe version" in result.stderr.lower()
     assert not (tmp_path / "escape").exists()
+
+
+def test_install_release_rejects_dangling_previous_symlink(tmp_path: Path) -> None:
+    version = "dangling-previous"
+    artifact = _make_slot_artifact(tmp_path, version)
+    root = tmp_path / "yoyopod"
+    (root / "releases").mkdir(parents=True)
+    (root / "previous").symlink_to(root / "releases" / "missing")
+    env = {
+        **os.environ,
+        "YOYOPOD_INSTALL_RELEASE_ALLOW_NON_ROOT": "1",
+        "YOYOPOD_SKIP_SYSTEMCTL": "1",
+    }
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALL_RELEASE_SH),
+            f"--root={root}",
+            f"--artifact={artifact}",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "previous rollback target is dangling" in result.stderr.lower()
+    assert not (root / "current").exists()
+
+
+def test_install_release_rolls_back_when_restart_fails(tmp_path: Path) -> None:
+    version = "restart-fails"
+    artifact = _make_slot_artifact(tmp_path, version)
+    root = tmp_path / "yoyopod"
+    old_slot = root / "releases" / "old"
+    old_slot.mkdir(parents=True)
+    (root / "current").symlink_to(old_slot)
+    (root / "previous").symlink_to(old_slot)
+    rollback_marker = tmp_path / "rollback-called"
+    rollback = root / "bin" / "rollback.sh"
+    rollback.parent.mkdir(parents=True)
+    rollback.write_text(
+        f"#!/usr/bin/env bash\ntouch {rollback_marker}\nexit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    rollback.chmod(0o755)
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    systemctl = fake_bin / "systemctl"
+    systemctl.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [ "$1" = "reset-failed" ]; then exit 0; fi\n'
+        'if [ "$1" = "restart" ]; then exit 1; fi\n'
+        "exit 0\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    systemctl.chmod(0o755)
+    env = {
+        **os.environ,
+        "YOYOPOD_INSTALL_RELEASE_ALLOW_NON_ROOT": "1",
+        "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+    }
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(INSTALL_RELEASE_SH),
+            f"--root={root}",
+            f"--artifact={artifact}",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert rollback_marker.exists()
+    assert "restart failed, attempting rollback" in result.stderr.lower()

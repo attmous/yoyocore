@@ -89,6 +89,7 @@ _extract_artifact() {
 import json
 import re
 import shlex
+import shutil
 import sys
 import tarfile
 from pathlib import Path
@@ -99,6 +100,24 @@ meta_env = Path(sys.argv[3]).resolve()
 
 if not artifact.is_file():
     raise SystemExit(f"install-release: artifact not found: {artifact}")
+
+
+def extract_legacy_member(handle: tarfile.TarFile, member: tarfile.TarInfo) -> None:
+    target = stage_dir / member.name
+    if member.isdir():
+        target.mkdir(parents=True, exist_ok=True)
+        return
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if member.issym():
+        target.symlink_to(member.linkname)
+        return
+    source = handle.extractfile(member)
+    if source is None:
+        raise SystemExit(f"install-release: tarball member has no payload: {member.name}")
+    with source, target.open("wb") as output:
+        shutil.copyfileobj(source, output)
+    target.chmod(member.mode & 0o777)
+
 
 with tarfile.open(artifact, "r:*") as handle:
     members = handle.getmembers()
@@ -133,7 +152,8 @@ with tarfile.open(artifact, "r:*") as handle:
     try:
         handle.extractall(stage_dir, filter="data")
     except TypeError:
-        handle.extractall(stage_dir)
+        for member in members:
+            extract_legacy_member(handle, member)
 
 manifests = [candidate.parent for candidate in stage_dir.rglob("manifest.json")]
 if len(manifests) != 1:
@@ -239,9 +259,15 @@ if [ -d "${TARGET_DIR}" ]; then
     rm -rf "${TARGET_DIR}"
 fi
 
-if [ "${FIRST_DEPLOY}" -ne 1 ] && [ ! -L "${ROOT}/previous" ]; then
-    echo "install-release: no rollback path; rerun with --first-deploy to acknowledge" >&2
-    exit 2
+if [ "${FIRST_DEPLOY}" -ne 1 ]; then
+    if [ ! -L "${ROOT}/previous" ]; then
+        echo "install-release: no rollback path; rerun with --first-deploy to acknowledge" >&2
+        exit 2
+    fi
+    if ! readlink -e "${ROOT}/previous" >/dev/null 2>&1; then
+        echo "install-release: previous rollback target is dangling" >&2
+        exit 2
+    fi
 fi
 
 cp -a "${SLOT_DIR}" "${TARGET_DIR}"
@@ -271,7 +297,16 @@ if [ "${YOYOPOD_SKIP_SYSTEMCTL:-0}" = "1" ]; then
     echo "install-release: skipping systemctl"
 elif command -v systemctl >/dev/null 2>&1; then
     echo "install-release: restart yoyopod-slot.service"
-    systemctl restart yoyopod-slot.service
+    systemctl reset-failed yoyopod-slot.service || true
+    if ! systemctl restart yoyopod-slot.service; then
+        if [ -x "${ROOT}/bin/rollback.sh" ] && [ -L "${ROOT}/previous" ]; then
+            echo "install-release: restart failed, attempting rollback" >&2
+            if ! "${ROOT}/bin/rollback.sh"; then
+                echo "install-release: rollback also failed; system state unknown" >&2
+            fi
+        fi
+        exit 1
+    fi
     if ! _live_probe "${ROOT}" "${VERSION}"; then
         if [ -x "${ROOT}/bin/rollback.sh" ] && [ -L "${ROOT}/previous" ]; then
             echo "install-release: live probe failed, attempting rollback" >&2

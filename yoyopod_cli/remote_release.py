@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import shlex
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -106,6 +107,23 @@ def _safe_extract_tarball(artifact: Path, destination: Path) -> None:
     """Extract one local tarball after rejecting path traversal entries."""
 
     destination_root = destination.resolve()
+
+    def extract_legacy_member(handle: tarfile.TarFile, member: tarfile.TarInfo) -> None:
+        target = destination / member.name
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+            return
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if member.issym():
+            target.symlink_to(member.linkname)
+            return
+        source = handle.extractfile(member)
+        if source is None:
+            raise ValueError(f"tarball member has no payload: {member.name}")
+        with source, target.open("wb") as output:
+            shutil.copyfileobj(source, output)
+        target.chmod(member.mode & 0o777)
+
     with tarfile.open(artifact, "r:*") as handle:
         members = handle.getmembers()
         member_names = [member.name.rstrip("/") for member in members]
@@ -131,7 +149,8 @@ def _safe_extract_tarball(artifact: Path, destination: Path) -> None:
         try:
             handle.extractall(destination, filter="data")
         except TypeError:
-            handle.extractall(destination)
+            for member in members:
+                extract_legacy_member(handle, member)
 
 
 def _find_materialized_slot_dir(root: Path) -> Path:
@@ -586,7 +605,12 @@ def push(
             typer.echo("flip + restart...")
             rc = _flip_symlinks_on_pi(conn, manifest.version)
             if rc != 0:
-                typer.echo("symlink flip / restart failed", err=True)
+                typer.echo("symlink flip / restart failed - rolling back", err=True)
+                rb_rc = _rollback_on_pi(conn)
+                if rb_rc != 0:
+                    typer.echo(
+                        f"rollback also failed (exit {rb_rc}) - system state unknown", err=True
+                    )
                 raise typer.Exit(code=rc)
 
             typer.echo("live probe...")
