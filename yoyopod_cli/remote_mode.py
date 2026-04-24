@@ -7,7 +7,7 @@ import shlex
 import typer
 
 from yoyopod_cli.common import configure_logging
-from yoyopod_cli.paths import LanePaths, load_lane_paths
+from yoyopod_cli.paths import LanePaths, SlotPaths, load_lane_paths, load_slot_paths
 from yoyopod_cli.remote_shared import pi_conn
 from yoyopod_cli.remote_transport import run_remote, validate_config
 
@@ -79,14 +79,14 @@ def _build_deactivate(lane: str, lanes: LanePaths) -> str:
     return " && ".join(steps)
 
 
-def _build_status(lanes: LanePaths) -> str:
+def _build_status(lanes: LanePaths, slot: SlotPaths) -> str:
     """Build a compact lane status report."""
     dev_service = shlex.quote(lanes.dev_service)
     prod_service = shlex.quote(lanes.prod_service)
     prod_ota_service = shlex.quote(lanes.prod_ota_service)
     prod_ota_timer = shlex.quote(lanes.prod_ota_timer)
     dev_checkout = shlex.quote(lanes.dev_checkout)
-    prod_current = shlex.quote(f"{lanes.prod_root}/current")
+    prod_current = shlex.quote(slot.current_path())
     legacy_pattern = shlex.quote("yoyopod@*.service")
     manual_pattern = shlex.quote(r"python(3)? .*yoyopod(\.py|\.main)")
     return (
@@ -153,7 +153,9 @@ def status(ctx: typer.Context, verbose: bool = typer.Option(False, "--verbose"))
     configure_logging(verbose)
     conn = pi_conn(ctx)
     validate_config(conn)
-    raise typer.Exit(run_remote(conn, _build_status(load_lane_paths()), workdir=None))
+    raise typer.Exit(
+        run_remote(conn, _build_status(load_lane_paths(), load_slot_paths()), workdir=None)
+    )
 
 
 @app.command("activate")

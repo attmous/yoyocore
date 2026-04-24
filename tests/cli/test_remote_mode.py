@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from yoyopod_cli.main import app as root_app
-from yoyopod_cli.paths import LanePaths
+from yoyopod_cli.paths import LanePaths, SlotPaths
 from yoyopod_cli.remote_mode import (
     _build_activate,
     _build_deactivate,
@@ -55,7 +55,7 @@ def test_deactivate_prod_stops_app_and_ota_units() -> None:
 
 
 def test_status_reports_all_lane_units_and_roots() -> None:
-    command = _build_status(LanePaths())
+    command = _build_status(LanePaths(), SlotPaths())
 
     assert "active_lane=" in command
     assert "yoyopod-dev.service" in command
@@ -66,7 +66,7 @@ def test_status_reports_all_lane_units_and_roots() -> None:
 
 
 def test_status_detects_legacy_units_and_manual_processes() -> None:
-    command = _build_status(LanePaths())
+    command = _build_status(LanePaths(), SlotPaths())
 
     assert "yoyopod@*.service" in command
     assert "legacy_units=" in command
@@ -77,17 +77,27 @@ def test_status_detects_legacy_units_and_manual_processes() -> None:
 
 
 def test_status_checks_only_active_legacy_template_units() -> None:
-    command = _build_status(LanePaths())
+    command = _build_status(LanePaths(), SlotPaths())
 
     assert "list-units --type=service --state=active --plain --no-legend" in command
     assert "list-units --type=service --all --plain --no-legend" not in command
 
 
 def test_status_reports_prod_ota_conflict_when_dev_is_active() -> None:
-    command = _build_status(LanePaths())
+    command = _build_status(LanePaths(), SlotPaths())
 
     assert "prod_ota_conflict=" in command
     assert "prod-ota-active-while-dev" in command
+
+
+def test_status_uses_slot_root_for_prod_current_probe() -> None:
+    command = _build_status(
+        LanePaths(prod_root="/wrong-lane-prod"),
+        SlotPaths(root="/srv/yoyopod-prod"),
+    )
+
+    assert "/srv/yoyopod-prod/current" in command
+    assert "/wrong-lane-prod/current" not in command
 
 
 @patch("yoyopod_cli.remote_mode.run_remote")
