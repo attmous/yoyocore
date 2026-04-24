@@ -20,6 +20,9 @@ from yoyopod_cli.remote_ops import (
 from yoyopod_cli.paths import PiPaths
 
 
+STALE_APP_PATTERN = r"pkill -f '[p]ython(3)? .*yoyopod(\.py|\.main)' || true"
+
+
 def test_build_status_includes_repo_sha_and_log_tail() -> None:
     pi = PiPaths()
     shell = _build_status(pi)
@@ -29,7 +32,7 @@ def test_build_status_includes_repo_sha_and_log_tail() -> None:
     assert "linphonec" not in shell
 
 
-def test_build_restart_uses_configured_processes() -> None:
+def test_build_restart_uses_safe_stale_app_cleanup() -> None:
     pi = PiPaths(
         venv="venv",
         start_cmd="python yoyopod.py --simulate",
@@ -37,8 +40,8 @@ def test_build_restart_uses_configured_processes() -> None:
     )
     shell = _build_restart(pi)
     assert "python" in shell
-    assert "stale-helper" in shell
-    assert "pkill" in shell
+    assert "stale-helper" not in shell
+    assert STALE_APP_PATTERN in shell
     assert "systemctl cat" in shell
     assert "sudo systemctl start" in shell
     assert "nohup" not in shell
@@ -48,6 +51,14 @@ def test_build_restart_uses_configured_processes() -> None:
     assert pi.pid_file in shell
     assert pi.log_file in shell
     assert pi.startup_marker in shell
+
+
+def test_build_restart_does_not_kill_remote_shell_with_broad_python_pattern() -> None:
+    shell = _build_restart(PiPaths(kill_processes=("python",)))
+
+    assert "pkill -f python" not in shell
+    assert "pkill -f 'python'" not in shell
+    assert STALE_APP_PATTERN in shell
 
 
 def test_build_restart_requires_dev_lane_service() -> None:
@@ -142,7 +153,7 @@ def test_build_sync_includes_branch_and_restart() -> None:
         or "git checkout --force -B main origin/main" in shell
     )
     # sync ends with a restart pipeline
-    assert "pkill" in shell
+    assert STALE_APP_PATTERN in shell
     assert "grep -F" in shell
 
 

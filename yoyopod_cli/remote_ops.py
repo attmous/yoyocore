@@ -74,6 +74,11 @@ def _build_native_shim_refresh(pi: PiPaths) -> str:
     return "{ " f"{checkout_module_command(pi.venv, 'build', 'ensure-native')}" " ; }"
 
 
+def _build_stale_app_cleanup() -> str:
+    """Kill only unmanaged/stale YoYoPod app processes, without matching this shell."""
+    return r"pkill -f '[p]ython(3)? .*yoyopod(\.py|\.main)' || true"
+
+
 def _build_restart(pi: PiPaths, lanes: LanePaths | None = None) -> str:
     """Build the shell that restarts the app and waits for startup verification."""
     lane_paths = lanes or load_lane_paths()
@@ -88,7 +93,7 @@ def _build_restart(pi: PiPaths, lanes: LanePaths | None = None) -> str:
         'pwd -P || printf "%s" "$dev_service_checkout")"'
     )
     cleanup_commands = [f"rm -f {pid}"]
-    cleanup_commands.extend(f"pkill -f {shell_quote(proc)} || true" for proc in pi.kill_processes)
+    cleanup_commands.append(_build_stale_app_cleanup())
     cleanup = " ; ".join(cleanup_commands)
     managed_restart = (
         f"{selected_checkout_guard}; "
