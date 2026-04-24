@@ -62,6 +62,18 @@ def test_build_restart_prefers_dev_lane_service_when_installed() -> None:
     assert "sudo systemctl reset-failed yoyopod-dev.service" in shell
 
 
+def test_build_restart_only_starts_managed_service_for_selected_checkout() -> None:
+    shell = _build_restart(PiPaths())
+
+    assert 'selected_checkout="$(pwd -P)"' in shell
+    assert "/etc/default/yoyopod-dev" in shell
+    assert "YOYOPOD_DEV_CHECKOUT" in shell
+    assert "/etc/default/yoyopod" in shell
+    assert "YOYOPOD_PROJECT_DIR" in shell
+    assert '[ "$selected_checkout" = "$dev_service_checkout" ]' in shell
+    assert '[ "$selected_checkout" = "$legacy_service_checkout" ]' in shell
+
+
 def test_build_native_shim_refresh_rebuilds_lvgl_and_liblinphone_when_stale() -> None:
     pi = PiPaths(venv="venv")
     shell = _build_native_shim_refresh(pi)
