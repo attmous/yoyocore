@@ -3,6 +3,10 @@
 This is the operator guide for the prod slot/OTA lane. For the complete
 dev/prod split, read [DEV_PROD_LANES.md](DEV_PROD_LANES.md) first.
 
+Terminology: `remote release ...` means prod slot work. `remote sync` means dev
+checkout work. Use `remote mode status` when you are unsure which lane owns the
+hardware.
+
 ## Contract
 
 - Prod slots live under `/opt/yoyopod-prod/releases/<version>/`.
@@ -130,6 +134,10 @@ Automatic rollback uses:
 - `OnFailure=yoyopod-prod-rollback.service`
 - `/opt/yoyopod-prod/bin/rollback.sh`
 - `systemctl reset-failed yoyopod-prod.service` before restart
+
+Prod OTA services must not run while the dev lane is active. Future OTA units
+should use `/opt/yoyopod-prod/bin/prod-ota-guard.sh` as an `ExecCondition` so
+systemd skips OTA work unless the prod lane owns the board.
 
 ## Migration Notes
 

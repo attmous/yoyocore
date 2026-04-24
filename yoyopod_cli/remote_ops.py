@@ -124,15 +124,19 @@ def _build_logs_tail(
     return cmd
 
 
-def _build_sync(pi: PiPaths, branch: str) -> str:
+def _build_sync(pi: PiPaths, branch: str, *, clean_native: bool = False) -> str:
     """Build the shell that syncs a clean checkout and restarts the app."""
     br = shell_quote(branch)
     origin_br = shell_quote(f"origin/{branch}")
+    native_clean = (
+        f"{checkout_module_command(pi.venv, 'build', 'clean-native')} && " if clean_native else ""
+    )
     return (
         f"git fetch --prune origin && "
         "git clean -fd && "
         f"git checkout --force -B {br} {origin_br} && "
         "git clean -fd && "
+        f"{native_clean}"
         f"{_build_restart(pi)}"
     )
 
@@ -212,13 +216,21 @@ def logs(
 
 
 @app.command()
-def sync(ctx: typer.Context, verbose: bool = typer.Option(False, "--verbose")) -> None:
-    """Fetch + hard-reset branch on the Pi and restart the app (fast deploy)."""
+def sync(
+    ctx: typer.Context,
+    clean_native: bool = typer.Option(
+        False,
+        "--clean-native",
+        help="Remove dev lane native build dirs before rebuilding after a branch switch.",
+    ),
+    verbose: bool = typer.Option(False, "--verbose"),
+) -> None:
+    """Update the dev lane checkout from Git and restart the dev app service."""
     configure_logging(verbose)
     conn = pi_conn(ctx)
     validate_config(conn)
     pi = load_pi_paths()
-    raise typer.Exit(run_remote(conn, _build_sync(pi, conn.branch)))
+    raise typer.Exit(run_remote(conn, _build_sync(pi, conn.branch, clean_native=clean_native)))
 
 
 @app.command()

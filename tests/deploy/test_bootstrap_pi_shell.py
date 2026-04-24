@@ -55,6 +55,13 @@ def test_bootstrap_installs_lane_services() -> None:
     assert "yoyopod-slot.service" not in script
 
 
+def test_bootstrap_installs_prod_ota_lane_guard() -> None:
+    script = BOOTSTRAP_SH.read_text(encoding="utf-8")
+
+    assert "deploy/scripts/prod_ota_guard.sh" in script
+    assert '"${ROOT}/bin/prod-ota-guard.sh"' in script
+
+
 def test_bootstrap_migration_seeds_dev_checkout_from_legacy_checkout() -> None:
     script = BOOTSTRAP_SH.read_text(encoding="utf-8")
 

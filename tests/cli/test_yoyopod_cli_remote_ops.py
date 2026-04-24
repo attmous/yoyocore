@@ -125,6 +125,16 @@ def test_build_sync_includes_branch_and_restart() -> None:
     assert "grep -F" in shell
 
 
+def test_build_sync_can_clean_native_build_dirs_before_restart() -> None:
+    pi = PiPaths(venv="/opt/yoyopod-dev/venv")
+    shell = _build_sync(pi, branch="feature-x", clean_native=True)
+
+    clean_pos = shell.index("/opt/yoyopod-dev/venv/bin/python -m yoyopod_cli.main build clean-native")
+    ensure_pos = shell.index("/opt/yoyopod-dev/venv/bin/python -m yoyopod_cli.main build ensure-native")
+
+    assert clean_pos < ensure_pos
+
+
 def test_status_cli_invokes_run_remote(monkeypatch) -> None:
     calls: list[tuple[object, str]] = []
 

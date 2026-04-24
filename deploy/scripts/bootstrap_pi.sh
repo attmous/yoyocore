@@ -74,6 +74,9 @@ install -m 0755 -o root -g root \
 install -m 0755 -o root -g root \
     "${REPO_ROOT}/deploy/scripts/install_release.sh" \
     "${ROOT}/bin/install-release.sh"
+install -m 0755 -o root -g root \
+    "${REPO_ROOT}/deploy/scripts/prod_ota_guard.sh" \
+    "${ROOT}/bin/prod-ota-guard.sh"
 
 # 3. Install systemd units.
 install -m 0644 -o root -g root \

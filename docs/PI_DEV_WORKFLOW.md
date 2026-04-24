@@ -18,6 +18,12 @@ The default contract is:
 
 Dirty-tree sync still exists, but only as a rare debugging override.
 
+Terminology in this guide is intentional:
+
+- `remote sync` updates the **dev lane** checkout and restarts `yoyopod-dev.service`.
+- `remote release ...` updates the **prod lane** slot tree under `/opt/yoyopod-prod`.
+- `remote mode status` should be checked before lane flips or hardware debugging.
+
 ## Stable Board Checkout
 
 The Raspberry Pi should reuse one stable dev checkout path, configured by
@@ -128,6 +134,16 @@ Use this when validating a feature branch or PR on target hardware.
    ```bash
    yoyopod remote validate --branch <branch> --sha <commit>
    ```
+
+If you are switching across branches that touch native LVGL or Liblinphone shim
+sources, clean mutable native CMake caches before the dev restart:
+
+```bash
+yoyopod remote sync --branch <branch> --clean-native
+```
+
+If `yoyopod remote mode status` reports `active_lane=conflict`, resolve the
+listed legacy/manual owner before trusting audio, display, or VoIP behavior.
 
 Useful variations:
 

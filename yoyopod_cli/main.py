@@ -165,10 +165,19 @@ def _deploy_shortcut(
     user: str = typer.Option("", "--user", envvar="YOYOPOD_PI_USER"),
     project_dir: str = typer.Option("", "--project-dir", envvar="YOYOPOD_PI_PROJECT_DIR"),
     branch: str = typer.Option("", "--branch", envvar="YOYOPOD_PI_BRANCH"),
+    clean_native: bool = typer.Option(
+        False,
+        "--clean-native",
+        help="Remove dev lane native build dirs before rebuilding after a branch switch.",
+    ),
     verbose: bool = typer.Option(False, "--verbose"),
 ) -> None:
-    """Sync code to the Pi and restart (alias for `remote sync`)."""
-    _remote_ops.sync(ctx=_with_connection(host, user, project_dir, branch), verbose=verbose)
+    """Update the dev lane checkout and restart (alias for `remote sync`)."""
+    _remote_ops.sync(
+        ctx=_with_connection(host, user, project_dir, branch),
+        clean_native=clean_native,
+        verbose=verbose,
+    )
 
 
 @app.command(name="status")

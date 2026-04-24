@@ -54,9 +54,17 @@ Per-board overrides still belong in `deploy/pi-deploy.local.yaml`.
 - `yoyopod-prod-rollback.service` is triggered by prod service failure.
 - `yoyopod-prod-ota.timer` and `yoyopod-prod-ota.service` are reserved for the OTA poller.
 
-The dev and prod app units conflict with each other. The CLI also stops the old
-legacy `yoyopod-slot.service` when activating dev, so a migrated board does not
-accidentally keep the previous prod service running.
+The dev and prod app units conflict with each other. Lane activation also stops
+old `yoyopod-slot.service` and `yoyopod@<user>.service` units so a migrated
+board does not accidentally keep a previous app service running.
+
+Before changing lanes, run `yoyopod remote mode status`. It reports:
+
+- `active_lane`: `dev`, `prod`, `legacy`, `manual-process`, `conflict`, or `none`.
+- `legacy_units`: old `yoyopod@*.service` units that can still own hardware.
+- `manual_processes`: ad hoc `python ... yoyopod.py` or `yoyopod.main` processes.
+- `prod_ota_conflict`: whether prod OTA is active while dev owns the board.
+- `conflict_reasons`: the active conflict sources.
 
 ## Lane Commands
 
@@ -71,6 +79,13 @@ Activate dev for PR hardware testing:
 ```bash
 uv run yoyopod remote mode activate dev
 uv run yoyopod remote sync --branch <branch>
+```
+
+If branch switching leaves stale native CMake caches, force a clean native
+rebuild during sync:
+
+```bash
+uv run yoyopod remote sync --branch <branch> --clean-native
 ```
 
 Activate prod again:
@@ -128,7 +143,8 @@ sudo -E ./deploy/scripts/bootstrap_pi.sh --migrate
 `--migrate` copies the old checkout into `/opt/yoyopod-dev/checkout` when the
 dev checkout is empty, then removes stale `.venv`, `build`, and `logs` folders
 from that copy. It also preserves old config/log files under prod state for
-reference.
+reference. After migration, treat the old `~/yoyopod-core` checkout as an
+archive only; the live dev truth is `/opt/yoyopod-dev/checkout`.
 
 Then activate the desired lane:
 
@@ -151,11 +167,28 @@ publishing a prod slot.
 
 - Do not run dev and prod app services together; they share hardware, audio, and
   the PID file contract.
+- Do not ignore `active_lane=conflict`; stop the listed legacy/manual owner
+  before testing audio/display behavior.
 - Do not mutate prod release directories in place; publish a new version and
   flip `current`.
 - Do not depend on `uv` on the Pi; dev uses `/opt/yoyopod-dev/venv`, prod slots
   carry their own runtime.
+- Do not trust dev native build dirs after large branch switches; use
+  `yoyopod remote sync --clean-native` or run `yoyopod build clean-native` inside
+  the dev checkout before rebuilding.
 - Do not delete `/opt/yoyopod-prod/previous` before a normal prod update; it is
   the rollback target.
 - Do not assume old `~/yoyopod-core` is the dev lane. The dev lane checkout is
   `/opt/yoyopod-dev/checkout`.
+
+## Prod OTA Guard
+
+The future prod OTA service should use this guard as an `ExecCondition`:
+
+```ini
+ExecCondition=/opt/yoyopod-prod/bin/prod-ota-guard.sh
+```
+
+The guard skips OTA work when `yoyopod-dev.service` is active or when
+`yoyopod-prod.service` is not active. This keeps OTA from mutating prod state
+while the board is intentionally in the dev lane.
