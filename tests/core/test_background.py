@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures.thread as _cf_thread
 import threading
 import time
 from concurrent.futures import Future
@@ -278,4 +279,40 @@ def test_watchdog_pool_isolated_from_io_pool() -> None:
 
     io_release.set()
     blocker.result(timeout=2.0)
+    executor.shutdown()
+
+
+def test_pool_workers_are_daemon_and_skip_atexit_registry() -> None:
+    """Workers must be daemon and not registered in ``_threads_queues``.
+
+    Stdlib ``ThreadPoolExecutor`` workers are non-daemon and joined by Python's
+    ``concurrent.futures.thread._python_exit`` atexit hook. Either condition
+    can extend process termination beyond the bounded ``shutdown(timeout=...)``
+    when an in-flight task is stuck.
+    """
+
+    scheduler = MainThreadScheduler()
+    executor = BackgroundExecutor(scheduler, io_workers=1, subprocess_workers=1)
+
+    # Materialize at least one worker per pool by running one task each.
+    executor.io.submit(lambda: None).result(timeout=2.0)
+    executor.subprocess.submit(lambda: None).result(timeout=2.0)
+    executor.watchdog.submit(lambda: None).result(timeout=2.0)
+
+    pools_to_check = [
+        ("io", executor._io_executor),
+        ("subprocess", executor._subprocess_executor),
+        ("watchdog", executor._watchdog_executor),
+    ]
+    for name, pool_executor in pools_to_check:
+        threads = list(pool_executor._threads)
+        assert threads, f"{name} pool spawned no workers"
+        for t in threads:
+            assert t.daemon, f"{name} worker {t.name!r} is not daemon"
+            assert t not in _cf_thread._threads_queues, (  # type: ignore[attr-defined]
+                f"{name} worker {t.name!r} is registered in "
+                "concurrent.futures.thread._threads_queues; atexit would join "
+                "it and may hang on stuck tasks"
+            )
+
     executor.shutdown()

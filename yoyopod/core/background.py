@@ -11,13 +11,64 @@ workers with the general-purpose `io` pool.
 
 from __future__ import annotations
 
+import concurrent.futures.thread as _cf_thread
 import threading
 import time
+import weakref
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol, TypeVar
 
 from loguru import logger
+
+
+class _DaemonThreadPoolExecutor(ThreadPoolExecutor):
+    """``ThreadPoolExecutor`` whose workers are daemon and skip the atexit join.
+
+    Stdlib ``ThreadPoolExecutor`` creates **non-daemon** worker threads and
+    registers them in ``concurrent.futures.thread._threads_queues``; the
+    interpreter's ``_python_exit`` atexit hook unconditionally calls
+    ``Thread.join()`` on every registered worker. A stuck submitted task
+    (e.g. a hung HTTP/I2C call without a per-call timeout) therefore blocks
+    process termination *even after* :meth:`BackgroundExecutor.shutdown` has
+    returned within its bounded timeout.
+
+    This subclass overrides the private ``_adjust_thread_count`` hook to:
+
+    1. Spawn workers with ``daemon=True`` so the interpreter does not wait
+       on them in its non-daemon-thread join phase.
+    2. Skip registration in ``_threads_queues`` so ``_python_exit`` does
+       not call ``join()`` on stuck workers at interpreter exit.
+
+    The body mirrors CPython's stock ``_adjust_thread_count`` exactly except
+    for those two changes; if the stdlib internal layout shifts in a future
+    Python release, this class needs revisiting.
+    """
+
+    def _adjust_thread_count(self) -> None:  # type: ignore[override]
+        if self._idle_semaphore.acquire(timeout=0):
+            return
+
+        def weakref_cb(_: Any, q: Any = self._work_queue) -> None:
+            q.put(None)
+
+        num_threads = len(self._threads)
+        if num_threads < self._max_workers:
+            thread_name = f"{self._thread_name_prefix or self}_{num_threads}"
+            t = threading.Thread(
+                name=thread_name,
+                target=_cf_thread._worker,  # type: ignore[attr-defined]
+                args=(
+                    weakref.ref(self, weakref_cb),
+                    self._work_queue,
+                    self._initializer,
+                    self._initargs,
+                ),
+                daemon=True,
+            )
+            t.start()
+            self._threads.add(t)
+            # Intentionally NOT added to ``_cf_thread._threads_queues`` — see class docstring.
 
 
 class _Scheduler(Protocol):
@@ -164,11 +215,13 @@ class BackgroundExecutor:
     ) -> None:
         self._scheduler = scheduler
         self._diagnostics_log = diagnostics_log
-        self._io_executor = ThreadPoolExecutor(max_workers=io_workers, thread_name_prefix="yp-io")
-        self._subprocess_executor = ThreadPoolExecutor(
+        self._io_executor = _DaemonThreadPoolExecutor(
+            max_workers=io_workers, thread_name_prefix="yp-io"
+        )
+        self._subprocess_executor = _DaemonThreadPoolExecutor(
             max_workers=subprocess_workers, thread_name_prefix="yp-sub"
         )
-        self._watchdog_executor = ThreadPoolExecutor(
+        self._watchdog_executor = _DaemonThreadPoolExecutor(
             max_workers=watchdog_workers, thread_name_prefix="yp-wd"
         )
         self.io = BackgroundPool(
