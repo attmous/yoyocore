@@ -720,6 +720,64 @@ def test_supervisor_caps_published_worker_messages_per_poll() -> None:
     assert [message.payload["index"] for message in worker_messages] == [2]
 
 
+def test_supervisor_redistributes_unused_poll_budget_from_idle_domains() -> None:
+    bus = Bus()
+    scheduler = MainThreadScheduler()
+    message_events: list[WorkerMessageReceivedEvent] = []
+    bus.subscribe(WorkerMessageReceivedEvent, message_events.append)
+    supervisor = WorkerSupervisor(
+        scheduler=scheduler,
+        bus=bus,
+        max_messages_per_poll=8,
+    )
+    supervisor.register("voice", WorkerProcessConfig(name="voice", argv=["unused"]))
+    supervisor.register("network", WorkerProcessConfig(name="network", argv=["unused"]))
+    supervisor.register("cloud", WorkerProcessConfig(name="cloud", argv=["unused"]))
+
+    voice_messages = [
+        make_envelope(
+            kind="event",
+            type="voice.event",
+            request_id=None,
+            payload={"index": index},
+        )
+        for index in range(5)
+    ]
+    drain_limits: list[int | None] = []
+
+    def make_runtime(messages: list[WorkerEnvelope], *, record_limits: bool = False) -> object:
+        def drain_messages(limit: int | None = None) -> list[WorkerEnvelope]:
+            if record_limits:
+                drain_limits.append(limit)
+            count = len(messages) if limit is None else min(limit, len(messages))
+            drained = messages[:count]
+            del messages[:count]
+            return drained
+
+        return cast(
+            object,
+            SimpleNamespace(
+                running=True,
+                drain_messages=drain_messages,
+                send_command=lambda **_kwargs: True,
+            ),
+        )
+
+    supervisor._workers["voice"].runtime = make_runtime(voice_messages, record_limits=True)
+    supervisor._workers["voice"].state = "running"
+    supervisor._workers["network"].runtime = make_runtime([])
+    supervisor._workers["network"].state = "running"
+    supervisor._workers["cloud"].runtime = make_runtime([])
+    supervisor._workers["cloud"].state = "running"
+
+    assert supervisor.poll(monotonic_now=1.0) == 5
+    bus.drain()
+
+    assert [event.payload["index"] for event in message_events] == [0, 1, 2, 3, 4]
+    assert voice_messages == []
+    assert drain_limits == [2, 6]
+
+
 def test_supervisor_rotates_message_budget_across_worker_domains() -> None:
     bus = Bus()
     scheduler = MainThreadScheduler()

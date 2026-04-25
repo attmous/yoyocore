@@ -135,22 +135,31 @@ class WorkerSupervisor:
 
         remaining_message_budget = self._max_messages_per_poll
         ordered_worker_items = self._rotate_worker_items(worker_items)
-        remaining_runtime_count = sum(
-            1 for _domain, slot in ordered_worker_items if slot.runtime is not None
-        )
-        for domain, slot in ordered_worker_items:
-            runtime = slot.runtime
-            if runtime is None:
-                continue
-            if remaining_message_budget <= 0:
+        candidate_worker_items = [
+            (domain, slot) for domain, slot in ordered_worker_items if slot.runtime is not None
+        ]
+        while remaining_message_budget > 0 and candidate_worker_items:
+            next_candidate_worker_items: list[tuple[str, _WorkerSlot]] = []
+            drained_in_round = False
+            remaining_runtime_count = len(candidate_worker_items)
+            for index, (domain, slot) in enumerate(candidate_worker_items):
+                runtime = slot.runtime
+                if runtime is None or remaining_message_budget <= 0:
+                    continue
+                share = max(1, remaining_message_budget // (remaining_runtime_count - index))
+                messages = runtime.drain_messages(limit=share)
+                if not messages:
+                    continue
+                drained_in_round = True
+                processed += len(messages)
+                remaining_message_budget -= len(messages)
+                for message in messages:
+                    self._publish_message(domain, slot, message)
+                if len(messages) == share and remaining_message_budget > 0:
+                    next_candidate_worker_items.append((domain, slot))
+            if not drained_in_round:
                 break
-            share = max(1, remaining_message_budget // remaining_runtime_count)
-            messages = runtime.drain_messages(limit=share)
-            processed += len(messages)
-            remaining_message_budget -= len(messages)
-            for message in messages:
-                self._publish_message(domain, slot, message)
-            remaining_runtime_count -= 1
+            candidate_worker_items = next_candidate_worker_items
 
         self._poll_start_index = (self._poll_start_index + 1) % len(worker_items)
 
