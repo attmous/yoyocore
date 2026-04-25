@@ -21,7 +21,7 @@ class CrossScreenOverlay(Protocol):
         ...
 
     def on_deactivate(self, now: float) -> None:
-        """Clean up overlay-owned state after this overlay stops being active."""
+        """Reconcile overlay-owned state while this overlay is not the active winner."""
         ...
 
 
@@ -53,9 +53,10 @@ class CrossScreenOverlayRuntime:
             (overlay for overlay in self._overlays if overlay.is_active(now)),
             None,
         )
-        previous_overlay = self._active_overlay
-        if previous_overlay is not None and previous_overlay is not active_overlay:
-            previous_overlay.on_deactivate(now)
+        for overlay in self._overlays:
+            if overlay is active_overlay:
+                continue
+            overlay.on_deactivate(now)
 
         self._active_overlay = active_overlay
         self._last_active_overlay_name = active_overlay.name if active_overlay else None

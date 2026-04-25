@@ -93,6 +93,32 @@ def test_overlay_runtime_calls_deactivate_hook_once_on_transition_to_inactive() 
     assert overlay.deactivation_calls == [2.0]
 
 
+def test_overlay_runtime_deactivates_inactive_overlay_on_first_evaluation() -> None:
+    """Stale inactive overlays should clean up even if they were never the active winner."""
+
+    runtime = CrossScreenOverlayRuntime()
+    overlay = _OverlayStub(name="power", priority=100, active=False)
+    runtime.register(overlay)
+
+    assert runtime.evaluate(now=3.0) is False
+    assert overlay.deactivation_calls == [3.0]
+
+
+def test_overlay_runtime_deactivates_hidden_lower_priority_overlay_without_evaluating_it() -> None:
+    """A hidden lower-priority overlay should still reconcile stale inactive state."""
+
+    runtime = CrossScreenOverlayRuntime()
+    higher = _OverlayStub(name="higher", priority=20, active=True)
+    lower = _OverlayStub(name="lower", priority=10, active=False)
+    runtime.register(lower)
+    runtime.register(higher)
+
+    assert runtime.evaluate(now=4.0) is True
+    assert higher.is_active_calls == [4.0]
+    assert lower.is_active_calls == []
+    assert lower.deactivation_calls == [4.0]
+
+
 def test_overlay_runtime_clears_active_name_when_no_overlays_are_active() -> None:
     """The runtime should clear the active overlay marker when nothing is active."""
 

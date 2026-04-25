@@ -24,8 +24,8 @@ Cross-screen concerns should implement one shared contract:
 2. Pure activation check: `is_active(now: float) -> bool` decides visibility
    without mutating overlay-owned state.
 3. Rendering hook: `render(now: float) -> None`.
-4. Deactivation hook: `on_deactivate(now: float) -> None` owns cleanup that
-   should happen only when an overlay stops being active.
+4. Deactivation hook: `on_deactivate(now: float) -> None` owns idempotent
+   cleanup that may run while an overlay is not the active winner.
 5. Ordering: each overlay provides `priority: int`; higher values render first.
 6. Runtime ownership: overlays are registered in a shared overlay runtime that
    evaluates overlays once per coordinator tick, stops at the first active
@@ -45,7 +45,7 @@ avoids standalone special-cases in the outer coordinator iteration.
   internal state.
 - Overlays must be self-deactivating: once the condition is gone,
   `is_active()` returns `False` and the runtime naturally stops rendering it.
-- One-time cleanup actions belong in `on_deactivate()`, not in `is_active()`.
+- Inactive cleanup belongs in `on_deactivate()`, not in `is_active()`.
 
 ## Current Migration Plan
 
