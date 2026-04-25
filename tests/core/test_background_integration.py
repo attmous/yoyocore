@@ -137,3 +137,39 @@ def test_app_background_watchdog_pool_isolated_from_io_pool() -> None:
         except Exception:
             pass
     app.stop()
+
+
+def test_app_background_power_pool_isolated_from_io_pool() -> None:
+    """``app.background.power`` must run independently of cloud-saturated io.
+
+    ``PowerRuntimeService._start_power_refresh_worker`` submits to this pool;
+    a saturated io pool must not delay safety-policy snapshot updates.
+    """
+
+    app = YoyoPodApp(strict_bus=True)
+    app.start()
+    io_started = threading.Event()
+    io_release = threading.Event()
+
+    def slow_io() -> None:
+        io_started.set()
+        io_release.wait(timeout=2.0)
+
+    blockers = [
+        app.background.io.submit(slow_io)
+        for _ in range(4)  # default _DEFAULT_IO_WORKERS = 4
+    ]
+    assert io_started.wait(timeout=1.0)
+
+    pwr_future: Future[str] = app.background.power.submit(lambda: "pwr-ok")
+    assert pwr_future.result(timeout=1.0) == "pwr-ok"
+    assert app.background.power is not app.background.io
+    assert app.background.power is not app.background.watchdog
+
+    io_release.set()
+    for blocker in blockers:
+        try:
+            blocker.result(timeout=2.0)
+        except Exception:
+            pass
+    app.stop()

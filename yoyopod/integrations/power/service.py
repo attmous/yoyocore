@@ -55,7 +55,7 @@ class PowerRuntimeService:
             return
 
         self.app._power_refresh_in_flight = True
-        self.app.background.io.submit(self.run_power_refresh_attempt)
+        self.app.background.power.submit(self.run_power_refresh_attempt)
 
     def run_power_refresh_attempt(self) -> None:
         """Collect one PiSugar snapshot off the coordinator thread."""

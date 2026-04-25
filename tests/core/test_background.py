@@ -298,11 +298,13 @@ def test_pool_workers_are_daemon_and_skip_atexit_registry() -> None:
     executor.io.submit(lambda: None).result(timeout=2.0)
     executor.subprocess.submit(lambda: None).result(timeout=2.0)
     executor.watchdog.submit(lambda: None).result(timeout=2.0)
+    executor.power.submit(lambda: None).result(timeout=2.0)
 
     pools_to_check = [
         ("io", executor._io_executor),
         ("subprocess", executor._subprocess_executor),
         ("watchdog", executor._watchdog_executor),
+        ("power", executor._power_executor),
     ]
     for name, pool_executor in pools_to_check:
         threads = list(pool_executor._threads)
@@ -314,5 +316,62 @@ def test_pool_workers_are_daemon_and_skip_atexit_registry() -> None:
                 "concurrent.futures.thread._threads_queues; atexit would join "
                 "it and may hang on stuck tasks"
             )
+
+    executor.shutdown()
+
+
+def test_power_pool_isolated_from_io_pool() -> None:
+    """Power refresh must run on workers that cloud/io work cannot saturate.
+
+    PowerRuntimeService gates new refreshes on `_power_refresh_in_flight`. If
+    the io pool is saturated by CloudManager work, a queued refresh stalls and
+    no new refreshes are scheduled, delaying ``PowerSafetyPolicy.evaluate``
+    (low-battery warnings, shutdown decisions).
+    """
+
+    scheduler = MainThreadScheduler()
+    executor = BackgroundExecutor(scheduler, io_workers=1)
+    io_started = threading.Event()
+    io_release = threading.Event()
+
+    def slow_io() -> None:
+        io_started.set()
+        io_release.wait(timeout=2.0)
+
+    blocker = executor.io.submit(slow_io)
+    assert io_started.wait(timeout=1.0)
+
+    pwr_done = executor.power.submit(lambda: "pwr-ok")
+    assert pwr_done.result(timeout=1.0) == "pwr-ok"
+
+    io_release.set()
+    blocker.result(timeout=2.0)
+    executor.shutdown()
+
+
+def test_set_diagnostics_log_propagates_to_power_pool() -> None:
+    """Diagnostics sink must reach the dedicated power pool too."""
+
+    scheduler = MainThreadScheduler()
+    executor = BackgroundExecutor(scheduler)
+    diagnostics: list[dict[str, Any]] = []
+    executor.set_diagnostics_log(diagnostics)
+
+    def boom() -> None:
+        raise RuntimeError("power-attached")
+
+    future = executor.power.submit_and_post(boom, on_done=lambda fut: None)
+    with pytest.raises(RuntimeError):
+        future.result(timeout=2.0)
+
+    _wait_for_pending(scheduler)
+    scheduler.drain()
+
+    matching = [
+        entry
+        for entry in diagnostics
+        if entry["pool"] == "power" and "power-attached" in entry["exc"]
+    ]
+    assert matching, f"no power-pool error recorded; saw {diagnostics}"
 
     executor.shutdown()

@@ -1,12 +1,13 @@
 """Central background-work executor for off-thread I/O and subprocess operations.
 
-Three named `ThreadPoolExecutor` pools (`io`, `subprocess`, `watchdog`) run
-blocking work off the coordinator thread, and a registry of long-running
+Four named `ThreadPoolExecutor` pools (`io`, `subprocess`, `watchdog`, `power`)
+run blocking work off the coordinator thread, and a registry of long-running
 poller threads provides centralized shutdown discipline. All Future results
 return to the coordinator via :meth:`MainThreadScheduler.post` so call sites
-never touch threading primitives directly. The `watchdog` pool is reserved
-for safety-critical work (e.g. PiSugar watchdog feeds) and never shares
-workers with the general-purpose `io` pool.
+never touch threading primitives directly. The `watchdog` and `power` pools
+are reserved for safety-critical PiSugar work — watchdog feeds (`watchdog`)
+and battery-state refreshes feeding ``PowerSafetyPolicy.evaluate`` (`power`)
+— and never share workers with the general-purpose `io` pool.
 """
 
 from __future__ import annotations
@@ -85,6 +86,7 @@ _T = TypeVar("_T")
 _DEFAULT_IO_WORKERS = 4
 _DEFAULT_SUBPROCESS_WORKERS = 2
 _DEFAULT_WATCHDOG_WORKERS = 1
+_DEFAULT_POWER_WORKERS = 1
 _DEFAULT_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
 
@@ -212,6 +214,7 @@ class BackgroundExecutor:
         io_workers: int = _DEFAULT_IO_WORKERS,
         subprocess_workers: int = _DEFAULT_SUBPROCESS_WORKERS,
         watchdog_workers: int = _DEFAULT_WATCHDOG_WORKERS,
+        power_workers: int = _DEFAULT_POWER_WORKERS,
     ) -> None:
         self._scheduler = scheduler
         self._diagnostics_log = diagnostics_log
@@ -223,6 +226,9 @@ class BackgroundExecutor:
         )
         self._watchdog_executor = _DaemonThreadPoolExecutor(
             max_workers=watchdog_workers, thread_name_prefix="yp-wd"
+        )
+        self._power_executor = _DaemonThreadPoolExecutor(
+            max_workers=power_workers, thread_name_prefix="yp-pwr"
         )
         self.io = BackgroundPool(
             executor=self._io_executor,
@@ -241,6 +247,12 @@ class BackgroundExecutor:
             scheduler=scheduler,
             diagnostics_log=diagnostics_log,
             pool_name="watchdog",
+        )
+        self.power = BackgroundPool(
+            executor=self._power_executor,
+            scheduler=scheduler,
+            diagnostics_log=diagnostics_log,
+            pool_name="power",
         )
         self._long_running: list[_LongRunningEntry] = []
         self._shutdown = False
@@ -269,6 +281,7 @@ class BackgroundExecutor:
         self.io._set_diagnostics_log(diagnostics_log)
         self.subprocess._set_diagnostics_log(diagnostics_log)
         self.watchdog._set_diagnostics_log(diagnostics_log)
+        self.power._set_diagnostics_log(diagnostics_log)
 
     def long_running_thread_names(self) -> list[str]:
         """Return the names of currently registered long-running threads."""
@@ -301,6 +314,7 @@ class BackgroundExecutor:
         self._shutdown_pool_bounded(self._io_executor, "io", deadline)
         self._shutdown_pool_bounded(self._subprocess_executor, "subprocess", deadline)
         self._shutdown_pool_bounded(self._watchdog_executor, "watchdog", deadline)
+        self._shutdown_pool_bounded(self._power_executor, "power", deadline)
         for entry in entries:
             remaining = max(0.0, deadline - time.monotonic())
             entry.thread.join(timeout=remaining)
