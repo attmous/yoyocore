@@ -56,6 +56,10 @@ class RenderableScreen(Protocol):
 
     def refresh_for_visible_tick(self) -> None: ...
 
+    def clear_dirty(self) -> None: ...
+
+    def should_render_for_visible_tick(self) -> bool: ...
+
 
 class IncomingCallScreenLike(RenderableScreen, Protocol):
     """Extra incoming-call fields used by the screen coordinator."""
@@ -73,15 +77,25 @@ class FakeScreen:
         self.refresh_for_visible_tick_calls = 0
         self.route_name: str | None = None
         self.visible_tick_refresh_enabled = False
+        self.keep_visible_tick_dirty = False
+        self._dirty = True
 
     def render(self) -> None:
         self.render_calls += 1
 
     def refresh_for_visible_tick(self) -> None:
         self.refresh_for_visible_tick_calls += 1
+        if self.keep_visible_tick_dirty:
+            self._dirty = True
 
     def wants_visible_tick_refresh(self) -> bool:
         return self.visible_tick_refresh_enabled
+
+    def clear_dirty(self) -> None:
+        self._dirty = False
+
+    def should_render_for_visible_tick(self) -> bool:
+        return self.keep_visible_tick_dirty or self._dirty
 
 
 class FakeIncomingCallScreen(FakeScreen):
@@ -159,6 +173,7 @@ class FakeScreenManager:
             return
         self.current_screen.refresh_for_visible_tick()
         self.current_screen.render()
+        self.current_screen.clear_dirty()
 
     def refresh_current_screen_for_visible_tick(self) -> bool:
         if self.current_screen is None:
@@ -178,7 +193,17 @@ class FakeScreenManager:
                 return False
         elif not callable(refresh_for_visible_tick):
             return False
-        self.refresh_current_screen()
+        if callable(refresh_for_visible_tick):
+            refresh_for_visible_tick()
+        should_render_for_visible_tick = getattr(
+            self.current_screen,
+            "should_render_for_visible_tick",
+            None,
+        )
+        if callable(should_render_for_visible_tick) and not should_render_for_visible_tick():
+            return False
+        self.current_screen.render()
+        self.current_screen.clear_dirty()
         return True
 
     def pop_call_screens(self) -> None:
@@ -192,11 +217,13 @@ class FakeScreenManager:
         if self.current_screen is None or self.current_screen.route_name != "now_playing":
             return
         self.current_screen.render()
+        self.current_screen.clear_dirty()
 
     def refresh_call_screen_if_visible(self) -> None:
         if self.current_screen is None or self.current_screen.route_name != "call":
             return
         self.current_screen.render()
+        self.current_screen.clear_dirty()
 
     def show_incoming_call(self, caller_address: str, caller_name: str) -> None:
         screen = self.screen_lookup["incoming_call"]
@@ -619,6 +646,8 @@ class OrchestrationHarness:
         screens.power.visible_tick_refresh_enabled = True
         screens.now_playing.visible_tick_refresh_enabled = True
         screens.in_call.visible_tick_refresh_enabled = True
+        screens.now_playing.keep_visible_tick_dirty = True
+        screens.in_call.keep_visible_tick_dirty = True
         app.menu_screen = screens.menu
         app.power_screen = screens.power
         app.now_playing_screen = screens.now_playing

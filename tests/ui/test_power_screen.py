@@ -514,6 +514,58 @@ def test_power_screen_visible_tick_waits_for_gps_page_dwell_before_query() -> No
         display.cleanup()
 
 
+def test_power_screen_visible_tick_stays_clean_when_prepared_state_is_unchanged() -> None:
+    """Visible ticks should not force a render when the prepared state is unchanged."""
+
+    state = PowerScreenState(
+        network_enabled=True,
+        network_rows=(("Status", "Online"),),
+    )
+
+    display = Display(simulate=True)
+    try:
+        screen = PowerScreen(display, AppContext(), state_provider=lambda: state)
+        screen._visible_tick_refresh_grace_seconds = 0.0
+
+        screen.enter()
+        screen.clear_dirty()
+        screen.refresh_for_visible_tick()
+
+        assert screen.should_render_for_visible_tick() is False
+    finally:
+        display.cleanup()
+
+
+def test_power_screen_visible_tick_marks_dirty_when_prepared_state_changes() -> None:
+    """Visible ticks should mark the screen dirty when the prepared state changes."""
+
+    states = iter(
+        (
+            PowerScreenState(
+                network_enabled=True,
+                network_rows=(("Status", "Online"),),
+            ),
+            PowerScreenState(
+                network_enabled=True,
+                network_rows=(("Status", "Offline"),),
+            ),
+        )
+    )
+
+    display = Display(simulate=True)
+    try:
+        screen = PowerScreen(display, AppContext(), state_provider=lambda: next(states))
+        screen._visible_tick_refresh_grace_seconds = 0.0
+
+        screen.enter()
+        screen.clear_dirty()
+        screen.refresh_for_visible_tick()
+
+        assert screen.should_render_for_visible_tick() is True
+    finally:
+        display.cleanup()
+
+
 def test_power_screen_copies_provider_status_on_refresh() -> None:
     """Prepared state should not retain provider-owned mutable status mappings."""
 

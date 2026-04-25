@@ -46,10 +46,17 @@ class RoutableStubScreen(Screen):
 class HookAwareStubScreen(Screen):
     """Minimal screen double that exposes refresh-hook counters."""
 
-    def __init__(self, display: Display, context: AppContext | None = None) -> None:
+    def __init__(
+        self,
+        display: Display,
+        context: AppContext | None = None,
+        *,
+        keep_visible_tick_dirty: bool = True,
+    ) -> None:
         super().__init__(display, context, "HookAwareStub")
         self.render_calls = 0
         self.refresh_for_visible_tick_calls = 0
+        self.keep_visible_tick_dirty = keep_visible_tick_dirty
 
     def render(self) -> None:
         """Count renders performed by the screen manager."""
@@ -58,6 +65,14 @@ class HookAwareStubScreen(Screen):
     def refresh_for_visible_tick(self) -> None:
         """Count visible-tick refreshes before render."""
         self.refresh_for_visible_tick_calls += 1
+        if self.keep_visible_tick_dirty:
+            self.mark_dirty()
+
+    @staticmethod
+    def wants_visible_tick_refresh() -> bool:
+        """Opt into the shared visible-tick refresh path."""
+
+        return True
 
 
 class FakeLvglPumpBackend:
@@ -279,6 +294,25 @@ def test_screen_manager_only_refreshes_visible_ticks_for_opted_in_screen(
     screen_manager.replace_screen("power")
     assert screen_manager.refresh_current_screen_for_visible_tick() is True
     assert power.render_calls == 2
+    assert power.refresh_for_visible_tick_calls == 2
+
+
+def test_screen_manager_skips_visible_tick_render_when_screen_stays_clean(
+    display: Display,
+) -> None:
+    """Visible ticks should skip opted-in screens that do not mark themselves dirty."""
+
+    context = AppContext()
+    screen_manager = ScreenManager(display, input_manager=None)
+    power = HookAwareStubScreen(display, context, keep_visible_tick_dirty=False)
+
+    screen_manager.register_screen("power", power)
+    screen_manager.replace_screen("power")
+
+    assert power.render_calls == 1
+    assert power.refresh_for_visible_tick_calls == 1
+    assert screen_manager.refresh_current_screen_for_visible_tick() is False
+    assert power.render_calls == 1
     assert power.refresh_for_visible_tick_calls == 2
 
 

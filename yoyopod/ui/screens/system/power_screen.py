@@ -419,6 +419,7 @@ class PowerScreen(Screen):
         *,
         allow_gps_refresh: bool = False,
     ) -> PowerScreenState:
+        previous_state = self._prepared_state
         if allow_gps_refresh:
             self._refresh_gps_if_due()
         try:
@@ -426,6 +427,8 @@ class PowerScreen(Screen):
             self._last_prepared_refresh_at = time.monotonic()
         except Exception:
             self._prepared_state = PowerScreenState()
+        if previous_state != self._prepared_state:
+            self.mark_dirty()
         return self._prepared_state
 
     def refresh_for_visible_tick(self) -> None:
