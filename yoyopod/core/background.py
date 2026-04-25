@@ -155,20 +155,34 @@ class BackgroundPool:
         future: Future[Any],
         on_done: Callable[[Future[Any]], None],
     ) -> None:
-        """Run the completion handler on the main thread, recording any failures."""
+        """Run the completion handler on the main thread, recording any failures.
 
-        background_exc = future.exception()
-        if background_exc is not None:
-            self._record_error(
-                kind="background_error",
-                fn=fn,
-                exc=background_exc,
-            )
-            logger.opt(exception=background_exc).error(
-                "Background work failed in pool {!r}: {}",
-                self._pool_name,
-                _callable_name(fn),
-            )
+        Completion handlers may be invoked with a *cancelled* future when
+        :meth:`BackgroundExecutor.shutdown` aborts queued work via
+        ``cancel_futures=True``; handlers should check ``future.cancelled()``
+        before calling ``future.result()`` to avoid ``CancelledError``. The
+        handler is still invoked on cancellation so callers can release
+        in-flight flags (e.g. ``_power_refresh_in_flight``).
+        """
+
+        if future.cancelled():
+            # Calling future.exception() on a cancelled future raises
+            # CancelledError; short-circuit and record a low-severity
+            # diagnostic instead, then still run on_done for cleanup.
+            self._record_cancellation(fn=fn)
+        else:
+            background_exc = future.exception()
+            if background_exc is not None:
+                self._record_error(
+                    kind="background_error",
+                    fn=fn,
+                    exc=background_exc,
+                )
+                logger.opt(exception=background_exc).error(
+                    "Background work failed in pool {!r}: {}",
+                    self._pool_name,
+                    _callable_name(fn),
+                )
         try:
             on_done(future)
         except Exception as exc:
@@ -181,6 +195,19 @@ class BackgroundPool:
                 "Background completion handler for {} failed",
                 _callable_name(fn),
             )
+
+    def _record_cancellation(self, *, fn: Callable[..., Any]) -> None:
+        """Record one low-severity ``background_cancelled`` diagnostic entry."""
+
+        if self._diagnostics_log is None:
+            return
+        self._diagnostics_log.append(
+            {
+                "kind": "background_cancelled",
+                "pool": self._pool_name,
+                "handler": _callable_name(fn),
+            }
+        )
 
     def _record_error(
         self,

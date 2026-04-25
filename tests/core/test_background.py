@@ -349,6 +349,62 @@ def test_power_pool_isolated_from_io_pool() -> None:
     executor.shutdown()
 
 
+def test_invoke_handler_runs_on_done_on_cancelled_future_without_crashing() -> None:
+    """Cancelled queued futures must not crash ``_invoke_handler``.
+
+    Without the cancellation guard, ``_invoke_handler`` calls
+    ``future.exception()`` which raises ``CancelledError`` on cancelled
+    futures. The scheduler logs a generic task error and ``on_done``
+    (which holds caller cleanup logic such as clearing
+    ``_power_refresh_in_flight``) never runs.
+    """
+
+    scheduler = MainThreadScheduler()
+    diagnostics: list[dict[str, Any]] = []
+    # io_workers=1 lets us saturate with one blocker and queue a cancellable task.
+    executor = BackgroundExecutor(scheduler, io_workers=1, diagnostics_log=diagnostics)
+
+    block_started = threading.Event()
+    block_release = threading.Event()
+
+    def slow_blocker() -> None:
+        block_started.set()
+        block_release.wait(timeout=5.0)
+
+    blocker = executor.io.submit(slow_blocker)
+    assert block_started.wait(timeout=1.0)
+
+    cleanup_called: list[bool] = []
+
+    def on_done(_fut: Future[Any]) -> None:
+        cleanup_called.append(True)
+
+    queued = executor.io.submit_and_post(lambda: "never-runs", on_done=on_done)
+    assert queued.cancel(), "queued future should still be cancellable"
+    assert queued.cancelled()
+
+    _wait_for_pending(scheduler, timeout_seconds=2.0)
+    scheduler.drain()
+
+    # on_done must run for cancelled futures — that's where caller cleanup lives.
+    assert cleanup_called == [True], "on_done was not invoked for cancelled future"
+
+    # Diagnostics record cancellation as a distinct kind, not a generic crash.
+    cancelled_entries = [e for e in diagnostics if e.get("kind") == "background_cancelled"]
+    assert cancelled_entries, f"no background_cancelled entry recorded; saw {diagnostics}"
+    assert cancelled_entries[0]["pool"] == "io"
+
+    # No spurious background_error or background_completion_error.
+    assert not any(
+        e.get("kind") in {"background_error", "background_completion_error"}
+        for e in diagnostics
+    ), f"unexpected error entry recorded: {diagnostics}"
+
+    block_release.set()
+    blocker.result(timeout=2.0)
+    executor.shutdown()
+
+
 def test_set_diagnostics_log_propagates_to_power_pool() -> None:
     """Diagnostics sink must reach the dedicated power pool too."""
 
