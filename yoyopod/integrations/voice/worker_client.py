@@ -156,8 +156,10 @@ class VoiceWorkerClient:
             self._complete_with_worker_error(pending, event.payload)
             return
         if event.type == "voice.cancelled":
-            pending.error = VoiceWorkerUnavailable("voice worker request cancelled")
-            pending.event.set()
+            self._complete_once(
+                pending,
+                error=VoiceWorkerUnavailable("voice worker request cancelled"),
+            )
 
     def _send(
         self,
@@ -213,7 +215,7 @@ class VoiceWorkerClient:
             with self._lock:
                 self._pending.pop(pending.request_id, None)
 
-        if not completed and not pending.event.is_set():
+        if not completed:
             raise VoiceWorkerTimeout(f"voice worker request {pending.request_id} timed out")
         if pending.error is not None:
             raise pending.error
@@ -226,11 +228,21 @@ class VoiceWorkerClient:
         pending: _PendingRequest,
         error: VoiceWorkerUnavailable,
     ) -> None:
+        self._complete_once(pending, error=error)
+
+    def _complete_once(
+        self,
+        pending: _PendingRequest,
+        *,
+        result: VoiceWorkerTranscribeResult | VoiceWorkerSpeakResult | None = None,
+        error: BaseException | None = None,
+    ) -> None:
         with self._lock:
             if self._pending.get(pending.request_id) is not pending:
                 return
             if pending.event.is_set():
                 return
+            pending.result = result
             pending.error = error
             pending.event.set()
 
@@ -239,14 +251,15 @@ class VoiceWorkerClient:
     ) -> None:
         try:
             if event.type == "voice.transcribe.result":
-                pending.result = parse_transcribe_result(event.payload)
+                result = parse_transcribe_result(event.payload)
             elif event.type == "voice.speak.result":
-                pending.result = parse_speak_result(event.payload)
+                result = parse_speak_result(event.payload)
             else:
                 return
         except Exception as exc:
-            pending.error = exc
-        pending.event.set()
+            self._complete_once(pending, error=exc)
+            return
+        self._complete_once(pending, result=result)
 
     def _complete_with_worker_error(
         self, pending: _PendingRequest, payload: dict[str, Any]
@@ -254,10 +267,12 @@ class VoiceWorkerClient:
         try:
             worker_error = parse_worker_error(payload)
         except Exception as exc:
-            pending.error = exc
+            self._complete_once(pending, error=exc)
         else:
-            pending.error = VoiceWorkerUnavailable(f"{worker_error.code}: {worker_error.message}")
-        pending.event.set()
+            self._complete_once(
+                pending,
+                error=VoiceWorkerUnavailable(f"{worker_error.code}: {worker_error.message}"),
+            )
 
 
 __all__ = [

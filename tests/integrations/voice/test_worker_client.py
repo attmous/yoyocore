@@ -53,8 +53,12 @@ class _BlockingSupervisor(_Supervisor):
         super().__init__()
         self.entered = threading.Event()
         self.release = threading.Event()
+        self.active_domain: str | None = None
+        self.active_kwargs: dict[str, object] = {}
 
     def send_request(self, domain: str, **kwargs: object) -> bool:
+        self.active_domain = domain
+        self.active_kwargs = dict(kwargs)
         self.entered.set()
         assert self.release.wait(timeout=1.0)
         return super().send_request(domain, **kwargs)
@@ -559,6 +563,132 @@ def test_timeout_cleanup_cannot_interleave_with_in_flight_send() -> None:
     assert not request_thread.is_alive()
     assert len(errors) == 1
     assert isinstance(errors[0], VoiceWorkerTimeout)
+    assert client.pending_count == 0
+
+
+def test_late_result_after_timeout_still_raises_timeout() -> None:
+    scheduler = _Scheduler()
+    supervisor = _BlockingSupervisor()
+    client = VoiceWorkerClient(
+        scheduler=scheduler,
+        worker_supervisor=supervisor,
+        request_timeout_seconds=0.001,
+    )
+    completed = threading.Event()
+    errors: list[BaseException] = []
+    results: list[VoiceWorkerTranscribeResult] = []
+
+    request_thread = threading.Thread(
+        target=lambda: _capture_error_and_signal(
+            errors,
+            completed,
+            lambda: results.append(
+                client.transcribe(
+                    audio_path=Path("/tmp/input.wav"),
+                    sample_rate_hz=16000,
+                    language="en",
+                    max_audio_seconds=5.0,
+                )
+            ),
+        )
+    )
+    request_thread.start()
+
+    _wait_until(lambda: len(scheduler.callbacks) == 1)
+    drain_thread = threading.Thread(target=scheduler.drain)
+    drain_thread.start()
+    assert supervisor.entered.wait(timeout=1.0)
+    assert not completed.wait(timeout=0.1)
+
+    request_id = supervisor.active_kwargs["request_id"]
+    assert isinstance(request_id, str)
+    client.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="voice",
+            kind="result",
+            type="voice.transcribe.result",
+            request_id=request_id,
+            payload={"text": "too late", "confidence": 0.8, "is_final": True},
+        )
+    )
+
+    supervisor.release.set()
+    drain_thread.join(timeout=1.0)
+    request_thread.join(timeout=1.0)
+
+    assert not drain_thread.is_alive()
+    assert not request_thread.is_alive()
+    assert results == []
+    assert len(errors) == 1
+    assert isinstance(errors[0], VoiceWorkerTimeout)
+    assert client.pending_count == 0
+
+
+def test_duplicate_terminal_message_does_not_overwrite_first_result() -> None:
+    scheduler = _Scheduler()
+    supervisor = _BlockingSupervisor()
+    client = VoiceWorkerClient(
+        scheduler=scheduler,
+        worker_supervisor=supervisor,
+        request_timeout_seconds=0.25,
+    )
+    errors: list[BaseException] = []
+    results: list[VoiceWorkerTranscribeResult] = []
+
+    request_thread = threading.Thread(
+        target=lambda: _capture_error(
+            errors,
+            lambda: results.append(
+                client.transcribe(
+                    audio_path=Path("/tmp/input.wav"),
+                    sample_rate_hz=16000,
+                    language="en",
+                    max_audio_seconds=5.0,
+                )
+            ),
+        )
+    )
+    request_thread.start()
+
+    _wait_until(lambda: len(scheduler.callbacks) == 1)
+    drain_thread = threading.Thread(target=scheduler.drain)
+    drain_thread.start()
+    assert supervisor.entered.wait(timeout=1.0)
+    request_id = supervisor.active_kwargs["request_id"]
+    assert isinstance(request_id, str)
+
+    client.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="voice",
+            kind="result",
+            type="voice.transcribe.result",
+            request_id=request_id,
+            payload={"text": "first result", "confidence": 0.8, "is_final": True},
+        )
+    )
+    client.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="voice",
+            kind="error",
+            type="voice.error",
+            request_id=request_id,
+            payload={
+                "code": "late_duplicate",
+                "message": "duplicate terminal message",
+            },
+        )
+    )
+
+    supervisor.release.set()
+    drain_thread.join(timeout=1.0)
+    request_thread.join(timeout=1.0)
+
+    assert not drain_thread.is_alive()
+    assert not request_thread.is_alive()
+    assert errors == []
+    assert results == [
+        VoiceWorkerTranscribeResult(text="first result", confidence=0.8, is_final=True)
+    ]
     assert client.pending_count == 0
 
 
