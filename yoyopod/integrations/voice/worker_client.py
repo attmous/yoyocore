@@ -340,7 +340,7 @@ class VoiceWorkerClient:
             try:
                 self._worker_supervisor.send_request(
                     self._domain,
-                    type=f"{self._domain}.cancel",
+                    type="voice.cancel",
                     payload={"request_id": pending.request_id},
                     request_id=pending.request_id,
                     timeout_seconds=1.0,

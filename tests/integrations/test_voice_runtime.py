@@ -550,6 +550,80 @@ def test_runtime_cancel_reaches_in_flight_cloud_transcription(tmp_path: Path) ->
     assert outcomes == []
 
 
+def test_ptt_release_transcribes_with_fresh_cancel_event(tmp_path: Path) -> None:
+    audio_path = tmp_path / "ptt.wav"
+    audio_path.write_bytes(b"RIFF")
+    capture_started = threading.Event()
+    release_seen = threading.Event()
+    transcribe_cancel_events: list[threading.Event] = []
+    transcripts: list[str] = []
+    outcomes: list[VoiceCommandOutcome] = []
+
+    class _PTTReleaseVoiceService:
+        def capture_available(self) -> bool:
+            return True
+
+        def stt_available(self) -> bool:
+            return True
+
+        def tts_available(self) -> bool:
+            return False
+
+        def capture_audio(self, request) -> VoiceCaptureResult:
+            capture_started.set()
+            assert request.cancel_event is not None
+            assert request.cancel_event.wait(timeout=1.0)
+            release_seen.set()
+            return VoiceCaptureResult(audio_path=audio_path, recorded=True)
+
+        def transcribe(
+            self,
+            path: Path,
+            *,
+            cancel_event: threading.Event | None = None,
+        ) -> VoiceTranscript:
+            assert path == audio_path
+            assert cancel_event is not None
+            transcribe_cancel_events.append(cancel_event)
+            return VoiceTranscript(text="play music", confidence=1.0, is_final=True)
+
+        def speak(self, _text: str) -> bool:
+            return False
+
+    class _CommandExecutor:
+        def execute(self, transcript: str) -> VoiceCommandOutcome:
+            transcripts.append(transcript)
+            return VoiceCommandOutcome("Done", transcript, should_speak=False)
+
+    coordinator = VoiceRuntimeCoordinator(
+        context=None,
+        settings_resolver=VoiceSettingsResolver(
+            context=None,
+            settings_provider=lambda: VoiceSettings(mode="cloud"),
+        ),
+        command_executor=_CommandExecutor(),
+        voice_service_factory=lambda _settings: _PTTReleaseVoiceService(),
+        output_player=_FakeOutputPlayer(),
+    )
+    coordinator.bind(
+        state_listener=None,
+        outcome_listener=outcomes.append,
+        dispatcher=lambda callback: callback(),
+    )
+
+    coordinator.begin_ptt_capture()
+    assert capture_started.wait(timeout=1.0)
+    coordinator.finish_ptt_capture()
+
+    _wait_until(lambda: outcomes)
+    assert release_seen.is_set()
+    assert transcripts == ["play music"]
+    assert len(transcribe_cancel_events) == 1
+    assert not transcribe_cancel_events[0].is_set()
+    assert outcomes[-1] == VoiceCommandOutcome("Done", "play music", should_speak=False)
+    assert not audio_path.exists()
+
+
 def test_voice_runtime_coordinator_ptt_no_audio_resolves_to_no_speech() -> None:
     context = AppContext()
     service = _NoAudioVoiceService()

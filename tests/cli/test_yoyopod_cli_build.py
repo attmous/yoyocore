@@ -240,6 +240,12 @@ def test_ensure_native_shims_rebuilds_missing_artifacts(
         "_build_liblinphone",
         lambda native_dir, build_dir: calls.append(("liblinphone", native_dir, build_dir)),
     )
+    monkeypatch.setattr(build_cli.shutil, "which", lambda _command: None)
+    monkeypatch.setattr(
+        build_cli,
+        "build_voice_worker",
+        lambda: pytest.fail("Go voice worker build not expected"),
+    )
 
     rebuilt = build_cli._ensure_native_shims()
 
@@ -338,6 +344,12 @@ def test_ensure_native_shims_skips_current_artifacts(
         build_cli,
         "_build_liblinphone",
         lambda *_args, **_kwargs: pytest.fail("Liblinphone rebuild not expected"),
+    )
+    monkeypatch.setattr(build_cli.shutil, "which", lambda _command: None)
+    monkeypatch.setattr(
+        build_cli,
+        "build_voice_worker",
+        lambda: pytest.fail("Go voice worker build not expected"),
     )
 
     rebuilt = build_cli._ensure_native_shims()

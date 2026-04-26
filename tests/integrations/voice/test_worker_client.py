@@ -355,6 +355,53 @@ def test_cancel_event_sends_worker_cancel_and_unblocks_waiter() -> None:
     assert client.pending_count == 0
 
 
+def test_cancel_command_uses_voice_protocol_type_with_custom_domain() -> None:
+    scheduler = _Scheduler()
+    supervisor = _Supervisor()
+    client = VoiceWorkerClient(
+        scheduler=scheduler,
+        worker_supervisor=supervisor,
+        domain="voice-cloud",
+        request_timeout_seconds=0.25,
+    )
+    cancel_event = threading.Event()
+    errors: list[BaseException] = []
+
+    thread = threading.Thread(
+        target=lambda: _capture_error(
+            errors,
+            lambda: client.transcribe(
+                audio_path=Path("/tmp/input.wav"),
+                sample_rate_hz=16000,
+                language="en",
+                max_audio_seconds=5.0,
+                cancel_event=cancel_event,
+            ),
+        )
+    )
+    thread.start()
+
+    _wait_until(lambda: len(scheduler.callbacks) == 1)
+    scheduler.drain()
+    request_id = str(supervisor.requests[0]["request_id"])
+
+    cancel_event.set()
+    _wait_until(lambda: len(scheduler.callbacks) == 1)
+    scheduler.drain()
+    thread.join(timeout=1.0)
+
+    assert not thread.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], VoiceWorkerUnavailable)
+    assert supervisor.requests[0]["domain"] == "voice-cloud"
+    assert supervisor.requests[0]["type"] == "voice.transcribe"
+    assert supervisor.requests[1]["domain"] == "voice-cloud"
+    assert supervisor.requests[1]["type"] == "voice.cancel"
+    assert supervisor.requests[1]["request_id"] == request_id
+    assert supervisor.requests[1]["payload"] == {"request_id": request_id}
+    assert client.pending_count == 0
+
+
 def test_malformed_worker_error_raises_unavailable_and_cleans_pending() -> None:
     scheduler = _Scheduler()
     supervisor = _Supervisor()

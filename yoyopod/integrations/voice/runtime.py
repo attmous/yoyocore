@@ -374,18 +374,31 @@ class VoiceRuntimeCoordinator:
                 "PTT release finalized capture; starting transcription (generation={})",
                 generation,
             )
+            transcription_cancel_event = threading.Event()
+            self._active_capture_cancel = transcription_cancel_event
             try:
                 transcript = voice_service.transcribe(
                     capture_result.audio_path,
-                    cancel_event=cancel_event,
+                    cancel_event=transcription_cancel_event,
                 )
             except Exception as exc:
+                if (
+                    transcription_cancel_event.is_set()
+                    or generation != self._state.generation
+                ):
+                    logger.info(
+                        "PTT transcription cancelled (generation={})",
+                        generation,
+                    )
+                    return
                 logger.warning("PTT transcription failed: {}", exc)
                 self.dispatch_listen_result("", capture_failed=True, generation=generation)
                 return
             finally:
                 capture_result.audio_path.unlink(missing_ok=True)
 
+            if transcription_cancel_event.is_set() or generation != self._state.generation:
+                return
             self.dispatch_listen_result(
                 transcript.text.strip(),
                 capture_failed=False,
