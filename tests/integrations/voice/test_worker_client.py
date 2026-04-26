@@ -196,6 +196,51 @@ def test_worker_error_raises_unavailable_with_error_code() -> None:
     assert client.pending_count == 0
 
 
+def test_malformed_worker_error_raises_unavailable_and_cleans_pending() -> None:
+    scheduler = _Scheduler()
+    supervisor = _Supervisor()
+    client = VoiceWorkerClient(
+        scheduler=scheduler,
+        worker_supervisor=supervisor,
+        request_timeout_seconds=0.25,
+    )
+    errors: list[BaseException] = []
+
+    thread = threading.Thread(
+        target=lambda: _capture_error(
+            errors,
+            lambda: client.transcribe(
+                audio_path=Path("/tmp/input.wav"),
+                sample_rate_hz=16000,
+                language="en",
+                max_audio_seconds=5.0,
+            ),
+        )
+    )
+    thread.start()
+
+    _wait_until(lambda: len(scheduler.callbacks) == 1)
+    scheduler.drain()
+    request_id = str(supervisor.requests[0]["request_id"])
+
+    client.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="voice",
+            kind="error",
+            type="voice.error",
+            request_id=request_id,
+            payload={},
+        )
+    )
+    thread.join(timeout=1.0)
+
+    assert not thread.is_alive()
+    assert len(errors) == 1
+    assert isinstance(errors[0], VoiceWorkerUnavailable)
+    assert "malformed voice worker error" in str(errors[0])
+    assert client.pending_count == 0
+
+
 def test_transcribe_raises_timeout_when_no_result_arrives() -> None:
     scheduler = _Scheduler()
     supervisor = _Supervisor()

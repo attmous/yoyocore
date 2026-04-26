@@ -250,6 +250,7 @@ class VoiceWorkerClient:
         self, pending: _PendingRequest, event: WorkerMessageReceivedEvent
     ) -> None:
         try:
+            result: VoiceWorkerTranscribeResult | VoiceWorkerSpeakResult
             if event.type == "voice.transcribe.result":
                 result = parse_transcribe_result(event.payload)
             elif event.type == "voice.speak.result":
@@ -267,7 +268,10 @@ class VoiceWorkerClient:
         try:
             worker_error = parse_worker_error(payload)
         except Exception as exc:
-            self._complete_once(pending, error=exc)
+            self._complete_once(
+                pending,
+                error=VoiceWorkerUnavailable(f"malformed voice worker error: {exc}"),
+            )
         else:
             self._complete_once(
                 pending,
