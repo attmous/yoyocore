@@ -208,6 +208,10 @@ func (p OpenAIProvider) Speak(ctx context.Context, request SpeakRequest) (SpeakR
 		_ = os.Remove(outputPath)
 		return SpeakResult{}, err
 	}
+	if err := normalizeStreamingWAVSizes(outputPath); err != nil {
+		_ = os.Remove(outputPath)
+		return SpeakResult{}, err
+	}
 
 	sampleRateHz := request.SampleRateHz
 	if sampleRateHz == 0 {
@@ -363,6 +367,75 @@ func wavDurationSeconds(path string) (float64, bool) {
 		}
 	}
 	return 0, false
+}
+
+func normalizeStreamingWAVSizes(path string) error {
+	file, err := os.OpenFile(path, os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	info, err := file.Stat()
+	if err != nil {
+		return err
+	}
+	if info.Size() < 12 {
+		return nil
+	}
+	if info.Size()-8 > int64(^uint32(0)) {
+		return fmt.Errorf("wav file too large to normalize: %d bytes", info.Size())
+	}
+
+	header := make([]byte, 12)
+	if _, err := io.ReadFull(file, header); err != nil {
+		return nil
+	}
+	if string(header[0:4]) != "RIFF" || string(header[8:12]) != "WAVE" {
+		return nil
+	}
+
+	if int64(binary.LittleEndian.Uint32(header[4:8])) == unknownWAVChunkSize {
+		if err := writeUint32At(file, 4, uint32(info.Size()-8)); err != nil {
+			return err
+		}
+	}
+
+	var offset int64 = 12
+	for offset+8 <= info.Size() && offset < wavHeaderProbeBytes {
+		chunkHeader := make([]byte, 8)
+		if _, err := file.ReadAt(chunkHeader, offset); err != nil {
+			return nil
+		}
+		chunkID := string(chunkHeader[0:4])
+		chunkSize := int64(binary.LittleEndian.Uint32(chunkHeader[4:8]))
+		dataStart := offset + 8
+		if chunkID == "data" {
+			if chunkSize == unknownWAVChunkSize {
+				actualDataSize := info.Size() - dataStart
+				if actualDataSize < 0 || actualDataSize > int64(^uint32(0)) {
+					return fmt.Errorf(
+						"wav data chunk too large to normalize: %d bytes",
+						actualDataSize,
+					)
+				}
+				return writeUint32At(file, offset+4, uint32(actualDataSize))
+			}
+			return nil
+		}
+		if chunkSize == unknownWAVChunkSize {
+			return nil
+		}
+		offset = dataStart + chunkSize + chunkSize%2
+	}
+	return nil
+}
+
+func writeUint32At(file *os.File, offset int64, value uint32) error {
+	buffer := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buffer, value)
+	_, err := file.WriteAt(buffer, offset)
+	return err
 }
 
 func conservativeAudioByteLimit(request TranscribeRequest) int64 {

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -219,6 +220,41 @@ func TestOpenAIProviderSpeakPostsJSONAndWritesWAV(t *testing.T) {
 	}
 	if string(content) != "RIFF-test-output-WAVE" {
 		t.Fatalf("output content = %q, want wav bytes", content)
+	}
+}
+
+func TestOpenAIProviderSpeakNormalizesStreamingWAVSizes(t *testing.T) {
+	dataBytes := 24000 * 2
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "audio/wav")
+		_, _ = w.Write(makeStreamingDataSizeWAV(24000, 1, 16, dataBytes))
+	}))
+	defer server.Close()
+
+	result, err := OpenAIProvider{
+		BaseURL: server.URL,
+		APIKey:  "test-key",
+	}.Speak(context.Background(), SpeakRequest{
+		Text: "Playing music",
+	})
+
+	if err != nil {
+		t.Fatalf("Speak returned error: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Remove(result.AudioPath) })
+
+	content, err := os.ReadFile(result.AudioPath)
+	if err != nil {
+		t.Fatalf("ReadFile returned error: %v", err)
+	}
+	if got, want := binary.LittleEndian.Uint32(content[4:8]), uint32(len(content)-8); got != want {
+		t.Fatalf("RIFF size = %d, want %d", got, want)
+	}
+	if got, want := binary.LittleEndian.Uint32(content[40:44]), uint32(dataBytes); got != want {
+		t.Fatalf("data size = %d, want %d", got, want)
+	}
+	if duration, ok := wavDurationSeconds(result.AudioPath); !ok || duration != 1.0 {
+		t.Fatalf("wavDurationSeconds = %v, %v; want 1.0, true", duration, ok)
 	}
 }
 
