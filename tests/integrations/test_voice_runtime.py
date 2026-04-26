@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -43,6 +46,7 @@ class _FakeConfigManager:
         self._contacts = contacts
         self._voice_settings = SimpleNamespace(
             assistant=SimpleNamespace(
+                mode="local",
                 commands_enabled=True,
                 ai_requests_enabled=True,
                 screen_read_enabled=False,
@@ -60,7 +64,19 @@ class _FakeConfigManager:
             audio=SimpleNamespace(
                 speaker_device_id="",
                 capture_device_id="",
-            )
+            ),
+            worker=SimpleNamespace(
+                enabled=False,
+                domain="voice",
+                provider="mock",
+                request_timeout_seconds=12.0,
+                max_audio_seconds=30.0,
+                stt_model="gpt-4o-mini-transcribe",
+                tts_model="gpt-4o-mini-tts",
+                tts_voice="alloy",
+                tts_instructions="Speak clearly and briefly for a small handheld device.",
+                local_feedback_enabled=True,
+            ),
         )
 
     def get_contacts(self) -> list[_FakeContact]:
@@ -169,6 +185,15 @@ class _FakeOutputPlayer:
         return None
 
 
+def _wait_until(predicate: Callable[[], bool], *, timeout_seconds: float = 1.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.001)
+    assert predicate()
+
+
 def _build_executor(
     *,
     context: AppContext,
@@ -259,6 +284,7 @@ def test_voice_runtime_coordinator_runs_capture_and_emits_route() -> None:
     coordinator.begin_listening(async_capture=False)
 
     assert service.capture_calls == 1
+    _wait_until(lambda: service.speak_calls == ["Starting local music."])
     assert service.speak_calls == ["Starting local music."]
     assert outcomes == [
         VoiceCommandOutcome(
@@ -351,3 +377,75 @@ def test_voice_runtime_coordinator_releases_cached_service_when_settings_change(
     assert second is created_services[1]
     assert created_services[0].released is True
     assert created_services[1].released is False
+
+
+def test_voice_settings_resolver_includes_cloud_worker_config() -> None:
+    config_manager = _FakeConfigManager([])
+    voice_cfg = config_manager.get_voice_settings()
+    voice_cfg.assistant.mode = "cloud"
+    voice_cfg.assistant.stt_backend = "cloud-worker"
+    voice_cfg.assistant.tts_backend = "cloud-worker"
+    voice_cfg.worker.enabled = True
+    voice_cfg.worker.domain = "voice"
+    voice_cfg.worker.provider = "openai"
+    voice_cfg.worker.request_timeout_seconds = 8.5
+    voice_cfg.worker.max_audio_seconds = 21.0
+    voice_cfg.worker.stt_model = "test-transcribe"
+    voice_cfg.worker.tts_model = "test-tts"
+    voice_cfg.worker.tts_voice = "verse"
+    voice_cfg.worker.tts_instructions = "Keep it tiny."
+    voice_cfg.worker.local_feedback_enabled = False
+
+    settings = VoiceSettingsResolver(
+        context=None,
+        config_manager=config_manager,
+    ).defaults()
+
+    assert settings.mode == "cloud"
+    assert settings.stt_backend == "cloud-worker"
+    assert settings.tts_backend == "cloud-worker"
+    assert settings.cloud_worker_enabled is True
+    assert settings.cloud_worker_domain == "voice"
+    assert settings.cloud_worker_provider == "openai"
+    assert settings.cloud_worker_request_timeout_seconds == 8.5
+    assert settings.cloud_worker_max_audio_seconds == 21.0
+    assert settings.cloud_worker_stt_model == "test-transcribe"
+    assert settings.cloud_worker_tts_model == "test-tts"
+    assert settings.cloud_worker_tts_voice == "verse"
+    assert settings.cloud_worker_tts_instructions == "Keep it tiny."
+    assert settings.local_feedback_enabled is False
+
+
+def test_voice_outcome_speaks_on_background_thread_and_returns_quickly() -> None:
+    context = AppContext()
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    thread_names: list[str] = []
+
+    class _BlockingVoiceService:
+        def speak(self, _text: str) -> bool:
+            thread_names.append(threading.current_thread().name)
+            started.set()
+            release.wait(timeout=0.5)
+            finished.set()
+            return True
+
+    coordinator = VoiceRuntimeCoordinator(
+        context=context,
+        settings_resolver=VoiceSettingsResolver(context=context),
+        command_executor=VoiceCommandExecutor(context=context),
+        voice_service_factory=lambda _settings: _BlockingVoiceService(),
+        output_player=_FakeOutputPlayer(),
+    )
+
+    started_at = time.monotonic()
+    coordinator._apply_outcome(VoiceCommandOutcome("Done", "Playing music", should_speak=True))
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.2
+    assert context.voice.last_spoken_text == "Playing music"
+    assert started.wait(timeout=1.0)
+    assert thread_names == ["VoiceRuntimeTTS"]
+    release.set()
+    assert finished.wait(timeout=1.0)

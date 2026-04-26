@@ -386,10 +386,26 @@ class VoiceRuntimeCoordinator:
         )
         if self._context is not None and outcome.should_speak:
             self._context.record_voice_response(outcome.body)
-        if outcome.should_speak and not self._voice_service().speak(outcome.body):
-            logger.debug("Voice response not spoken: {}", outcome.body)
+        if outcome.should_speak:
+            self._speak_outcome_async(outcome.body)
         if self._outcome_listener is not None:
             self._dispatch(lambda: self._outcome_listener(outcome))
+
+    def _speak_outcome_async(self, text: str) -> None:
+        """Speak an outcome outside the main-thread UI path."""
+
+        def run() -> None:
+            try:
+                if not self._voice_service().speak(text):
+                    logger.debug("Voice response not spoken: {}", text)
+            except Exception:
+                logger.exception("Voice response speech failed")
+
+        threading.Thread(
+            target=run,
+            daemon=True,
+            name="VoiceRuntimeTTS",
+        ).start()
 
     def _set_state(
         self,

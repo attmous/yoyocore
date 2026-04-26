@@ -6,10 +6,14 @@ import sys
 from types import SimpleNamespace
 
 import yoyopod.core.bootstrap as boot_module
-from yoyopod.core.audio_volume import OutputVolumeController
 from yoyopod.core import AppContext
+from yoyopod.core.audio_volume import OutputVolumeController
+from yoyopod.core.bootstrap.components_boot import ComponentsBoot
 from yoyopod.core.bootstrap import RuntimeBootService
 from yoyopod.core.bootstrap.managers_boot import ManagersBoot
+from yoyopod.core.bus import Bus
+from yoyopod.core.scheduler import MainThreadScheduler
+from yoyopod.core.workers import WorkerProcessConfig
 
 
 class _FakeDisplay:
@@ -233,6 +237,84 @@ class _FakeMusicRuntime:
 
     def handle_availability_change(self, *_args) -> None:
         return None
+
+
+def _components_boot_for(app: object) -> ComponentsBoot:
+    return ComponentsBoot(
+        app,
+        logger=SimpleNamespace(
+            info=lambda *_args, **_kwargs: None,
+            warning=lambda *_args, **_kwargs: None,
+            error=lambda *_args, **_kwargs: None,
+            exception=lambda *_args, **_kwargs: None,
+        ),
+        display_cls=None,
+        get_input_manager_fn=None,
+        screen_manager_cls=None,
+        lvgl_input_bridge_cls=None,
+        contract_error_cls=RuntimeError,
+        build_contract_message_fn=lambda message: message,
+    )
+
+
+def test_setup_voice_worker_registers_starts_and_subscribes_when_cloud_enabled() -> None:
+    """Cloud voice mode should wire the worker process and client exactly once."""
+
+    scheduler = MainThreadScheduler()
+    bus = Bus(main_thread_id=scheduler.main_thread_id)
+    registered: list[tuple[str, WorkerProcessConfig]] = []
+    started: list[str] = []
+
+    class _FakeWorkerSupervisor:
+        def register(self, domain: str, config: WorkerProcessConfig) -> None:
+            registered.append((domain, config))
+
+        def start(self, domain: str) -> bool:
+            started.append(domain)
+            return True
+
+    app = SimpleNamespace(
+        config_manager=SimpleNamespace(
+            get_voice_settings=lambda: SimpleNamespace(
+                assistant=SimpleNamespace(mode="cloud"),
+                worker=SimpleNamespace(
+                    enabled=True,
+                    domain="voice",
+                    argv=["python", "fake_worker.py"],
+                    request_timeout_seconds=3.5,
+                ),
+            )
+        ),
+        scheduler=scheduler,
+        bus=bus,
+        worker_supervisor=_FakeWorkerSupervisor(),
+        voice_worker_client=None,
+    )
+    boot = _components_boot_for(app)
+
+    assert boot.setup_voice_worker() is True
+
+    assert app.voice_worker_client is not None
+    assert registered == [
+        (
+            "voice",
+            WorkerProcessConfig(
+                name="voice",
+                argv=["python", "fake_worker.py"],
+                cwd=None,
+                env=None,
+            ),
+        )
+    ]
+    assert started == ["voice"]
+    assert bus.subscription_counts()["WorkerMessageReceivedEvent"] == 1
+
+    first_client = app.voice_worker_client
+    assert boot.setup_voice_worker() is False
+
+    assert app.voice_worker_client is first_client
+    assert len(registered) == 1
+    assert started == ["voice"]
 
 
 def test_init_core_components_schedules_screen_actions_for_lvgl_backend(monkeypatch) -> None:
