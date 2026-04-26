@@ -113,6 +113,13 @@ def test_match_voice_command_handles_basic_device_actions() -> None:
     assert match_voice_command("what time is it").intent is VoiceCommandIntent.UNKNOWN
 
 
+def test_match_voice_command_handles_cloud_stt_script_transliterated_controls() -> None:
+    """Cloud STT can return English command words in Arabic/Persian script."""
+
+    assert match_voice_command("وولیوم اپ").intent is VoiceCommandIntent.VOLUME_UP
+    assert match_voice_command("پلی موزیک").intent is VoiceCommandIntent.PLAY_MUSIC
+
+
 def test_match_voice_command_accepts_fuzzy_basic_phrases() -> None:
     """The grammar layer should tolerate basic filler words and phrasing variants."""
 
