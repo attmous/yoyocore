@@ -556,6 +556,85 @@ def test_supervisor_ignores_late_non_cancel_result_after_retry_reuses_request_id
     assert len(slot.request_deadlines) == 1
 
 
+def test_supervisor_retries_expired_request_before_poll_without_accepting_old_attempt() -> None:
+    bus = Bus()
+    scheduler = MainThreadScheduler()
+    message_events: list[WorkerMessageReceivedEvent] = []
+    sent_commands: list[dict[str, object]] = []
+    bus.subscribe(WorkerMessageReceivedEvent, message_events.append)
+    supervisor = WorkerSupervisor(scheduler=scheduler, bus=bus)
+    supervisor.register("voice", WorkerProcessConfig(name="voice", argv=["unused"]))
+    runtime = cast(
+        object,
+        SimpleNamespace(
+            running=True,
+            drain_messages=lambda limit=None: [],
+            send_command=lambda **kwargs: sent_commands.append(kwargs) or True,
+        ),
+    )
+    slot = supervisor._workers["voice"]
+    slot.runtime = runtime
+    slot.state = "running"
+
+    assert supervisor.send_request(
+        "voice",
+        type="voice.transcribe",
+        payload={"path": "/tmp/first.wav"},
+        request_id="req-retry",
+        timeout_seconds=10.0,
+    )
+    first_attempt = cast(
+        int,
+        cast(dict[str, object], sent_commands[-1])["payload"][
+            supervisor._REQUEST_ATTEMPT_PAYLOAD_KEY
+        ],
+    )
+    slot.request_deadlines["req-retry"] = time.monotonic() - 1.0
+
+    assert supervisor.send_request(
+        "voice",
+        type="voice.transcribe",
+        payload={"path": "/tmp/retry.wav"},
+        request_id="req-retry",
+        timeout_seconds=10.0,
+    )
+    retry_attempt = cast(
+        int,
+        cast(dict[str, object], sent_commands[-1])["payload"][
+            supervisor._REQUEST_ATTEMPT_PAYLOAD_KEY
+        ],
+    )
+    retry_deadline = slot.request_deadlines["req-retry"]
+    assert retry_attempt == first_attempt + 1
+    assert sent_commands[-2]["type"] == "voice.cancel"
+
+    slot.runtime = cast(
+        object,
+        SimpleNamespace(
+            running=True,
+            drain_messages=lambda limit=None: [
+                make_envelope(
+                    kind="result",
+                    type="voice.transcribe",
+                    request_id="req-retry",
+                    payload={
+                        "text": "late stale result",
+                        supervisor._REQUEST_ATTEMPT_PAYLOAD_KEY: first_attempt,
+                    },
+                )
+            ],
+            send_command=lambda **kwargs: sent_commands.append(kwargs) or True,
+        ),
+    )
+
+    supervisor.poll(monotonic_now=time.monotonic())
+    bus.drain()
+
+    assert message_events == []
+    assert slot.request_deadlines["req-retry"] == pytest.approx(retry_deadline)
+    assert len(slot.request_deadlines) == 1
+
+
 def test_supervisor_prunes_request_attempt_when_stale_timeout_retention_expires() -> None:
     bus = Bus()
     scheduler = MainThreadScheduler()

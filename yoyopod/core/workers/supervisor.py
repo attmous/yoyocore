@@ -193,6 +193,10 @@ class WorkerSupervisor:
         if runtime is None:
             return False
         timeout_seconds = max(0.0, timeout_seconds)
+        now = time.monotonic()
+        existing_deadline = slot.request_deadlines.get(request_id)
+        if existing_deadline is not None and existing_deadline <= now:
+            self._expire_request(domain, slot, request_id, now=now)
         request_attempt = slot.request_attempts.get(request_id, 0) + 1
         command_payload = dict(payload)
         command_payload[self._REQUEST_ATTEMPT_PAYLOAD_KEY] = request_attempt
@@ -207,7 +211,7 @@ class WorkerSupervisor:
             slot.request_types[request_id] = type
             slot.request_attempts[request_id] = request_attempt
             slot.stale_request_ids.pop(request_id, None)
-            slot.request_deadlines[request_id] = time.monotonic() + timeout_seconds
+            slot.request_deadlines[request_id] = now + timeout_seconds
         return sent
 
     def drain_worker_messages(self, domain: str) -> list[WorkerEnvelope]:
@@ -296,17 +300,27 @@ class WorkerSupervisor:
             request_id for request_id, deadline in slot.request_deadlines.items() if deadline <= now
         ]
         for request_id in expired:
-            slot.request_deadlines.pop(request_id, None)
-            slot.request_timeouts += 1
-            slot.stale_request_ids[request_id] = now + self._STALE_REQUEST_RETENTION_SECONDS
-            if slot.runtime is not None:
-                slot.runtime.send_command(
-                    type=f"{domain}.cancel",
-                    payload={"request_id": request_id},
-                    request_id=request_id,
-                    timestamp_ms=int(time.time() * 1000),
-                    deadline_ms=1000,
-                )
+            self._expire_request(domain, slot, request_id, now=now)
+
+    def _expire_request(
+        self,
+        domain: str,
+        slot: _WorkerSlot,
+        request_id: str,
+        *,
+        now: float,
+    ) -> None:
+        slot.request_deadlines.pop(request_id, None)
+        slot.request_timeouts += 1
+        slot.stale_request_ids[request_id] = now + self._STALE_REQUEST_RETENTION_SECONDS
+        if slot.runtime is not None:
+            slot.runtime.send_command(
+                type=f"{domain}.cancel",
+                payload={"request_id": request_id},
+                request_id=request_id,
+                timestamp_ms=int(time.time() * 1000),
+                deadline_ms=1000,
+            )
 
     def _handle_exit(self, domain: str, slot: _WorkerSlot, *, now: float) -> None:
         slot.request_types.clear()
