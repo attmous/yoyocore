@@ -555,6 +555,52 @@ def test_voice_settings_resolver_includes_cloud_worker_config() -> None:
     assert settings.local_feedback_enabled is False
 
 
+def test_spoken_outcome_does_not_block_main_thread() -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    class _VoiceService:
+        def speak(self, _text: str) -> bool:
+            started.set()
+            release.wait(timeout=2.0)
+            return True
+
+    runtime = VoiceRuntimeCoordinator(
+        context=None,
+        settings_resolver=VoiceSettingsResolver(context=None),
+        command_executor=VoiceCommandExecutor(context=None),
+        voice_service_factory=lambda _settings: _VoiceService(),
+        output_player=_FakeOutputPlayer(),
+    )
+
+    started_at = time.monotonic()
+    runtime._apply_outcome(VoiceCommandOutcome("Done", "Playing music", should_speak=True))
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.2
+    assert started.wait(timeout=1.0)
+    release.set()
+
+
+def test_spoken_outcome_failure_does_not_change_successful_command_outcome(caplog) -> None:
+    class _VoiceService:
+        def speak(self, _text: str) -> bool:
+            return False
+
+    runtime = VoiceRuntimeCoordinator(
+        context=None,
+        settings_resolver=VoiceSettingsResolver(context=None),
+        command_executor=VoiceCommandExecutor(context=None),
+        voice_service_factory=lambda _settings: _VoiceService(),
+        output_player=_FakeOutputPlayer(),
+    )
+
+    runtime._apply_outcome(VoiceCommandOutcome("Done", "Playing music", should_speak=True))
+
+    assert runtime.state.headline == "Done"
+    assert runtime.state.body == "Playing music"
+
+
 def test_voice_outcome_speaks_on_background_thread_and_returns_quickly() -> None:
     context = AppContext()
     started = threading.Event()
