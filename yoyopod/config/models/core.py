@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import MISSING, asdict, field, fields, is_dataclass
 from pathlib import Path
@@ -108,6 +109,14 @@ def _coerce_value(value: Any, field_type: Any) -> Any:
 
     if target_type is Any or value is None:
         return value
+    if origin is list and isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Cannot perform list parsing for {value!r}") from exc
+        if not isinstance(parsed, list):
+            raise ValueError(f"Cannot perform list parsing for {value!r}: JSON root is not a list")
+        return parsed
     if origin in (list, dict, tuple, set):
         return value
     if target_type is bool:
