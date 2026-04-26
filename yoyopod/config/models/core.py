@@ -109,14 +109,26 @@ def _coerce_value(value: Any, field_type: Any) -> Any:
 
     if target_type is Any or value is None:
         return value
-    if origin is list and isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Cannot perform list parsing for {value!r}") from exc
+    if origin is list:
+        parsed = value
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"Cannot perform list parsing for {value!r}") from exc
         if not isinstance(parsed, list):
-            raise ValueError(f"Cannot perform list parsing for {value!r}: JSON root is not a list")
-        return parsed
+            raise ValueError(f"Cannot perform list parsing for {value!r}: value is not a list")
+
+        element_args = get_args(target_type)
+        if not element_args:
+            return parsed
+        element_type = element_args[0]
+        if element_type is str:
+            for item in parsed:
+                if not isinstance(item, str):
+                    raise ValueError(f"Cannot coerce list item {item!r} to str: expected string")
+            return parsed
+        return [_coerce_value(item, element_type) for item in parsed]
     if origin in (list, dict, tuple, set):
         return value
     if target_type is bool:

@@ -150,11 +150,16 @@ def test_voice_config_includes_cloud_worker_defaults(tmp_path, monkeypatch) -> N
     for key in [
         "YOYOPOD_VOICE_MODE",
         "YOYOPOD_VOICE_WORKER_ENABLED",
+        "YOYOPOD_VOICE_WORKER_DOMAIN",
         "YOYOPOD_VOICE_WORKER_PROVIDER",
         "YOYOPOD_VOICE_WORKER_ARGV",
+        "YOYOPOD_VOICE_WORKER_TIMEOUT_SECONDS",
+        "YOYOPOD_VOICE_WORKER_MAX_AUDIO_SECONDS",
         "YOYOPOD_CLOUD_STT_MODEL",
         "YOYOPOD_CLOUD_TTS_MODEL",
         "YOYOPOD_CLOUD_TTS_VOICE",
+        "YOYOPOD_CLOUD_TTS_INSTRUCTIONS",
+        "YOYOPOD_VOICE_LOCAL_FEEDBACK_ENABLED",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -183,6 +188,16 @@ def test_voice_worker_argv_env_override_parses_json_list(tmp_path, monkeypatch) 
     settings = load_config_model_from_yaml(VoiceConfig, config_file)
 
     assert settings.worker.argv == ["python", "-m", "worker"]
+
+
+def test_voice_worker_argv_env_override_rejects_non_string_items(tmp_path, monkeypatch) -> None:
+    """Worker argv env overrides should reject non-string list items."""
+
+    monkeypatch.setenv("YOYOPOD_VOICE_WORKER_ARGV", '["python", 7]')
+
+    config_file = tmp_path / "voice" / "assistant.yaml"
+    with pytest.raises(ValueError, match="list item"):
+        load_config_model_from_yaml(VoiceConfig, config_file)
 
 
 @pytest.mark.parametrize(
