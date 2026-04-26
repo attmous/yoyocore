@@ -45,6 +45,14 @@ def test_simulation_help() -> None:
     assert "simulate" in result.output.lower()
 
 
+def test_voice_worker_build_help() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["voice-worker", "--help"])
+
+    assert result.exit_code == 0
+    assert "go cloud voice worker" in result.output.lower()
+
+
 def test_resolve_lvgl_native_dir_points_at_package_root() -> None:
     native_dir = build_cli._resolve_lvgl_native_dir()
 
@@ -150,6 +158,31 @@ def test_build_simulation_builds_lvgl_shim(
         "source_dir": tmp_path / "lvgl-source",
         "build_dir": build_cli._REPO_ROOT / "yoyopod" / "ui" / "lvgl_binding" / "native" / "build",
     }
+
+
+def test_build_voice_worker_invokes_go_build(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[list[str], Path | None]] = []
+    monkeypatch.setattr(
+        build_cli,
+        "_run",
+        lambda command, cwd=None: calls.append((command, cwd)),
+    )
+
+    output = build_cli.build_voice_worker()
+
+    assert output.name.startswith("yoyopod-voice-worker")
+    assert calls == [
+        (
+            [
+                "go",
+                "build",
+                "-o",
+                str(output),
+                "./cmd/yoyopod-voice-worker",
+            ],
+            build_cli._REPO_ROOT / "workers" / "voice" / "go",
+        )
+    ]
 
 
 def test_ensure_native_shims_rebuilds_missing_artifacts(

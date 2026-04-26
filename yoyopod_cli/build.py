@@ -17,7 +17,7 @@ _REPO_ROOT = REPO_ROOT
 
 app = typer.Typer(
     name="build",
-    help="Build native C extensions.",
+    help="Build native extensions and worker binaries.",
     no_args_is_help=True,
 )
 
@@ -174,6 +174,28 @@ def _build_liblinphone(native_dir: Path, build_dir: Path) -> None:
     _run(["cmake", "--build", str(build_dir), "--parallel", _native_build_jobs()])
 
 
+def _voice_worker_dir() -> Path:
+    return _REPO_ROOT / "workers" / "voice" / "go"
+
+
+def _voice_worker_binary_path() -> Path:
+    suffix = ".exe" if os.name == "nt" else ""
+    return _voice_worker_dir() / "build" / f"yoyopod-voice-worker{suffix}"
+
+
+def build_voice_worker() -> Path:
+    """Build the Go cloud voice worker and return the binary path."""
+
+    worker_dir = _voice_worker_dir()
+    output = _voice_worker_binary_path()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    _run(
+        ["go", "build", "-o", str(output), "./cmd/yoyopod-voice-worker"],
+        cwd=worker_dir,
+    )
+    return output
+
+
 def _default_lvgl_source_dir() -> Path:
     """Return the stable cache path for the pinned LVGL source checkout."""
 
@@ -275,6 +297,14 @@ def _ensure_native_shims(*, skip_lvgl_fetch: bool = False) -> tuple[str, ...]:
 # ---------------------------------------------------------------------------
 # Commands
 # ---------------------------------------------------------------------------
+
+
+@app.command("voice-worker")
+def build_voice_worker_command() -> None:
+    """Build the Go cloud voice worker for the current platform."""
+
+    output = build_voice_worker()
+    typer.echo(f"Built Go voice worker: {output}")
 
 
 @app.command("lvgl")
