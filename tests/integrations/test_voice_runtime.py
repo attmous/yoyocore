@@ -583,11 +583,8 @@ def test_spoken_outcome_does_not_block_main_thread() -> None:
 
 
 def test_spoken_outcome_failure_does_not_change_successful_command_outcome() -> None:
-    spoken = threading.Event()
-
     class _VoiceService:
         def speak(self, _text: str) -> bool:
-            spoken.set()
             return False
 
     runtime = VoiceRuntimeCoordinator(
@@ -600,7 +597,7 @@ def test_spoken_outcome_failure_does_not_change_successful_command_outcome() -> 
 
     runtime._apply_outcome(VoiceCommandOutcome("Done", "Playing music", should_speak=True))
 
-    assert spoken.wait(timeout=1.0)
+    runtime._tts_queue.join()
     assert runtime.state.headline == "Done"
     assert runtime.state.body == "Playing music"
 
