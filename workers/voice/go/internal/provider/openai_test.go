@@ -124,10 +124,10 @@ func TestOpenAIProviderTranscribeRejectsOverLimitUnknownAudioBeforeUpload(t *tes
 		BaseURL: server.URL,
 		APIKey:  "test-key",
 	}.Transcribe(context.Background(), TranscribeRequest{
-		AudioPath:        audioPath,
-		MaxAudioSeconds:  1,
-		SampleRateHz:     16000,
-		Channels:         1,
+		AudioPath:       audioPath,
+		MaxAudioSeconds: 1,
+		SampleRateHz:    16000,
+		Channels:        1,
 	})
 
 	if err == nil {
