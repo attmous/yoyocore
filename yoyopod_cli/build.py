@@ -38,8 +38,12 @@ class NativeArtifact:
     sources: tuple[Path, ...]
 
 
-def _run(command: list[str], cwd: Path | None = None) -> None:
-    subprocess.run(command, cwd=str(cwd) if cwd else None, check=True)
+def _run(
+    command: list[str],
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> None:
+    subprocess.run(command, cwd=str(cwd) if cwd else None, env=env, check=True)
 
 
 def _native_build_jobs() -> str:
@@ -63,6 +67,20 @@ def _native_build_jobs() -> str:
     if total_mib < 1024:
         return "1"
     return "2"
+
+
+def _voice_worker_build_env() -> dict[str, str]:
+    """Return a Go build environment sized for the current device."""
+
+    jobs = _native_build_jobs()
+    env = dict(os.environ)
+    env.setdefault("GOMAXPROCS", jobs)
+
+    goflags = env.get("GOFLAGS", "").split()
+    if not any(flag == "-p" or flag.startswith("-p=") for flag in goflags):
+        goflags.append(f"-p={jobs}")
+    env["GOFLAGS"] = " ".join(goflags)
+    return env
 
 
 def _resolve_native_dir(label: str, *candidates: Path) -> Path:
@@ -201,6 +219,7 @@ def build_voice_worker() -> Path:
     _run(
         ["go", "build", "-o", str(output), "./cmd/yoyopod-voice-worker"],
         cwd=worker_dir,
+        env=_voice_worker_build_env(),
     )
     return output
 

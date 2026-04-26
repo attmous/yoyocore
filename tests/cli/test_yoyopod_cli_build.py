@@ -174,28 +174,45 @@ def test_build_simulation_builds_lvgl_shim(
 
 
 def test_build_voice_worker_invokes_go_build(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[list[str], Path | None]] = []
+    monkeypatch.delenv("GOFLAGS", raising=False)
+    monkeypatch.delenv("GOMAXPROCS", raising=False)
+    monkeypatch.setattr(build_cli, "_native_build_jobs", lambda: "1")
+    calls: list[tuple[list[str], Path | None, dict[str, str] | None]] = []
     monkeypatch.setattr(
         build_cli,
         "_run",
-        lambda command, cwd=None: calls.append((command, cwd)),
+        lambda command, cwd=None, env=None: calls.append((command, cwd, env)),
     )
 
     output = build_cli.build_voice_worker()
 
     assert output.name.startswith("yoyopod-voice-worker")
-    assert calls == [
-        (
-            [
-                "go",
-                "build",
-                "-o",
-                str(output),
-                "./cmd/yoyopod-voice-worker",
-            ],
-            build_cli._REPO_ROOT / "workers" / "voice" / "go",
-        )
+    assert len(calls) == 1
+    command, cwd, env = calls[0]
+    assert command == [
+        "go",
+        "build",
+        "-o",
+        str(output),
+        "./cmd/yoyopod-voice-worker",
     ]
+    assert cwd == build_cli._REPO_ROOT / "workers" / "voice" / "go"
+    assert env is not None
+    assert env["GOMAXPROCS"] == "1"
+    assert env["GOFLAGS"] == "-p=1"
+
+
+def test_voice_worker_build_env_preserves_explicit_go_parallelism(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GOMAXPROCS", "3")
+    monkeypatch.setenv("GOFLAGS", "-mod=mod -p=4")
+    monkeypatch.setattr(build_cli, "_native_build_jobs", lambda: "1")
+
+    env = build_cli._voice_worker_build_env()
+
+    assert env["GOMAXPROCS"] == "3"
+    assert env["GOFLAGS"] == "-mod=mod -p=4"
 
 
 def test_ensure_native_shims_rebuilds_missing_artifacts(
