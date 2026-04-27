@@ -47,7 +47,7 @@ jobs:
           git diff --name-only "${BASE_SHA}" "${GITHUB_SHA}" > changed-files.txt
           cat changed-files.txt
 
-          if grep -Eq '^(\.github/workflows/(ci|release)\.yml|\.python-version|pyproject\.toml|yoyopod\.py|config/|deploy/docker/slot-builder\.Dockerfile|deploy/scripts/(install_release|launch)\.sh|scripts/(build_release\.py|build_slot_artifact_ci\.sh)|workers/voice/go/|yoyopod/|yoyopod_cli/)' changed-files.txt; then
+          if grep -Eq '^(\.github/workflows/(ci|release)\.yml|\.python-version|pyproject\.toml|yoyopod\.py|config/|deploy/docker/slot-builder\.Dockerfile|deploy/scripts/(install_release|launch)\.sh|scripts/(build_release\.py|build_slot_artifact_ci\.sh)|workers/voice/go/|workers/ui/rust/|yoyopod/|yoyopod_cli/)' changed-files.txt; then
             echo "slot_arm64=true" >> "${GITHUB_OUTPUT}"
           else
             echo "slot_arm64=false" >> "${GITHUB_OUTPUT}"
@@ -116,9 +116,23 @@ jobs:
         working-directory: workers/voice/go
         run: go test ./...
 
+  ui-rust:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust UI worker tests
+        working-directory: workers/ui/rust
+        run: cargo test
+
   slot-arm64:
     runs-on: ubuntu-latest
-    needs: [changes, quality, test, voice-go]
+    needs: [changes, quality, test, voice-go, ui-rust]
     if: >-
       ${{
         github.event_name == 'workflow_dispatch' ||
