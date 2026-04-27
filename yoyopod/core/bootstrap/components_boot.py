@@ -266,6 +266,8 @@ def _voice_worker_env(worker_cfg: Any) -> dict[str, str]:
     config_env = {
         "YOYOPOD_VOICE_WORKER_PROVIDER": getattr(worker_cfg, "provider", "mock"),
         "YOYOPOD_CLOUD_STT_MODEL": getattr(worker_cfg, "stt_model", ""),
+        "YOYOPOD_CLOUD_STT_LANGUAGE": getattr(worker_cfg, "stt_language", ""),
+        "YOYOPOD_CLOUD_STT_PROMPT": getattr(worker_cfg, "stt_prompt", ""),
         "YOYOPOD_CLOUD_TTS_MODEL": getattr(worker_cfg, "tts_model", ""),
         "YOYOPOD_CLOUD_TTS_VOICE": getattr(worker_cfg, "tts_voice", ""),
         "YOYOPOD_CLOUD_TTS_INSTRUCTIONS": getattr(worker_cfg, "tts_instructions", ""),

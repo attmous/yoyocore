@@ -18,32 +18,55 @@ DEFAULT_CLOUD_TTS_INSTRUCTIONS = (
     "Speak warmly and calmly for a child. Use simple words, friendly pacing, and brief answers. "
     "Avoid scary emphasis."
 )
+DEFAULT_CLOUD_STT_PROMPT = (
+    "Transcribe this YoYoPod voice command in English Latin letters. Do not output Arabic, "
+    "Persian, Korean, or other non-Latin scripts. Preserve family names such as mama, baba, "
+    "mom, dad, mommy, daddy, and papa."
+)
+
+
+@dataclass(slots=True)
+class VoiceCommandRoutingConfig:
+    """Command-first routing policy for YoYo voice interactions."""
+
+    mode: str = config_value(default="command_first", env="YOYOPOD_VOICE_ROUTING_MODE")
+    ask_fallback_enabled: bool = config_value(
+        default=True,
+        env="YOYOPOD_VOICE_ASK_FALLBACK_ENABLED",
+    )
+    fallback_min_command_confidence: float = config_value(
+        default=0.82,
+        env="YOYOPOD_VOICE_COMMAND_CONFIDENCE",
+    )
 
 
 @dataclass(slots=True)
 class VoiceAssistantConfig:
-    """Local voice-command and spoken-response policy."""
+    """Voice-command and spoken-response policy."""
 
-    mode: str = config_value(default="local", env="YOYOPOD_VOICE_MODE")
+    mode: str = config_value(default="cloud", env="YOYOPOD_VOICE_MODE")
     commands_enabled: bool = config_value(default=True, env="YOYOPOD_VOICE_COMMANDS_ENABLED")
     ai_requests_enabled: bool = config_value(default=True, env="YOYOPOD_AI_REQUESTS_ENABLED")
     screen_read_enabled: bool = config_value(default=False, env="YOYOPOD_SCREEN_READ_ENABLED")
     stt_enabled: bool = config_value(default=True, env="YOYOPOD_STT_ENABLED")
     tts_enabled: bool = config_value(default=True, env="YOYOPOD_TTS_ENABLED")
-    stt_backend: str = config_value(default="vosk", env="YOYOPOD_STT_BACKEND")
-    tts_backend: str = config_value(default="espeak-ng", env="YOYOPOD_TTS_BACKEND")
-    vosk_model_path: str = config_value(
-        default="models/vosk-model-small-en-us",
-        env="YOYOPOD_VOSK_MODEL_PATH",
-    )
-    vosk_model_keep_loaded: bool = config_value(
-        default=True,
-        env="YOYOPOD_VOSK_MODEL_KEEP_LOADED",
-    )
+    stt_backend: str = config_value(default="cloud-worker", env="YOYOPOD_STT_BACKEND")
+    tts_backend: str = config_value(default="cloud-worker", env="YOYOPOD_TTS_BACKEND")
     record_seconds: int = config_value(default=4, env="YOYOPOD_VOICE_RECORD_SECONDS")
     sample_rate_hz: int = config_value(default=16000, env="YOYOPOD_VOICE_SAMPLE_RATE_HZ")
     tts_rate_wpm: int = config_value(default=155, env="YOYOPOD_TTS_RATE_WPM")
     tts_voice: str = config_value(default="en", env="YOYOPOD_TTS_VOICE")
+    activation_prefixes: list[str] = config_value(
+        default_factory=lambda: ["yoyo", "hey yoyo"],
+        env="YOYOPOD_VOICE_ACTIVATION_PREFIXES",
+    )
+    command_dictionary_path: str = config_value(
+        default="data/voice/commands.yaml",
+        env="YOYOPOD_VOICE_COMMAND_DICTIONARY",
+    )
+    command_routing: VoiceCommandRoutingConfig = config_value(
+        default_factory=VoiceCommandRoutingConfig
+    )
 
 
 @dataclass(slots=True)
@@ -58,7 +81,7 @@ class VoiceAudioConfig:
 class VoiceWorkerConfig:
     """Cloud voice worker process and model policy."""
 
-    enabled: bool = config_value(default=False, env="YOYOPOD_VOICE_WORKER_ENABLED")
+    enabled: bool = config_value(default=True, env="YOYOPOD_VOICE_WORKER_ENABLED")
     domain: str = config_value(default="voice", env="YOYOPOD_VOICE_WORKER_DOMAIN")
     provider: str = config_value(default="mock", env="YOYOPOD_VOICE_WORKER_PROVIDER")
     argv: list[str] = config_value(
@@ -76,6 +99,11 @@ class VoiceWorkerConfig:
     stt_model: str = config_value(
         default="gpt-4o-mini-transcribe",
         env="YOYOPOD_CLOUD_STT_MODEL",
+    )
+    stt_language: str = config_value(default="en", env="YOYOPOD_CLOUD_STT_LANGUAGE")
+    stt_prompt: str = config_value(
+        default=DEFAULT_CLOUD_STT_PROMPT,
+        env="YOYOPOD_CLOUD_STT_PROMPT",
     )
     tts_model: str = config_value(default="gpt-4o-mini-tts", env="YOYOPOD_CLOUD_TTS_MODEL")
     tts_voice: str = config_value(default="coral", env="YOYOPOD_CLOUD_TTS_VOICE")

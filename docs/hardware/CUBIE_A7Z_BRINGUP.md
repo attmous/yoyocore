@@ -160,10 +160,8 @@ The Cubie board was validated with:
 - `mpv`
 - `liblinphone-dev`
 - `linphone-common`
-- `espeak-ng`
-- Vosk Python package from the project environment
-- local Vosk model installed at:
-- `~/yoyopod-core/models/vosk-model-small-en-us`
+- cloud voice worker from the project environment
+- provider credentials supplied through deployment environment
 
 Verified state on the board:
 

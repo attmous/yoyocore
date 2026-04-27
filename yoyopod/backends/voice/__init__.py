@@ -18,7 +18,6 @@ if TYPE_CHECKING:
     from yoyopod.backends.voice.stt import (
         NullSpeechToTextBackend,
         SpeechToTextBackend,
-        VoskSpeechToTextBackend,
     )
     from yoyopod.backends.voice.tts import (
         EspeakNgTextToSpeechBackend,
@@ -51,7 +50,6 @@ _EXPORTS = {
         "SubprocessAudioCaptureBackend",
     ),
     "TextToSpeechBackend": ("yoyopod.backends.voice.tts", "TextToSpeechBackend"),
-    "VoskSpeechToTextBackend": ("yoyopod.backends.voice.stt", "VoskSpeechToTextBackend"),
 }
 
 
@@ -79,5 +77,4 @@ __all__ = [
     "SpeechToTextBackend",
     "SubprocessAudioCaptureBackend",
     "TextToSpeechBackend",
-    "VoskSpeechToTextBackend",
 ]

@@ -165,8 +165,8 @@ yoyopod.py / yoyopod.main
          -> PPP process / GPS queries
       -> VoiceService
          -> audio capture backend
-         -> Vosk STT backend
-         -> espeak-ng TTS backend
+         -> cloud-worker STT backend
+         -> cloud-worker TTS backend
 ```
 
 ## Package Structure

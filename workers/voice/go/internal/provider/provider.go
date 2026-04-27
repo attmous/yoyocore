@@ -42,6 +42,7 @@ type TranscribeRequest struct {
 	Channels             int     `json:"channels"`
 	Language             string  `json:"language"`
 	Model                string  `json:"model"`
+	Prompt               string  `json:"prompt"`
 	MaxAudioSeconds      float64 `json:"max_audio_seconds"`
 	DeleteInputOnSuccess bool    `json:"delete_input_on_success"`
 }

@@ -185,6 +185,18 @@ def test_screen_router_covers_ask_routes() -> None:
     assert router.resolve("ask", "shuffle_started") == NavigationRequest.push("now_playing")
 
 
+def test_ask_router_supports_safe_voice_route_actions() -> None:
+    from yoyopod.ui.screens.router import ScreenRouter
+
+    router = ScreenRouter()
+
+    assert router.resolve("ask", "open_talk").target == "call"
+    assert router.resolve("ask", "open_listen").target == "listen"
+    assert router.resolve("ask", "open_setup").target == "power"
+    assert router.resolve("ask", "go_home").operation == "replace"
+    assert router.resolve("ask", "go_home").target == "hub"
+
+
 def test_screen_router_covers_hub_hold_ask() -> None:
     """Hold on the Hub should route to the Ask screen."""
     router = ScreenRouter()
@@ -499,8 +511,8 @@ def test_ask_screen_state_transitions() -> None:
 
     ask = AskScreen(display=object(), context=AppContext())
     assert ask._state == "idle"
-    assert ask._headline == "Ask"
-    assert ask._body == "Ask me anything..."
+    assert ask._headline == "YoYo"
+    assert ask._body == "How can I help?"
 
     ask._set_state("listening", "Listening", "Speak now...")
     assert ask._state == "listening"
@@ -534,8 +546,8 @@ class _StubVoiceRuntime:
     def __init__(self) -> None:
         self.state = SimpleNamespace(
             phase="idle",
-            headline="Ask",
-            body="Ask me anything...",
+            headline="YoYo",
+            body="How can I help?",
             capture_in_flight=False,
             ptt_active=False,
             generation=0,
@@ -659,11 +671,29 @@ def test_ask_screen_summary_matches_entry_mode() -> None:
 
     ask = AskScreen(display=object(), context=AppContext(), voice_runtime=_StubVoiceRuntime())
 
-    assert ask._screen_summary() == "You are on Ask. Ask a question, or go back to exit."
+    assert ask._screen_summary() == "You are on YoYo. Ask a question or say a command."
 
     ask.set_quick_command(True)
 
-    assert ask._screen_summary() == "You are on quick Ask. Say a direct command now."
+    assert ask._screen_summary() == "You are using YoYo. Say a command or question now."
+
+
+def test_ask_screen_uses_yoyo_surface_copy() -> None:
+    ask = AskScreen(display=object(), context=AppContext(), voice_runtime=_StubVoiceRuntime())
+
+    ask._on_voice_runtime_state_changed(
+        SimpleNamespace(
+            phase="idle",
+            headline="YoYo",
+            body="How can I help?",
+            capture_in_flight=False,
+            ptt_active=False,
+            generation=0,
+        )
+    )
+
+    assert ask.current_view_model()[0] == "YoYo"
+    assert ask.current_view_model()[1] == "How can I help?"
 
 
 def test_ask_screen_exit_resets_conversation() -> None:
@@ -728,8 +758,6 @@ class _FakeConfigManager:
                 tts_enabled=False,
                 stt_backend="dummy-stt",
                 tts_backend="dummy-tts",
-                vosk_model_path="models/custom-model",
-                vosk_model_keep_loaded=False,
                 sample_rate_hz=22050,
                 record_seconds=6,
                 tts_rate_wpm=180,
@@ -752,8 +780,6 @@ class _FakeConfigManagerWithSpeaker(_FakeConfigManager):
                 tts_enabled=False,
                 stt_backend="dummy-stt",
                 tts_backend="dummy-tts",
-                vosk_model_path="models/custom-model",
-                vosk_model_keep_loaded=False,
                 speaker_device_id="plughw:CARD=wm8960soundcard,DEV=0",
                 capture_device_id="plughw:CARD=wm8960soundcard,DEV=0",
                 sample_rate_hz=22050,
@@ -1061,8 +1087,6 @@ def test_ask_screen_fallback_settings_keep_configured_voice_defaults() -> None:
     assert settings.screen_read_enabled is True
     assert settings.stt_backend == "dummy-stt"
     assert settings.tts_backend == "dummy-tts"
-    assert settings.vosk_model_path == "models/custom-model"
-    assert settings.vosk_model_keep_loaded is False
     assert settings.capture_device_id is None
     assert settings.sample_rate_hz == 22050
     assert settings.record_seconds == 6
@@ -1318,14 +1342,15 @@ def test_ask_screen_exit_clears_quick_command() -> None:
     assert ask._quick_command is False
 
 
-def test_hub_back_triggers_hold_ask_route(display: Display) -> None:
-    """Holding on the Hub should push Ask via the hold_ask route."""
+def test_hub_back_triggers_full_ask_route(display: Display) -> None:
+    """Holding on Hub should open the same command-plus-Ask flow as Ask itself."""
     context = AppContext()
     input_manager = InputManager()
     screen_manager = ScreenManager(display, input_manager)
+    runtime = _StubVoiceRuntime()
 
     hub = HubScreen(display, context)
-    ask = AskScreen(display=display, context=context)
+    ask = AskScreen(display=display, context=context, voice_runtime=runtime)
     hub.render = lambda: None
     ask.render = lambda: None
 
@@ -1336,7 +1361,8 @@ def test_hub_back_triggers_hold_ask_route(display: Display) -> None:
     input_manager.simulate_action(InputAction.BACK)
 
     assert screen_manager.current_screen is ask
-    assert ask._quick_command is True
+    assert ask._quick_command is False
+    assert runtime.begin_entry_cycle_calls == [(False, True)]
 
 
 def test_hub_select_clears_stale_quick_command_for_normal_ask(display: Display) -> None:

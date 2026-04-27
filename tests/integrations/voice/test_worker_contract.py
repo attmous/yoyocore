@@ -28,6 +28,7 @@ def test_build_transcribe_payload_uses_file_metadata() -> None:
         sample_rate_hz=16000,
         language="en",
         model="gpt-4o-transcribe",
+        prompt="Transcribe YoYoPod commands in English Latin letters.",
         max_audio_seconds=30.0,
     )
 
@@ -38,6 +39,7 @@ def test_build_transcribe_payload_uses_file_metadata() -> None:
         "channels": 1,
         "language": "en",
         "model": "gpt-4o-transcribe",
+        "prompt": "Transcribe YoYoPod commands in English Latin letters.",
         "max_audio_seconds": 30.0,
         "delete_input_on_success": False,
     }

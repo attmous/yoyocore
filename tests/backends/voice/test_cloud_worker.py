@@ -34,6 +34,8 @@ class VoiceSettingsOverrides(TypedDict):
     cloud_worker_enabled: NotRequired[bool]
     cloud_worker_max_audio_seconds: NotRequired[float]
     cloud_worker_stt_model: NotRequired[str]
+    cloud_worker_stt_language: NotRequired[str]
+    cloud_worker_stt_prompt: NotRequired[str]
     cloud_worker_tts_model: NotRequired[str]
     cloud_worker_tts_voice: NotRequired[str]
     cloud_worker_tts_instructions: NotRequired[str]
@@ -75,6 +77,7 @@ class FakeVoiceWorkerClient:
         sample_rate_hz: int,
         language: str,
         model: str,
+        prompt: str,
         max_audio_seconds: float,
         cancel_event: threading.Event | None = None,
     ) -> VoiceWorkerTranscribeResult:
@@ -84,6 +87,7 @@ class FakeVoiceWorkerClient:
                 "sample_rate_hz": sample_rate_hz,
                 "language": language,
                 "model": model,
+                "prompt": prompt,
                 "max_audio_seconds": max_audio_seconds,
                 "cancel_event": cancel_event,
             }
@@ -153,6 +157,8 @@ def cloud_settings(**overrides: Unpack[VoiceSettingsOverrides]) -> VoiceSettings
         cloud_worker_enabled=True,
         cloud_worker_max_audio_seconds=11.5,
         cloud_worker_stt_model="stt-test-model",
+        cloud_worker_stt_language="en",
+        cloud_worker_stt_prompt="Transcribe YoYoPod commands in English Latin letters.",
         cloud_worker_tts_model="tts-test-model",
         cloud_worker_tts_voice="verse",
         cloud_worker_tts_instructions="Short handheld response.",
@@ -170,7 +176,7 @@ def test_stt_is_available_only_when_enabled_and_cloud_backend() -> None:
 
     assert backend.is_available(cloud_settings())
     assert not backend.is_available(cloud_settings(stt_enabled=False))
-    assert not backend.is_available(cloud_settings(stt_backend="vosk"))
+    assert not backend.is_available(cloud_settings(stt_backend="disabled"))
     assert not backend.is_available(cloud_settings(cloud_worker_enabled=False))
 
 
@@ -196,16 +202,30 @@ def test_stt_transcribe_delegates_to_client_and_maps_transcript() -> None:
     transcript = backend.transcribe(audio_path, cloud_settings())
 
     assert transcript == VoiceTranscript(text="play favorites", confidence=0.91, is_final=True)
-    assert client.transcribe_calls == [
-        {
-            "audio_path": audio_path,
-            "sample_rate_hz": 22050,
-            "language": "en",
-            "model": "stt-test-model",
-            "max_audio_seconds": 11.5,
-            "cancel_event": None,
-        }
+    assert client.transcribe_calls[0]["audio_path"] == audio_path
+    assert client.transcribe_calls[0]["sample_rate_hz"] == 22050
+    assert client.transcribe_calls[0]["language"] == "en"
+    assert client.transcribe_calls[0]["model"] == "stt-test-model"
+    assert client.transcribe_calls[0]["max_audio_seconds"] == 11.5
+    assert client.transcribe_calls[0]["cancel_event"] is None
+    assert "Transcribe YoYoPod commands in English Latin letters." in client.transcribe_calls[0][
+        "prompt"
     ]
+    assert "call mama" in client.transcribe_calls[0]["prompt"]
+
+
+def test_stt_transcribe_builds_command_prompt_when_not_configured() -> None:
+    client = FakeVoiceWorkerClient()
+    backend = CloudWorkerSpeechToTextBackend(client=client)
+
+    backend.transcribe(
+        Path("input.wav"),
+        cloud_settings(cloud_worker_stt_prompt=""),
+    )
+
+    prompt = client.transcribe_calls[0]["prompt"]
+    assert "English Latin letters" in prompt
+    assert "call mama" in prompt
 
 
 def test_stt_transcribe_passes_cancel_event_to_client() -> None:

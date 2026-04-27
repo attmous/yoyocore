@@ -27,7 +27,7 @@ uv run yoyopod setup verify-host
 ```
 
 These commands define the baseline executable setup contract. They do not yet
-cover non-apt assets like Vosk models or every board/modem-specific setup edge.
+cover external service credentials or every board/modem-specific setup edge.
 If `yoyopod` reports that the contributor CLI dependencies are missing, run
 `uv sync --extra dev` and retry.
 
@@ -65,9 +65,7 @@ Core Raspberry Pi packages and services expected by the active stack:
 
 Feature-gated extras are documented there too, including:
 
-- `espeak-ng` for the current TTS path
 - `ppp` for the modem PPP path
-- Vosk model files under `models/`
 
 Example:
 
@@ -111,9 +109,7 @@ Key settings:
 - `config/network/cellular.yaml`
   - `network.*` cellular modem enablement, ports, APN, GPS, and PPP timeout
 - `config/voice/assistant.yaml`
-  - `assistant.*` local voice commands, STT, TTS, prompt policy, and Vosk model retention
-  - the checked-in `models/vosk-model-small-en-us` footprint is about 68 MB on disk in this repo, so keeping the model loaded trades lower repeated-command latency for a persistent RAM tax on small boards
-  - set `assistant.vosk_model_keep_loaded: false` when tighter memory bounds matter more than warm-command latency
+  - `assistant.*` voice commands, cloud-worker STT/TTS, prompt policy, and command routing
 - `config/communication/calling.yaml`
   - SIP identity, transport, STUN, call policy, call-history path
 - `config/communication/messaging.yaml`
@@ -237,7 +233,7 @@ yoyopod remote logs --lines 200
 ```
 
 That remote flow mirrors the same baseline contract. You still need feature-specific
-follow-through for assets like Vosk models and for unusual board/modem bringup.
+follow-through for external credentials and unusual board/modem bringup.
 Add `--with-voice` and/or `--with-network` to the setup commands when the target depends on those paths.
 
 If a GitHub fetch or push fails with a short-lived connectivity error, retry it

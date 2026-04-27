@@ -1,4 +1,4 @@
-"""Canonical shared voice datatypes used by local STT/TTS flows."""
+"""Canonical shared voice datatypes used by capture, cloud STT, and TTS flows."""
 
 from __future__ import annotations
 
@@ -18,13 +18,18 @@ DEFAULT_CLOUD_TTS_INSTRUCTIONS = (
     "Speak warmly and calmly for a child. Use simple words, friendly pacing, and brief answers. "
     "Avoid scary emphasis."
 )
+DEFAULT_CLOUD_STT_PROMPT = (
+    "Transcribe this YoYoPod voice command in English Latin letters. Do not output Arabic, "
+    "Persian, Korean, or other non-Latin scripts. Preserve family names such as mama, baba, "
+    "mom, dad, mommy, daddy, and papa."
+)
 
 
 @dataclass(slots=True, frozen=True)
 class VoiceSettings:
     """Voice-related runtime settings passed into backends."""
 
-    mode: str = "local"
+    mode: str = "cloud"
     commands_enabled: bool = True
     ai_requests_enabled: bool = True
     screen_read_enabled: bool = False
@@ -32,22 +37,27 @@ class VoiceSettings:
     tts_enabled: bool = True
     mic_muted: bool = False
     output_volume: int = 50
-    stt_backend: str = "vosk"
-    tts_backend: str = "espeak-ng"
-    vosk_model_path: str = "models/vosk-model-small-en-us"
-    vosk_model_keep_loaded: bool = True
+    stt_backend: str = "cloud-worker"
+    tts_backend: str = "cloud-worker"
     speaker_device_id: str | None = None
     capture_device_id: str | None = None
     sample_rate_hz: int = 16000
     record_seconds: int = 4
     tts_rate_wpm: int = 155
     tts_voice: str = "en"
-    cloud_worker_enabled: bool = False
+    activation_prefixes: tuple[str, ...] = ("yoyo", "hey yoyo")
+    command_dictionary_path: str = "data/voice/commands.yaml"
+    command_routing_mode: str = "command_first"
+    ask_fallback_enabled: bool = True
+    fallback_min_command_confidence: float = 0.82
+    cloud_worker_enabled: bool = True
     cloud_worker_domain: str = "voice"
     cloud_worker_provider: str = "mock"
     cloud_worker_request_timeout_seconds: float = 12.0
     cloud_worker_max_audio_seconds: float = 30.0
     cloud_worker_stt_model: str = "gpt-4o-mini-transcribe"
+    cloud_worker_stt_language: str = "en"
+    cloud_worker_stt_prompt: str = DEFAULT_CLOUD_STT_PROMPT
     cloud_worker_tts_model: str = "gpt-4o-mini-tts"
     cloud_worker_tts_voice: str = "coral"
     cloud_worker_tts_instructions: str = DEFAULT_CLOUD_TTS_INSTRUCTIONS

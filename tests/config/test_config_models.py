@@ -41,7 +41,6 @@ def test_app_shell_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> None
     monkeypatch.delenv("YOYOPOD_AUTO_RESUME_AFTER_CALL", raising=False)
     monkeypatch.delenv("YOYOPOD_DISPLAY", raising=False)
     monkeypatch.delenv("YOYOPOD_VOICE_COMMANDS_ENABLED", raising=False)
-    monkeypatch.delenv("YOYOPOD_VOSK_MODEL_PATH", raising=False)
 
     config_file = tmp_path / "app" / "core.yaml"
     settings = load_config_model_from_yaml(YoyoPodConfig, config_file)
@@ -136,8 +135,7 @@ def test_voice_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> N
     """Missing voice config should still resolve to typed assistant and device defaults."""
 
     monkeypatch.delenv("YOYOPOD_VOICE_COMMANDS_ENABLED", raising=False)
-    monkeypatch.delenv("YOYOPOD_VOSK_MODEL_PATH", raising=False)
-    monkeypatch.delenv("YOYOPOD_VOSK_MODEL_KEEP_LOADED", raising=False)
+    monkeypatch.delenv("YOYOPOD_STT_BACKEND", raising=False)
     monkeypatch.delenv("YOYOPOD_VOICE_SPEAKER_DEVICE", raising=False)
 
     config_file = tmp_path / "voice" / "assistant.yaml"
@@ -147,10 +145,8 @@ def test_voice_config_defaults_do_not_require_a_file(tmp_path, monkeypatch) -> N
     assert settings.assistant.commands_enabled is True
     assert settings.assistant.ai_requests_enabled is True
     assert settings.assistant.screen_read_enabled is False
-    assert settings.assistant.stt_backend == "vosk"
-    assert settings.assistant.tts_backend == "espeak-ng"
-    assert settings.assistant.vosk_model_path == "models/vosk-model-small-en-us"
-    assert settings.assistant.vosk_model_keep_loaded is True
+    assert settings.assistant.stt_backend == "cloud-worker"
+    assert settings.assistant.tts_backend == "cloud-worker"
     assert settings.assistant.sample_rate_hz == 16000
     assert settings.assistant.tts_rate_wpm == 155
     assert settings.audio.speaker_device_id == ""
@@ -169,6 +165,8 @@ def test_voice_config_includes_cloud_worker_defaults(tmp_path, monkeypatch) -> N
         "YOYOPOD_VOICE_WORKER_TIMEOUT_SECONDS",
         "YOYOPOD_VOICE_WORKER_MAX_AUDIO_SECONDS",
         "YOYOPOD_CLOUD_STT_MODEL",
+        "YOYOPOD_CLOUD_STT_LANGUAGE",
+        "YOYOPOD_CLOUD_STT_PROMPT",
         "YOYOPOD_CLOUD_TTS_MODEL",
         "YOYOPOD_CLOUD_TTS_VOICE",
         "YOYOPOD_CLOUD_TTS_INSTRUCTIONS",
@@ -184,14 +182,16 @@ def test_voice_config_includes_cloud_worker_defaults(tmp_path, monkeypatch) -> N
     config_file = tmp_path / "voice" / "assistant.yaml"
     settings = load_config_model_from_yaml(VoiceConfig, config_file)
 
-    assert settings.assistant.mode == "local"
-    assert settings.worker.enabled is False
+    assert settings.assistant.mode == "cloud"
+    assert settings.worker.enabled is True
     assert settings.worker.domain == "voice"
     assert settings.worker.provider == "mock"
     assert settings.worker.argv == ["workers/voice/go/build/yoyopod-voice-worker"]
     assert settings.worker.request_timeout_seconds == 12.0
     assert settings.worker.max_audio_seconds == 30.0
     assert settings.worker.stt_model == "gpt-4o-mini-transcribe"
+    assert settings.worker.stt_language == "en"
+    assert "English Latin letters" in settings.worker.stt_prompt
     assert settings.worker.tts_model == "gpt-4o-mini-tts"
     assert settings.worker.tts_voice == "coral"
     assert settings.worker.tts_instructions == TTS_INSTRUCTIONS
@@ -274,6 +274,8 @@ def test_authored_voice_config_includes_cloud_worker_defaults(monkeypatch) -> No
         "YOYOPOD_VOICE_WORKER_PROVIDER",
         "YOYOPOD_VOICE_WORKER_ARGV",
         "YOYOPOD_CLOUD_STT_MODEL",
+        "YOYOPOD_CLOUD_STT_LANGUAGE",
+        "YOYOPOD_CLOUD_STT_PROMPT",
         "YOYOPOD_CLOUD_TTS_MODEL",
         "YOYOPOD_CLOUD_TTS_VOICE",
         "YOYOPOD_CLOUD_TTS_INSTRUCTIONS",
@@ -288,14 +290,16 @@ def test_authored_voice_config_includes_cloud_worker_defaults(monkeypatch) -> No
 
     settings = load_config_model_from_yaml(VoiceConfig, Path("config/voice/assistant.yaml"))
 
-    assert settings.assistant.mode == "local"
-    assert settings.worker.enabled is False
+    assert settings.assistant.mode == "cloud"
+    assert settings.worker.enabled is True
     assert settings.worker.domain == "voice"
     assert settings.worker.provider == "mock"
     assert settings.worker.argv == ["workers/voice/go/build/yoyopod-voice-worker"]
     assert settings.worker.request_timeout_seconds == 12.0
     assert settings.worker.max_audio_seconds == 30.0
     assert settings.worker.stt_model == "gpt-4o-mini-transcribe"
+    assert settings.worker.stt_language == "en"
+    assert "English Latin letters" in settings.worker.stt_prompt
     assert settings.worker.tts_model == "gpt-4o-mini-tts"
     assert settings.worker.tts_voice == "coral"
     assert settings.worker.tts_instructions == TTS_INSTRUCTIONS
@@ -390,8 +394,7 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     monkeypatch.setenv("YOYOPOD_LVGL_BUFFER_LINES", "24")
     monkeypatch.setenv("YOYOPOD_VOICE_COMMANDS_ENABLED", "false")
     monkeypatch.setenv("YOYOPOD_SCREEN_READ_ENABLED", "true")
-    monkeypatch.setenv("YOYOPOD_VOSK_MODEL_PATH", "/srv/models/vosk-small")
-    monkeypatch.setenv("YOYOPOD_VOSK_MODEL_KEEP_LOADED", "false")
+    monkeypatch.setenv("YOYOPOD_STT_BACKEND", "cloud-worker")
     monkeypatch.setenv("YOYOPOD_LOG_FILE", "/var/log/yoyopod.log")
     monkeypatch.setenv("YOYOPOD_ERROR_LOG_FILE", "/var/log/yoyopod_errors.log")
     monkeypatch.setenv("YOYOPOD_PID_FILE", "/run/yoyopod.pid")
@@ -437,8 +440,7 @@ def test_config_manager_app_config_merges_yaml_and_env(tmp_path, monkeypatch) ->
     assert settings.display.lvgl_buffer_lines == 24
     assert voice_settings.assistant.commands_enabled is False
     assert voice_settings.assistant.screen_read_enabled is True
-    assert voice_settings.assistant.vosk_model_path == "/srv/models/vosk-small"
-    assert voice_settings.assistant.vosk_model_keep_loaded is False
+    assert voice_settings.assistant.stt_backend == "cloud-worker"
     assert settings.logging.level == "DEBUG"
     assert settings.logging.file == "/var/log/yoyopod.log"
     assert settings.logging.error_file == "/var/log/yoyopod_errors.log"

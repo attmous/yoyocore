@@ -57,7 +57,7 @@ uv run yoyopod setup host
 ```
 
 This is the executable baseline, not full setup ownership. It does not provision
-non-apt assets like Vosk models or cover every board-specific edge.
+external service credentials or cover every board-specific edge.
 If `yoyopod` is invoked before the contributor CLI stack is present, it should
 now exit with a short bootstrap hint instead of crashing during import.
 
@@ -107,7 +107,7 @@ uv run yoyopod setup pi
 ```
 
 This bootstraps the baseline package/build contract only. It does not yet solve
-Vosk model provisioning, board/modem permissions, or non-Debian portability.
+cloud voice credential provisioning, board/modem permissions, or non-Debian portability.
 On the Pi, this flow now creates or refreshes the repo checkout `.venv` with
 `python3 -m venv` and `pip install -e '.[dev]'`, so the board does not need
 `uv` installed locally.
@@ -144,8 +144,8 @@ These are not universal for every contributor machine, but the repo should still
 
 #### Voice path
 
-- `espeak-ng` for the current TTS backend
-- Vosk model files under `models/`
+- cloud voice worker binary built from `workers/voice/go/`
+- provider credentials supplied outside tracked config
 
 #### Cellular / GPS path
 
@@ -213,7 +213,7 @@ yoyopod pi validate smoke --with-power --with-rtc
 .venv/bin/python yoyopod.py
 ```
 
-This does not yet provision non-apt assets such as Vosk models or encode every
+This does not yet provision external credentials or encode every
 board/modem-specific permission step. Add `--with-voice` and/or `--with-network`
 when the target needs those feature paths.
 
@@ -255,7 +255,7 @@ Checklist:
 
 This repo is still missing some setup hardening that a foundation-grade repo should have:
 
-- provisioning of non-apt assets such as Vosk model downloads under `models/`
+- provisioning of external voice provider credentials
 - board- and modem-specific device-permission setup for every bringup variant
 - portability beyond the current Debian-based Raspberry Pi package flow
 

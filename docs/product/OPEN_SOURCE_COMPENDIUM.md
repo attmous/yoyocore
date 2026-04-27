@@ -14,11 +14,11 @@
 | **Buildroot** | https://buildroot.org/ | Custom embedded Linux build system | Build fully custom image with only needed packages (mpv, python3, lvgl deps). Better for production than Raspbian. |
 | **Yocto Project** | https://www.yoctoproject.org/ | Industrial-grade embedded Linux builder | Overkill for YoYoPod but provides reproducible builds, layer for Pi Zero 2W exists (meta-raspberrypi). |
 | **DietPi** | https://dietpi.com/ | Lightweight optimized Debian for Pi | Pre-optimized for minimal resource use; could fork for YoYoPod base. Active community. |
-| **Alpine Linux** | https://alpinelinux.org/ | Musl-based, security-focused, small | ~130MB base. musl libc may cause Python C extension issues (test Vosk/Liblinphone). |
+| **Alpine Linux** | https://alpinelinux.org/ | Musl-based, security-focused, small | ~130MB base. musl libc may cause Python C extension issues; test Liblinphone and native shims. |
 | **NixOS** | https://nixos.org/ | Reproducible declarative Linux | Nix expressions for reproducible YoYoPod builds; steep learning curve but atomic rollbacks complement slot-deploy. |
 | **postmarketOS** | https://postmarketos.org/ | Alpine-based mobile/embedded OS | Phone-oriented but has good ARM support, power management, modem integration patterns. |
 | **Mender Hub meta-mender** | https://hub.mender.io/t/raspberry-pi-3-and-4/ | OTA-enabled Yocto layer for Pi | If migrating to Yocto, Mender integration provides robust A/B OTA (alternative to custom slot-deploy). |
-| **Raspberry Pi OS (64-bit)** | https://www.raspberrypi.com/software/ | 64-bit kernel with 32-bit userland | Pi Zero 2W has 64-bit capable CPU; evaluate if 64-bit Python+Vosk improves STT performance vs memory use. |
+| **Raspberry Pi OS (64-bit)** | https://www.raspberrypi.com/software/ | 64-bit kernel with 32-bit userland | Pi Zero 2W has 64-bit capable CPU; evaluate Python and cloud-worker memory use. |
 | **PikaOS** | https://github.com/PikaOS-Linux | Gaming/performance oriented Debian fork | Not ideal for YoYoPod but has interesting low-latency kernel patches applicable to audio. |
 | **Ubuntu Core** | https://ubuntu.com/core | Snap-based embedded Ubuntu | Snaps are heavy for Pi Zero 2W; however, strict confinement useful for parental control sandboxing. |
 | **BalenaOS** | https://www.balena.io/os/ | Container-based IoT OS | Docker/Podman pre-integrated; fleet management via balenaCloud. Good if containerizing services. |
@@ -71,20 +71,19 @@
 
 | Project | URL | One-Line Relevance | Integration Note |
 |---------|-----|-------------------|------------------|
-| **Vosk** | https://github.com/alphacep/vosk-api | YoYoPod's current offline STT | Already integrated. Use small model (vosk-model-small-en-us-0.15, ~40MB). GPU not needed. Good for command recognition. |
-| **Whisper.cpp** | https://github.com/ggerganov/whisper.cpp | Port of OpenAI Whisper to C++ | Higher accuracy than Vosk, especially for kids' voices. tiny.en model runs on Pi Zero 2W (~1-2x real-time). |
+| **Whisper.cpp** | https://github.com/ggerganov/whisper.cpp | Port of OpenAI Whisper to C++ | Candidate local STT experiment for kids' voices. tiny.en model runs on Pi Zero 2W (~1-2x real-time). |
 | **Piper** | https://github.com/rhasspy/piper | Fast local neural TTS | Much better quality than espeak-ng. ONNX-based, runs on CPU. ~1MB models. Ideal for YoYoPod responses. |
 | **espeak-ng** | https://github.com/espeak-ng/espeak-ng | YoYoPod's current TTS backend | Already integrated. Robotic but tiny (~2MB). Keep as fallback; switch to Piper for main TTS. |
 | **Coqui TTS** | https://github.com/coqui-ai/TTS | Deep learning TTS toolkit | Excellent quality but Python+PyTorch heavy. May not fit Pi Zero 2W memory constraints. Evaluate XTTS v2. |
 | **Mycroft Precise** | https://github.com/MycroftAI/mycroft-precise | Lightweight wake-word engine | Replace "push-to-talk" with "Hey YoYo" wake word. TensorFlow Lite, runs on Pi. |
 | **Porcupine (Picovoice)** | https://github.com/Picovoice/porcupine | Commercial wake-word engine (free tier) | More accurate than Precise. Free for personal use. Evaluate license for commercial YoYoPod. |
 | **OpenWakeWord** | https://github.com/dscripka/openWakeWord | Open source wake-word detection | Pure Python + ONNX. Train custom "YoYo" wake word. Lower resource use than Mycroft. |
-| **Sherpa/Sherpa-ONNX** | https://github.com/k2-fsa/sherpa-onnx | Next-gen Kaldi with ONNX | Streaming ASR, TTS, speaker ID. Very active. May supersede Vosk for embedded. |
+| **Sherpa/Sherpa-ONNX** | https://github.com/k2-fsa/sherpa-onnx | Next-gen Kaldi with ONNX | Streaming ASR, TTS, speaker ID. Very active candidate for embedded speech experiments. |
 | **DeepSpeech (Mozilla)** | https://github.com/mozilla/DeepSpeech | Deprecated but stable STT | No longer maintained (last release 2020). Not recommended for new work; listed for comparison only. |
 | **Faster-Whisper** | https://github.com/SYSTRAN/faster-whisper | Optimized Whisper with CTranslate2 | More efficient than base Whisper. Still likely too heavy for Pi Zero 2W; test on target. |
 | **Rhasspy** | https://rhasspy.readthedocs.io/ | Open source voice assistant toolkit | Full pipeline: wake word + STT + intent + TTS. Can self-host. YoYoPod could be a Rhasspy satellite. |
 | **Home Assistant Assist** | https://www.home-assistant.io/voice_control/ | Open source voice pipeline | Willow / Assist pipeline. Could integrate for smart home control if expanding scope. |
-| **SpeechRecognition (Python)** | https://github.com/Uberi/speech_recognition | Python wrapper for multiple STT engines | Useful abstraction if supporting multiple STT backends (Vosk, Whisper, cloud). |
+| **SpeechRecognition (Python)** | https://github.com/Uberi/speech_recognition | Python wrapper for multiple STT engines | Useful abstraction if supporting multiple STT backends such as Whisper and cloud providers. |
 | **Silero Models** | https://github.com/snakers4/silero-models | Pre-trained STT/TTS models (PyTorch) | Quality TTS models. Evaluate ONNX export for Pi Zero 2W inference. |
 
 ---
@@ -142,7 +141,7 @@
 | **MAX17048** | https://github.com/adafruit/Adafruit_MAX17048_Library | LiPo fuel gauge via I2C | Alternative/additional battery monitoring. More accurate % than voltage-only measurement. |
 | **UPower** | https://upower.freedesktop.org/ | D-Bus power management service | Abstract battery info across hardware. Integrate with YoYoPod UI for consistent "low battery" warnings. |
 | **tlp / laptop-mode-tools** | https://linrunner.de/tlp/ | Linux power saving tools | Some optimizations applicable (USB autosuspend, SATA power). Adapt for Pi Zero 2W. |
-| **cpufrequtils / cpufreqd** | https://github.com/Vladimir-csp/kernel-tools | CPU frequency scaling | Underclock Pi Zero 2W to 600MHz during idle to save power. Scale up for Vosk STT. |
+| **cpufrequtils / cpufreqd** | https://github.com/Vladimir-csp/kernel-tools | CPU frequency scaling | Underclock Pi Zero 2W to 600MHz during idle to save power. Scale up for local speech workloads. |
 | **rtcwake** | https://man7.org/linux/man-pages/man8/rtcwake.8.html | Linux RTC wake alarm | Core to YoYoPod's scheduled wake. Ensure PiSugar RTC is registered as `/dev/rtc0`. |
 | **systemd-sleep / systemd-timers** | https://www.freedesktop.org/software/systemd/man/systemd-sleep.html | Systemd power management | Use systemd timers instead of cron for RTC-resilient scheduling. Suspend hooks for safe shutdown. |
 | **Watchdog (bcm2835_wdt)** | https://github.com/raspberrypi/linux | Hardware watchdog timer | Enable in device tree. Reboot if YoYoPod UI process freezes. Critical for kid device reliability. |
@@ -235,7 +234,7 @@
 | **Packer** | https://www.packer.io/ | Multi-platform image builder | Build YoYoPod images for Pi + simulator environments. HCL-based templates. |
 | **Docker / Podman** | https://podman.io/ | Container engines | Containerize YoYoPod services (sim, build env). Podman daemonless, rootless - better for embedded. |
 | **Buildah** | https://buildah.io/ | OCI container image builder | Build containers without Docker daemon. Integrate in CI for YoYoPod service containers. |
-| **crossenv / cross-python** | https://github.com/benfogle/crossenv | Cross-compile Python packages | Build ARM Python wheels on x86 CI. Essential for Vosk, Liblinphone Python bindings. |
+| **crossenv / cross-python** | https://github.com/benfogle/crossenv | Cross-compile Python packages | Build ARM Python wheels on x86 CI. Essential for Liblinphone Python bindings. |
 | **cibuildwheel** | https://github.com/pypa/cibuildwheel | Build Python wheels across platforms | Automate ARMv7/aarch64 wheel builds for YoYoPod Python deps in CI. |
 | **Poetry** | https://python-poetry.org/ | Python dependency management and packaging | Lockfile for reproducible YoYoPod Python environment. Better than requirements.txt for embedded. |
 | **pip-tools** | https://github.com/jazzband/pip-tools/ | pip workflow for deterministic deps | Alternative to Poetry. `pip-compile` for lockfiles. Lighter weight. |
@@ -255,7 +254,7 @@
 | **Pimoroni Display HAT Mini** | https://shop.pimoroni.com/products/display-hat-mini | 320x240 IPS LCD + buttons | Alternative to current ST7789/Whisplay. Better button integration. Python library well-maintained. |
 | **Adafruit PiTFT** | https://www.adafruit.com/product/2423 | 2.8" 320x240 TFT + resistive touch | Touch option for YoYoPod. Capacitive version available. Kernel fb driver + tslib for touch. |
 | **Waveshare LCD HATs** | https://www.waveshare.com/ | Wide range of Pi LCD HATs | Cost-effective alternatives. 1.3" OLED, 1.54" LCD, 2.0" IPS options. Check SPI speed compatibility. |
-| **ReSpeaker HATs** | https://wiki.seeedstudio.com/ReSpeaker_2_Mics_Pi_HAT/ | Microphone array HATs | 2-mic or 4-mic array with LED ring. Better Vosk accuracy than single mic. WS2812 LED for status. |
+| **ReSpeaker HATs** | https://wiki.seeedstudio.com/ReSpeaker_2_Mics_Pi_HAT/ | Microphone array HATs | 2-mic or 4-mic array with LED ring. Better command capture than single mic. WS2812 LED for status. |
 | **IQaudio / Raspberry Pi Audio HATs** | https://www.raspberrypi.com/products/iqaudio-dac-pro/ | High-quality audio DAC HATs | If PCM audio quality insufficient. DAC Pro, Codec Zero for speaker + mic in one HAT. |
 | **Sixfab Cellular HATs** | https://sixfab.com/product-category/shields/hat-shields/ | Alternative cellular HATs | Quectel EG25-G based. Better Linux driver support than SIM7600. GPS + LTE in one. |
 | **Waveshare SIM7600G-H HAT** | https://www.waveshare.com/sim7600g-h-4g-hat.htm | YoYoPod modem hardware reference | Verify against current HAT. Waveshare provides open schematics. Check antenna placement in case design. |
@@ -308,7 +307,7 @@
 | **tcpdump** | https://www.tcpdump.org/ | Command-line packet analyzer | Lightweight capture on YoYoPod itself. Save to file, analyze on desktop Wireshark. |
 | **strace** | https://strace.io/ | System call tracer | Debug why mpv/Liblinphone hangs. Trace file accesses, network calls. Low overhead. |
 | **ltrace** | https://ltrace.org/ | Library call tracer | Trace C library calls (libc, libgpiod, liblinphone). Complement to strace. |
-| **perf / perf-tools** | https://github.com/brendangregg/perf-tools | Linux performance analysis | Profile CPU usage by function. Identify Vosk/Whisper hotspots. Flame graphs for visualization. |
+| **perf / perf-tools** | https://github.com/brendangregg/perf-tools | Linux performance analysis | Profile CPU usage by function. Identify speech and media hotspots. Flame graphs for visualization. |
 | **py-spy** | https://github.com/benfred/py-spy | Sampling profiler for Python | Profile YoYoPod Python without code changes. Top-like live view, flame graphs. |
 | **memray** | https://github.com/bloomberg/memray | Python memory profiler | Track memory leaks in long-running YoYoPod process. Essential for 512MB Pi Zero 2W. |
 | **Prometheus** | https://prometheus.io/ | Metrics collection and alerting | Scrape YoYoPod metrics (battery, signal strength, temperature). Alert on anomalies. |
@@ -366,7 +365,6 @@
 |---------|---------|-------|
 | mpv | GPL-2.1+ | OK for YoYoPod |
 | Liblinphone | GPL-3.0 / Commercial | Check SDK v5 license; dual-licensed |
-| Vosk | Apache-2.0 | Models have separate licenses (Apache-2.0) |
 | LVGL | MIT | Very permissive |
 | Python 3.12 | PSF-2.0 | OK |
 | mosquitto | EPL-2.0 / EDL-1.0 | Dual license, OK |

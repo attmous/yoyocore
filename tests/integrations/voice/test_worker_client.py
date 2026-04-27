@@ -106,6 +106,7 @@ def test_transcribe_schedules_request_on_main_and_resolves_result() -> None:
                 sample_rate_hz=16000,
                 language="en",
                 model="gpt-4o-transcribe",
+                prompt="Transcribe YoYoPod commands in English Latin letters.",
                 max_audio_seconds=5.0,
             )
         )
@@ -130,6 +131,7 @@ def test_transcribe_schedules_request_on_main_and_resolves_result() -> None:
         "channels": 1,
         "language": "en",
         "model": "gpt-4o-transcribe",
+        "prompt": "Transcribe YoYoPod commands in English Latin letters.",
         "max_audio_seconds": 5.0,
         "delete_input_on_success": False,
     }

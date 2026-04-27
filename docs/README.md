@@ -26,7 +26,7 @@ Plan docs are useful context, but they are not automatically the current impleme
 - [`architecture/`](architecture/README.md) - current runtime topology, package/config ownership, event flow, display/input contracts, and cross-screen UI contracts.
 - [`operations/`](operations/README.md) - contributor workflow, setup, quality gates, release flow, dev/prod lanes, Pi validation, profiling, and OTA/deploy operations.
 - [`hardware/`](hardware/README.md) - audio, power, deployed Pi dependencies, and board bringup notes.
-- [`features/`](features/README.md) - cloud provisioning, cloud voice, offline voice model lifecycle, local music, mpv, and remote playback contracts.
+- [`features/`](features/README.md) - cloud provisioning, cloud voice, local music, mpv, and remote playback contracts.
 - [`design/`](design/README.md) - active screen/UI design targets, parity contracts, and visual previews.
 - [`history/`](history/README.md) - transitional plans and milestone records that are useful context but not source of truth.
 - [`product/`](product/README.md) - product definition, V1 scope, positioning, technical priorities, and research material.
@@ -65,10 +65,11 @@ Plan docs are useful context, but they are not automatically the current impleme
 ### Working On UI Or Design
 
 1. [`design/README.md`](design/README.md)
-2. [`architecture/DISPLAY_HAL_ARCHITECTURE.md`](architecture/DISPLAY_HAL_ARCHITECTURE.md)
-3. [`architecture/INPUT_HAL_ARCHITECTURE.md`](architecture/INPUT_HAL_ARCHITECTURE.md)
-4. [`architecture/CROSS_SCREEN_OVERLAYS.md`](architecture/CROSS_SCREEN_OVERLAYS.md)
-5. [`../rules/design-fidelity.md`](../rules/design-fidelity.md)
+2. [`superpowers/specs/2026-04-27-cautious-unified-voice-design.md`](superpowers/specs/2026-04-27-cautious-unified-voice-design.md)
+3. [`architecture/DISPLAY_HAL_ARCHITECTURE.md`](architecture/DISPLAY_HAL_ARCHITECTURE.md)
+4. [`architecture/INPUT_HAL_ARCHITECTURE.md`](architecture/INPUT_HAL_ARCHITECTURE.md)
+5. [`architecture/CROSS_SCREEN_OVERLAYS.md`](architecture/CROSS_SCREEN_OVERLAYS.md)
+6. [`../rules/design-fidelity.md`](../rules/design-fidelity.md)
 
 ### Working On Music, Voice, Or Cloud Features
 

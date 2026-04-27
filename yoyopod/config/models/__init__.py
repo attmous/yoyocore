@@ -44,6 +44,7 @@ from yoyopod.config.models.runtime import YoyoPodRuntimeConfig
 from yoyopod.config.models.voice import (
     VoiceAssistantConfig,
     VoiceAudioConfig,
+    VoiceCommandRoutingConfig,
     VoiceConfig,
     VoiceWorkerConfig,
 )
@@ -78,6 +79,7 @@ __all__ = [
     "PowerConfig",
     "VoiceAssistantConfig",
     "VoiceAudioConfig",
+    "VoiceCommandRoutingConfig",
     "VoiceConfig",
     "VoiceWorkerConfig",
     "YoyoPodConfig",

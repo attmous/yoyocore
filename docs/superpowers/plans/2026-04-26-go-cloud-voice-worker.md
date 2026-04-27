@@ -189,22 +189,14 @@ from yoyopod.config.models.core import config_value
 class VoiceAssistantConfig:
     """Voice-command and spoken-response policy."""
 
-    mode: str = config_value(default="local", env="YOYOPOD_VOICE_MODE")
+    mode: str = config_value(default="cloud", env="YOYOPOD_VOICE_MODE")
     commands_enabled: bool = config_value(default=True, env="YOYOPOD_VOICE_COMMANDS_ENABLED")
     ai_requests_enabled: bool = config_value(default=True, env="YOYOPOD_AI_REQUESTS_ENABLED")
     screen_read_enabled: bool = config_value(default=False, env="YOYOPOD_SCREEN_READ_ENABLED")
     stt_enabled: bool = config_value(default=True, env="YOYOPOD_STT_ENABLED")
     tts_enabled: bool = config_value(default=True, env="YOYOPOD_TTS_ENABLED")
-    stt_backend: str = config_value(default="vosk", env="YOYOPOD_STT_BACKEND")
-    tts_backend: str = config_value(default="espeak-ng", env="YOYOPOD_TTS_BACKEND")
-    vosk_model_path: str = config_value(
-        default="models/vosk-model-small-en-us",
-        env="YOYOPOD_VOSK_MODEL_PATH",
-    )
-    vosk_model_keep_loaded: bool = config_value(
-        default=True,
-        env="YOYOPOD_VOSK_MODEL_KEEP_LOADED",
-    )
+    stt_backend: str = config_value(default="cloud-worker", env="YOYOPOD_STT_BACKEND")
+    tts_backend: str = config_value(default="cloud-worker", env="YOYOPOD_TTS_BACKEND")
     record_seconds: int = config_value(default=4, env="YOYOPOD_VOICE_RECORD_SECONDS")
     sample_rate_hz: int = config_value(default=16000, env="YOYOPOD_VOICE_SAMPLE_RATE_HZ")
     tts_rate_wpm: int = config_value(default=155, env="YOYOPOD_TTS_RATE_WPM")
@@ -286,10 +278,8 @@ assistant:
   screen_read_enabled: false
   stt_enabled: true
   tts_enabled: true
-  stt_backend: "vosk"
-  tts_backend: "espeak-ng"
-  vosk_model_path: "models/vosk-model-small-en-us"
-  vosk_model_keep_loaded: true
+  stt_backend: "cloud-worker"
+  tts_backend: "cloud-worker"
   record_seconds: 4
   sample_rate_hz: 16000
   tts_rate_wpm: 155
@@ -1096,7 +1086,7 @@ def test_cloud_stt_available_only_for_cloud_backend() -> None:
     backend = CloudWorkerSpeechToTextBackend(client=client)
 
     assert backend.is_available(VoiceSettings(stt_backend="cloud-worker")) is True
-    assert backend.is_available(VoiceSettings(stt_backend="vosk")) is False
+    assert backend.is_available(VoiceSettings(stt_backend="disabled")) is False
 
 
 def test_cloud_stt_transcribes_through_client(tmp_path: Path) -> None:
@@ -2929,7 +2919,7 @@ yoyopod remote sync --branch <branch>
 Capture status and process memory for each scenario:
 
 - voice disabled
-- local Vosk configured and one transcription attempted
+- cloud voice configured and one transcription attempted
 - Go voice worker idle with mock provider
 - Go voice worker cloud STT request
 - Go voice worker cloud TTS request
@@ -2950,7 +2940,7 @@ Capture status and process memory for each scenario:
 
 ### Acceptance target
 
-Cloud voice mode is acceptable only if STT/TTS requests avoid UI-loop stalls and total PSS is lower than the current local Vosk command path when Vosk is resident.
+Cloud voice mode is acceptable only if STT/TTS requests avoid UI-loop stalls and total PSS stays within the Pi Zero 2W service budget.
 ```
 
 - [ ] **Step 2: Verify heading appears once**

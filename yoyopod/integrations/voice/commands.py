@@ -8,7 +8,22 @@ from enum import StrEnum
 import re
 
 _TOKEN_RE = re.compile(r"[a-z0-9']+")
+_LATIN_COMMAND_TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 _SCRIPT_COMMAND_TOKEN_RE = re.compile(r"[\u0600-\u06ff]+")
+_HANGUL_COMMAND_TOKEN_RE = re.compile(r"[\uac00-\ud7af]+")
+_CJK_COMMAND_TOKEN_RE = re.compile(r"[\u4e00-\u9fff]+")
+_STT_COMMAND_TOKEN_ALIASES = {
+    "kual": "call",
+}
+_HANGUL_COMMAND_ALIASES = {
+    "\uace0": "call",
+    "\ucf5c": "call",
+    "\ub9c8\ub9c8": "mama",
+}
+_CJK_COMMAND_ALIASES = {
+    "\u63a8": "play",
+    "\u97f3\u4e50": "music",
+}
 _POLITE_PREFIX_TOKENS = frozenset(
     {
         "please",
@@ -36,6 +51,11 @@ _NEGATION_TOKEN_SEQUENCES = (
 )
 _EXACT_TRIGGER_SUFFIX_TOKENS = frozenset({"please", "now"})
 _SCRIPT_COMMAND_ALIASES = {
+    "\u06a9\u0648": "call",
+    "\u0643\u0648": "call",
+    "\u06a9\u0648\u0644": "call",
+    "\u0643\u0648\u0644": "call",
+    "\u0645\u0627\u0645\u0627": "mama",
     "\u0648\u0648\u0644\u06cc\u0648\u0645": "volume",
     "\u0648\u0648\u0644\u064a\u0648\u0645": "volume",
     "\u0648\u0644\u06cc\u0648\u0645": "volume",
@@ -159,6 +179,7 @@ VOICE_COMMAND_GRAMMAR: tuple[VoiceCommandTemplate, ...] = (
         intent=VoiceCommandIntent.PLAY_MUSIC,
         trigger_phrases=(
             "play music",
+            "play",
             "play some music",
             "start music",
             "start some music",
@@ -172,6 +193,7 @@ VOICE_COMMAND_GRAMMAR: tuple[VoiceCommandTemplate, ...] = (
         ),
         examples=("play music", "play some music", "start music", "play a song"),
         exact_trigger_phrases=(
+            "play",
             "play a song",
             "play songs",
             "put on music",
@@ -250,9 +272,14 @@ VOICE_COMMAND_GRAMMAR: tuple[VoiceCommandTemplate, ...] = (
 )
 
 
-def match_voice_command(transcript: str) -> VoiceCommandMatch:
+def match_voice_command(
+    transcript: str,
+    *,
+    grammar: tuple[VoiceCommandTemplate, ...] | None = None,
+) -> VoiceCommandMatch:
     """Map a transcript to the first supported local voice command."""
 
+    effective_grammar = VOICE_COMMAND_GRAMMAR if grammar is None else grammar
     normalized_transcript = _expand_script_command_aliases(transcript)
     transcript_tokens = _tokenize(normalized_transcript)
     if _has_negation(transcript_tokens):
@@ -262,11 +289,11 @@ def match_voice_command(transcript: str) -> VoiceCommandMatch:
     if not tokens:
         return VoiceCommandMatch(VoiceCommandIntent.UNKNOWN, transcript=transcript)
 
-    slot_match = _match_slot_command(tokens, transcript)
+    slot_match = _match_slot_command(tokens, transcript, grammar=effective_grammar)
     if slot_match is not None:
         return slot_match
 
-    fixed_match = _match_fixed_command(tokens, transcript)
+    fixed_match = _match_fixed_command(tokens, transcript, grammar=effective_grammar)
     if fixed_match is not None:
         return fixed_match
 
@@ -278,22 +305,51 @@ def _expand_script_command_aliases(transcript: str) -> str:
 
     normalized = transcript.translate(_SCRIPT_CHAR_TRANSLATION)
 
-    def replace_token(match: re.Match[str]) -> str:
+    def replace_script_token(match: re.Match[str]) -> str:
         token = match.group(0)
         replacement = _SCRIPT_COMMAND_ALIASES.get(token)
         if replacement is None:
             return token
         return f" {replacement} "
 
-    return _SCRIPT_COMMAND_TOKEN_RE.sub(replace_token, normalized)
+    def replace_hangul_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        replacement = _HANGUL_COMMAND_ALIASES.get(token)
+        if replacement is None:
+            return token
+        return f" {replacement} "
+
+    def replace_cjk_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        replacement = _CJK_COMMAND_ALIASES.get(token)
+        if replacement is None:
+            return token
+        return f" {replacement} "
+
+    def replace_latin_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        replacement = _STT_COMMAND_TOKEN_ALIASES.get(token.lower())
+        if replacement is None:
+            return token
+        return replacement
+
+    normalized = _SCRIPT_COMMAND_TOKEN_RE.sub(replace_script_token, normalized)
+    normalized = _HANGUL_COMMAND_TOKEN_RE.sub(replace_hangul_token, normalized)
+    normalized = _CJK_COMMAND_TOKEN_RE.sub(replace_cjk_token, normalized)
+    return _LATIN_COMMAND_TOKEN_RE.sub(replace_latin_token, normalized)
 
 
-def _match_slot_command(tokens: tuple[str, ...], transcript: str) -> VoiceCommandMatch | None:
+def _match_slot_command(
+    tokens: tuple[str, ...],
+    transcript: str,
+    *,
+    grammar: tuple[VoiceCommandTemplate, ...],
+) -> VoiceCommandMatch | None:
     """Return the best slot-bearing command match for the given tokens."""
 
     best_score = 0.0
     best_match: VoiceCommandMatch | None = None
-    for template in VOICE_COMMAND_GRAMMAR:
+    for template in grammar:
         if template.slot_name is None:
             continue
         for phrase in template.trigger_phrases:
@@ -326,12 +382,17 @@ def _match_slot_command(tokens: tuple[str, ...], transcript: str) -> VoiceComman
     return best_match
 
 
-def _match_fixed_command(tokens: tuple[str, ...], transcript: str) -> VoiceCommandMatch | None:
+def _match_fixed_command(
+    tokens: tuple[str, ...],
+    transcript: str,
+    *,
+    grammar: tuple[VoiceCommandTemplate, ...],
+) -> VoiceCommandMatch | None:
     """Return the best fixed-phrase command match for the given tokens."""
 
     best_score = 0.0
     best_intent: VoiceCommandIntent | None = None
-    for template in VOICE_COMMAND_GRAMMAR:
+    for template in grammar:
         if template.slot_name is not None:
             continue
         for phrase in template.trigger_phrases:

@@ -12,6 +12,10 @@ from typing import Protocol
 from loguru import logger
 
 from yoyopod.backends.voice.output import AlsaOutputPlayer
+from yoyopod.integrations.voice.dictionary import (
+    build_voice_command_transcription_prompt,
+    load_voice_command_dictionary,
+)
 from yoyopod.integrations.voice.models import VoiceSettings, VoiceTranscript
 from yoyopod.integrations.voice.worker_contract import (
     VoiceWorkerSpeakResult,
@@ -34,6 +38,7 @@ class _VoiceWorkerClient(Protocol):
         language: str,
         max_audio_seconds: float,
         model: str = "",
+        prompt: str = "",
         cancel_event: threading.Event | None = None,
     ) -> VoiceWorkerTranscribeResult:
         """Return a transcription result for one local WAV file."""
@@ -92,12 +97,25 @@ class CloudWorkerSpeechToTextBackend:
             return _empty_transcript()
 
         try:
+            language = settings.cloud_worker_stt_language.strip() or "en"
+            prompt = build_voice_command_transcription_prompt(
+                load_voice_command_dictionary(settings.command_dictionary_path),
+                activation_prefixes=settings.activation_prefixes,
+                base_prompt=settings.cloud_worker_stt_prompt,
+            )
+            logger.info(
+                "Cloud worker transcription started model={} language={} prompt_present={}",
+                settings.cloud_worker_stt_model,
+                language,
+                bool(prompt),
+            )
             result = self._client.transcribe(
                 audio_path=audio_path,
                 sample_rate_hz=settings.sample_rate_hz,
-                language="en",
+                language=language,
                 max_audio_seconds=settings.cloud_worker_max_audio_seconds,
                 model=settings.cloud_worker_stt_model,
+                prompt=prompt,
                 cancel_event=cancel_event,
             )
         except Exception as exc:

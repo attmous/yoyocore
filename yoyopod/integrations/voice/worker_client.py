@@ -163,6 +163,7 @@ class VoiceWorkerClient:
         language: str,
         max_audio_seconds: float,
         model: str = "",
+        prompt: str = "",
         cancel_event: threading.Event | None = None,
     ) -> VoiceWorkerTranscribeResult:
         """Send one transcription request and wait for its normalized result."""
@@ -174,6 +175,7 @@ class VoiceWorkerClient:
             language=language,
             max_audio_seconds=max_audio_seconds,
             model=model,
+            prompt=prompt,
         )
         pending = self._send(
             request_type="voice.transcribe",

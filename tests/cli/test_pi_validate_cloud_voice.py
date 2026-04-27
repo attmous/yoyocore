@@ -55,7 +55,7 @@ def test_load_env_file_parses_service_style_assignments(tmp_path: Path, monkeypa
 def test_cloud_voice_settings_check_requires_cloud_worker_mode() -> None:
     settings = pi_validate_cv.VoiceSettings(
         mode="local",
-        stt_backend="vosk",
+        stt_backend="disabled",
         tts_backend="espeak-ng",
         cloud_worker_enabled=False,
     )

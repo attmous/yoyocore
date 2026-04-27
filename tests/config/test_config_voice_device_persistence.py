@@ -9,6 +9,38 @@ import yaml
 from yoyopod.config.manager import ConfigManager
 
 
+def test_voice_config_loads_activation_and_dictionary_defaults(tmp_path: Path) -> None:
+    cfg_dir = tmp_path / "config"
+    voice_dir = cfg_dir / "voice"
+    voice_dir.mkdir(parents=True)
+    (voice_dir / "assistant.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "assistant": {
+                    "activation_prefixes": ["yoyo", "hey yoyo"],
+                    "command_dictionary_path": "data/voice/commands.yaml",
+                    "command_routing": {
+                        "mode": "command_first",
+                        "ask_fallback_enabled": True,
+                        "fallback_min_command_confidence": 0.83,
+                    },
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    manager = ConfigManager(config_dir=str(cfg_dir))
+    settings = manager.get_voice_settings().assistant
+
+    assert settings.activation_prefixes == ["yoyo", "hey yoyo"]
+    assert settings.command_dictionary_path == "data/voice/commands.yaml"
+    assert settings.command_routing.mode == "command_first"
+    assert settings.command_routing.ask_fallback_enabled is True
+    assert settings.command_routing.fallback_min_command_confidence == 0.83
+
+
 def test_config_manager_persists_voice_device_ids(tmp_path: Path) -> None:
     cfg_dir = tmp_path / "config"
     manager = ConfigManager(config_dir=str(cfg_dir))

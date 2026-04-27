@@ -6,7 +6,7 @@
 
 **Architecture:** Same per-integration shape as prior plans. Focus is stateless beyond its arbiter field; diagnostics subscribes to the bus wildly and writes JSONL; screen owns a single `ui.tick()` callback registered into `YoyoPodApp`; voice orchestrates STT engine + TTS engine + command matcher.
 
-**Tech Stack:** Python 3.12+, pytest, uv, existing STT (`vosk`) and TTS backends. No new runtime dependencies.
+**Tech Stack:** Python 3.12+, pytest, uv, existing STT and TTS backends. No new runtime dependencies.
 
 **Spec reference:** `docs/superpowers/specs/2026-04-21-phase-a-spine-rewrite-design.md` §5, §6, §7, §8, §9.1, §9.2, §11.2 (steps 5-7).
 
@@ -1136,7 +1136,7 @@ Rehomes `VoiceRuntimeCoordinator` + STT/TTS backends. Models the voice pipeline 
 mkdir -p src/yoyopod/backends/voice
 ```
 
-Examine `src/yoyopod/voice/` and relocate STT/TTS engine files (the names depend on the current structure; examples: `stt_vosk.py`, `tts_*.py`):
+Examine `src/yoyopod/voice/` and relocate STT/TTS engine files (the names depend on the current structure; examples: `stt_*.py`, `tts_*.py`):
 
 ```bash
 git mv src/yoyopod/voice/<stt_file>.py src/yoyopod/backends/voice/stt.py

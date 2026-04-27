@@ -70,6 +70,7 @@ def build_transcribe_payload(
     language: str,
     max_audio_seconds: float,
     model: str = "",
+    prompt: str = "",
 ) -> dict[str, Any]:
     """Build a worker payload for audio transcription."""
 
@@ -84,6 +85,8 @@ def build_transcribe_payload(
     }
     if model:
         payload["model"] = model
+    if prompt:
+        payload["prompt"] = prompt
     return payload
 
 

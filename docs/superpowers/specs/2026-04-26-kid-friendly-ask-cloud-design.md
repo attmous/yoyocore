@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-The cloud voice worker now makes YoYoPod's speech-to-text and text-to-speech path viable on Raspberry Pi Zero 2W without keeping the local Vosk model resident. The current Ask experience is still command-oriented: captured transcripts are routed through the local voice command executor, so the Ask app cannot hold an open question-answer loop for a child.
+The cloud voice worker now makes YoYoPod's speech-to-text and text-to-speech path viable on Raspberry Pi Zero 2W without keeping a local STT model resident. The current Ask experience is still command-oriented: captured transcripts are routed through the local voice command executor, so the Ask app cannot hold an open question-answer loop for a child.
 
 The next step is to split the voice experience into two clear modes:
 
@@ -44,7 +44,7 @@ The same work should make cloud TTS sound consistent and child-friendly, and sho
 - Do not implement parent profiles, content allowlists, or remote parental controls in this slice.
 - Do not guarantee child safety solely through prompting. Prompting reduces risk but is not a hard safety boundary.
 - Do not make the device continuously hot-mic after every answer. The child should intentionally start each new Ask turn.
-- Do not remove local Vosk/espeak support in this change.
+- Do not remove local speech support in this change.
 - Do not expand VoIP behavior as part of Ask mode.
 
 ---

@@ -106,6 +106,12 @@ func (p OpenAIProvider) Transcribe(ctx context.Context, request TranscribeReques
 			return TranscribeResult{}, err
 		}
 	}
+	if strings.TrimSpace(request.Prompt) != "" {
+		if err := writer.WriteField("prompt", request.Prompt); err != nil {
+			_ = writer.Close()
+			return TranscribeResult{}, err
+		}
+	}
 	if err := writer.WriteField("response_format", "json"); err != nil {
 		_ = writer.Close()
 		return TranscribeResult{}, err

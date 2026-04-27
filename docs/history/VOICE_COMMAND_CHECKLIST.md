@@ -14,10 +14,10 @@ That branch note is preserved for context only.
 
 ## Goal
 
-Implement local voice commands and spoken feedback for YoYoPod with:
+Implement voice commands and spoken feedback for YoYoPod with:
 
-- `vosk` small for offline STT
-- `espeak-ng` for offline TTS
+- cloud-worker STT
+- cloud-worker TTS
 
 Keep conversational AI responses out of scope for now. The `AI Requests` path
 should exist in the UI, but only return a placeholder spoken response.
@@ -82,8 +82,8 @@ Checklist:
 - [ ] add fields for `screen_read_enabled`
 - [ ] add fields for `mic_muted`
 - [ ] add fields for `tts_backend`, `tts_rate`, and `tts_voice`
-- [ ] add fields for `stt_backend`, `vosk_model_path`, and listen timeout
-- [ ] keep defaults local/offline and safe
+- [ ] add fields for `stt_backend` and listen timeout
+- [ ] keep defaults cloud-worker and safe
 
 Notes:
 
@@ -126,7 +126,7 @@ Checklist:
 
 - [ ] define a small typed command/result model
 - [ ] wrap `espeak-ng` as a backend service
-- [ ] wrap Vosk model loading and bounded capture as an STT service
+- [ ] wrap bounded capture as an STT service
 - [ ] keep backend execution behind interfaces for tests
 - [ ] make missing dependency/model failures explicit and non-fatal
 
@@ -285,10 +285,9 @@ Files:
 
 Checklist:
 
-- [ ] add Python dependency for Vosk if not already present
 - [ ] document `espeak-ng` system dependency
-- [ ] document Vosk small model install location
-- [ ] document failure mode when model is missing
+- [ ] document cloud voice worker setup
+- [ ] document failure mode when provider credentials are missing
 - [ ] document Pi setup steps for local voice features
 
 ### 11. Test Coverage

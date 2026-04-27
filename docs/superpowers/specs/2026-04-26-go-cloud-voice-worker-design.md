@@ -10,7 +10,7 @@
 
 ## 1. Problem
 
-YoYoPod's local voice path currently composes audio capture, local STT, command matching, and local TTS inside the Python supervisor runtime. The local Vosk STT path is the main RAM concern on Raspberry Pi Zero 2W, especially when the model is kept resident. Python threads can hide some blocking I/O but do not make CPU-bound Python work run in parallel because of the GIL.
+YoYoPod's local voice path currently composes audio capture, local STT, command matching, and local TTS inside the Python supervisor runtime. The local STT path is the main RAM concern on Raspberry Pi Zero 2W, especially when a model is kept resident. Python threads can hide some blocking I/O but do not make CPU-bound Python work run in parallel because of the GIL.
 
 The Phase 1 worker runtime now gives YoYoPod a bounded, supervised process boundary with request deadlines, cancellation, crash isolation, and status reporting. Phase 2 should use that foundation for the first production sidecar: a Go cloud voice worker.
 
@@ -20,14 +20,14 @@ The goal is not to make voice independent from the app. The Python supervisor re
 
 ## 2. Goals
 
-- Reduce default RAM pressure by making cloud STT/TTS the normal voice path instead of loading Vosk by default.
+- Reduce default RAM pressure by making cloud STT/TTS the normal voice path instead of loading a local STT model by default.
 - Keep the UI loop responsive while STT/TTS requests are in flight.
 - Use the existing worker supervisor and NDJSON envelope protocol.
 - Keep the supervisor-worker contract provider-neutral while implementing only one cloud provider in the first production worker.
 - Preserve local non-speech feedback for button and voice interaction states.
 - Enforce request deadlines and cancellation across the process boundary.
 - Surface cloud voice degraded state without degrading music, VoIP, navigation, or local controls.
-- Produce before/after Pi Zero 2W RAM measurements against the current Vosk path.
+- Produce before/after Pi Zero 2W RAM measurements against the current local STT path.
 
 ---
 
@@ -38,7 +38,7 @@ The goal is not to make voice independent from the app. The Python supervisor re
 - Do not move audio playback ownership into Go in the first implementation slice.
 - Do not build multiple cloud provider adapters in the first production worker.
 - Do not guarantee offline STT/TTS in Phase 2.
-- Do not remove the existing local Vosk/espeak code in this phase. It may remain as an explicit opt-in or fallback for development, but it is not the default Pi Zero runtime path.
+- Do not remove the existing local speech code in this phase. It may remain as an explicit opt-in or fallback for development, but it is not the default Pi Zero runtime path.
 - Do not move VoIP or call audio into the voice worker.
 
 ---
@@ -209,8 +209,8 @@ Supervisor behavior:
 - Keep UI, music, VoIP, local navigation, and local feedback running.
 - Mark voice STT/TTS availability as degraded in app status.
 - Show a voice-unavailable Ask outcome rather than blocking the screen.
-- Do not load Vosk automatically as a hidden fallback on Pi Zero.
-- Allow an explicit local-voice development mode to use the current Vosk/espeak path if configured.
+- Do not load local STT automatically as a hidden fallback on Pi Zero.
+- Allow an explicit local-voice development mode to use the current local speech path if configured.
 
 Worker behavior:
 
@@ -248,8 +248,8 @@ Phase 2 is not complete without target-hardware measurements.
 Required Pi Zero 2W scenarios:
 
 - supervisor idle with voice disabled
-- supervisor idle with current local Vosk configured
-- one local Vosk transcription path, if model is installed
+- supervisor idle with current local STT configured
+- one local STT transcription path, if a model is installed
 - supervisor plus Go voice worker idle
 - one cloud STT request
 - one cloud TTS request
@@ -269,7 +269,7 @@ Record:
 
 Acceptance target:
 
-- Default cloud voice mode should use less total PSS than the current default local Vosk path when Vosk is kept available for voice commands.
+- Default cloud voice mode should use less total PSS than the current default local STT path when local STT is kept available for voice commands.
 - STT/TTS requests must not introduce UI-loop blocking spans over the existing runtime thresholds.
 - Voice worker crash must degrade voice only and must not crash the supervisor.
 
@@ -300,7 +300,7 @@ Recommended PR sequence:
 
 1. Add Python-side cloud voice worker contract, fake worker tests, config shape, and status wiring.
 2. Add Go worker skeleton with `voice.health`, `voice.transcribe` fake-provider mode, packaging, and Pi deploy support.
-3. Route STT through the worker when cloud mode is enabled; keep local Vosk as explicit opt-in.
+3. Route STT through the worker when cloud mode is enabled; keep local STT as explicit opt-in.
 4. Add TTS worker path and playback of returned audio file.
 5. Run Pi Zero RAM and responsiveness comparison and update profiling docs with measured results.
 

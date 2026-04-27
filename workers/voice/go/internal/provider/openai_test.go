@@ -35,6 +35,9 @@ func TestOpenAIProviderTranscribeBuildsMultipartRequest(t *testing.T) {
 		if got := r.FormValue("language"); got != "en" {
 			t.Fatalf("language = %q, want en", got)
 		}
+		if got := r.FormValue("prompt"); got != "Transcribe YoYoPod commands in English Latin letters." {
+			t.Fatalf("prompt = %q, want YoYoPod command prompt", got)
+		}
 		if got := r.FormValue("response_format"); got != "json" {
 			t.Fatalf("response_format = %q, want json", got)
 		}
@@ -68,6 +71,7 @@ func TestOpenAIProviderTranscribeBuildsMultipartRequest(t *testing.T) {
 		AudioPath: audioPath,
 		Language:  "en",
 		Model:     "custom-stt",
+		Prompt:    "Transcribe YoYoPod commands in English Latin letters.",
 	})
 
 	if err != nil {

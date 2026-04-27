@@ -105,6 +105,17 @@ class ScreensBoot:
                     return str(summary_provider())
                 return "You are on Ask. Ask a question, or go back to exit."
 
+            def handoff_voice_music_pause_to_call() -> bool:
+                call_interruption_policy = getattr(self.app, "call_interruption_policy", None)
+                music_fsm = getattr(self.app, "music_fsm", None)
+                if call_interruption_policy is None or music_fsm is None:
+                    return False
+                call_interruption_policy.mark_paused_for_call(music_fsm)
+                app_state_runtime = getattr(self.app, "app_state_runtime", None)
+                if app_state_runtime is not None:
+                    app_state_runtime.sync_app_state("voice_call_handoff")
+                return True
+
             self.app.voice_runtime = VoiceRuntimeCoordinator(
                 context=context,
                 settings_resolver=VoiceSettingsResolver(
@@ -153,22 +164,14 @@ class ScreensBoot:
                             else 50
                         ),
                         stt_backend=(
-                            voice_cfg.assistant.stt_backend if voice_cfg is not None else "vosk"
+                            voice_cfg.assistant.stt_backend
+                            if voice_cfg is not None
+                            else "cloud-worker"
                         ),
                         tts_backend=(
                             voice_cfg.assistant.tts_backend
                             if voice_cfg is not None
-                            else "espeak-ng"
-                        ),
-                        vosk_model_path=(
-                            voice_cfg.assistant.vosk_model_path
-                            if voice_cfg is not None
-                            else "models/vosk-model-small-en-us"
-                        ),
-                        vosk_model_keep_loaded=(
-                            voice_cfg.assistant.vosk_model_keep_loaded
-                            if voice_cfg is not None
-                            else True
+                            else "cloud-worker"
                         ),
                         speaker_device_id=(
                             self.app.context.voice.speaker_device_id
@@ -229,6 +232,24 @@ class ScreensBoot:
                             getattr(worker_cfg, "stt_model", "gpt-4o-mini-transcribe")
                             if worker_cfg is not None
                             else "gpt-4o-mini-transcribe"
+                        ),
+                        cloud_worker_stt_language=(
+                            getattr(
+                                worker_cfg,
+                                "stt_language",
+                                voice_settings_defaults.cloud_worker_stt_language,
+                            )
+                            if worker_cfg is not None
+                            else voice_settings_defaults.cloud_worker_stt_language
+                        ),
+                        cloud_worker_stt_prompt=(
+                            getattr(
+                                worker_cfg,
+                                "stt_prompt",
+                                voice_settings_defaults.cloud_worker_stt_prompt,
+                            )
+                            if worker_cfg is not None
+                            else voice_settings_defaults.cloud_worker_stt_prompt
                         ),
                         cloud_worker_tts_model=(
                             getattr(worker_cfg, "tts_model", "gpt-4o-mini-tts")
@@ -327,6 +348,8 @@ class ScreensBoot:
                 ),
                 voice_service_factory=voice_service_factory,
                 ask_client=voice_worker_client,
+                music_backend=getattr(self.app, "music_backend", None),
+                call_music_handoff=handoff_voice_music_pause_to_call,
             )
             self.app.ask_screen = AskScreen(
                 display,

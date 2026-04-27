@@ -93,7 +93,7 @@ yoyopod remote sync --branch <branch>
 Capture status and process memory for each scenario:
 
 - voice disabled
-- local Vosk configured and one transcription attempted
+- cloud voice configured and one transcription attempted
 - Go voice worker idle with mock provider
 - Go voice worker cloud STT request
 - Go voice worker cloud TTS request
@@ -115,8 +115,7 @@ Capture status and process memory for each scenario:
 ### Acceptance target
 
 Cloud voice mode is acceptable only if STT/TTS requests avoid UI-loop stalls
-and total PSS is lower than the current local Vosk command path when Vosk is
-resident.
+and total PSS stays within the Pi Zero 2W service budget.
 
 ## 1. Install the profiling tools
 

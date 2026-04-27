@@ -61,7 +61,7 @@ Reliability targets:
 
 RAM targets:
 
-- Cloud-first voice should reduce memory versus the current local Vosk default.
+- Cloud-first voice should reduce memory versus the current local STT default.
 - The first two workers should fit comfortably on Pi Zero 2W after measuring proportional set size (PSS), not only RSS.
 - Local STT models may remain available as an explicit opt-in, but they are not loaded by default.
 
@@ -165,7 +165,7 @@ ZeroMQ/msgpack remains a later option. It becomes attractive only if measured IP
 
 Voice is the best first non-Python worker because it has the clearest payoff:
 
-- cloud STT/TTS avoids local Vosk memory pressure
+- cloud STT/TTS avoids local STT memory pressure
 - Go avoids Python interpreter overhead in the worker
 - Go has good standard-library support for HTTP, JSON, process signals, contexts, cancellation, and streaming I/O
 - cross-compilation to Pi is straightforward
@@ -287,14 +287,14 @@ Python sidecar process: 30-70 MB PSS
 Go sidecar process:     12-30 MB PSS
 Rust/C sidecar process:  5-20 MB PSS
 Cloud voice active:     40-70 MB PSS incremental, depending on buffers/provider client
-Local Vosk active:     100-180+ MB incremental, depending on model and keep-loaded mode
+Local STT active:      100-180+ MB incremental, depending on model and keep-loaded mode
 ```
 
 Expected direction:
 
-- Go cloud voice worker adds process overhead, but removes local Vosk as the default memory resident.
+- Go cloud voice worker adds process overhead, but removes local STT as the default memory resident.
 - Python network worker adds memory, but isolates serial/modem stalls.
-- Net memory may still improve if Vosk was previously kept loaded.
+- Net memory may still improve if local STT was previously kept loaded.
 - VoIP sidecar is likely RAM-neutral or worse, because it adds another interpreter/process boundary while still needing native liblinphone resources.
 
 The spec does not claim exact savings. Phase zero must measure baseline PSS, and each worker phase must include before/after memory snapshots under equivalent scenarios.
@@ -342,7 +342,7 @@ Exit criteria:
 
 - baseline numbers collected on target hardware
 - top responsiveness offenders identified
-- local Vosk memory impact measured with keep-loaded on and off
+- local STT memory impact measured with keep-loaded on and off
 
 ### Phase 1: Worker runtime
 
@@ -378,7 +378,7 @@ Deliverables:
 - cloud TTS command path
 - cancellation/deadline handling
 - voice degraded-state mapping
-- local Vosk disabled by default
+- local STT disabled by default
 - fallback local tones/status prompts preserved where applicable
 
 Exit criteria:

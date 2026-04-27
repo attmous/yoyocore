@@ -8,10 +8,10 @@ from pathlib import Path
 from yoyopod.backends.voice import (
     AudioCaptureBackend,
     EspeakNgTextToSpeechBackend,
+    NullSpeechToTextBackend,
     SpeechToTextBackend,
     SubprocessAudioCaptureBackend,
     TextToSpeechBackend,
-    VoskSpeechToTextBackend,
 )
 from yoyopod.integrations.voice.models import (
     VoiceCaptureRequest,
@@ -35,7 +35,7 @@ class VoiceManager:
     ) -> None:
         self.settings = settings
         self.capture_backend = capture_backend or SubprocessAudioCaptureBackend()
-        self.stt_backend = stt_backend or VoskSpeechToTextBackend()
+        self.stt_backend = stt_backend or NullSpeechToTextBackend()
         self.tts_backend = tts_backend or EspeakNgTextToSpeechBackend()
 
     def capture_available(self) -> bool:

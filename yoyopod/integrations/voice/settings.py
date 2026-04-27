@@ -135,6 +135,18 @@ class VoiceSettingsResolver:
         if callable(get_default_output_volume):
             output_volume = int(get_default_output_volume())
 
+        routing_cfg = getattr(assistant_cfg, "command_routing", None)
+        activation_prefix_values = getattr(
+            assistant_cfg,
+            "activation_prefixes",
+            defaults.activation_prefixes,
+        )
+        activation_prefixes = tuple(
+            str(prefix).strip()
+            for prefix in (activation_prefix_values or ())
+            if str(prefix).strip()
+        )
+
         return VoiceSettings(
             mode=getattr(assistant_cfg, "mode", defaults.mode),
             commands_enabled=getattr(assistant_cfg, "commands_enabled", defaults.commands_enabled),
@@ -153,22 +165,33 @@ class VoiceSettingsResolver:
             output_volume=output_volume,
             stt_backend=getattr(assistant_cfg, "stt_backend", defaults.stt_backend),
             tts_backend=getattr(assistant_cfg, "tts_backend", defaults.tts_backend),
-            vosk_model_path=getattr(
-                assistant_cfg,
-                "vosk_model_path",
-                defaults.vosk_model_path,
-            ),
-            vosk_model_keep_loaded=getattr(
-                assistant_cfg,
-                "vosk_model_keep_loaded",
-                defaults.vosk_model_keep_loaded,
-            ),
             speaker_device_id=speaker_device_id,
             capture_device_id=capture_device_id,
             sample_rate_hz=getattr(assistant_cfg, "sample_rate_hz", defaults.sample_rate_hz),
             record_seconds=getattr(assistant_cfg, "record_seconds", defaults.record_seconds),
             tts_rate_wpm=getattr(assistant_cfg, "tts_rate_wpm", defaults.tts_rate_wpm),
             tts_voice=getattr(assistant_cfg, "tts_voice", defaults.tts_voice),
+            activation_prefixes=activation_prefixes or defaults.activation_prefixes,
+            command_dictionary_path=getattr(
+                assistant_cfg,
+                "command_dictionary_path",
+                defaults.command_dictionary_path,
+            ),
+            command_routing_mode=getattr(
+                routing_cfg,
+                "mode",
+                defaults.command_routing_mode,
+            ),
+            ask_fallback_enabled=getattr(
+                routing_cfg,
+                "ask_fallback_enabled",
+                defaults.ask_fallback_enabled,
+            ),
+            fallback_min_command_confidence=getattr(
+                routing_cfg,
+                "fallback_min_command_confidence",
+                defaults.fallback_min_command_confidence,
+            ),
             cloud_worker_enabled=getattr(
                 worker_cfg,
                 "enabled",
@@ -198,6 +221,16 @@ class VoiceSettingsResolver:
                 worker_cfg,
                 "stt_model",
                 defaults.cloud_worker_stt_model,
+            ),
+            cloud_worker_stt_language=getattr(
+                worker_cfg,
+                "stt_language",
+                defaults.cloud_worker_stt_language,
+            ),
+            cloud_worker_stt_prompt=getattr(
+                worker_cfg,
+                "stt_prompt",
+                defaults.cloud_worker_stt_prompt,
             ),
             cloud_worker_tts_model=getattr(
                 worker_cfg,

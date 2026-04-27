@@ -43,7 +43,7 @@ yoyopod pi validate stability
 ```
 
 `yoyopod setup *` is the baseline executable contract, not the finished setup story.
-It does not yet provision non-apt assets like Vosk models, validate every native
+It does not yet provision external service credentials, validate every native
 artifact deeply, or cover every board/modem-specific edge.
 
 ## Configuration

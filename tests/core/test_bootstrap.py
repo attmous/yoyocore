@@ -21,6 +21,7 @@ from yoyopod.integrations.voice import VoiceSettings
 from yoyopod.backends.voice import (
     CloudWorkerSpeechToTextBackend,
     CloudWorkerTextToSpeechBackend,
+    NullSpeechToTextBackend,
 )
 
 ASK_INSTRUCTIONS = (
@@ -341,8 +342,6 @@ def _cloud_voice_config(*, stt_backend: str, tts_backend: str) -> SimpleNamespac
             tts_enabled=True,
             stt_backend=stt_backend,
             tts_backend=tts_backend,
-            vosk_model_path="models/vosk-model-small-en-us",
-            vosk_model_keep_loaded=True,
             sample_rate_hz=16000,
             record_seconds=4,
             tts_rate_wpm=155,
@@ -620,7 +619,7 @@ def test_voice_worker_health_probe_starts_after_scheduler_drains(monkeypatch) ->
     assert health_calls == 1
 
 
-def test_cloud_voice_factory_preserves_local_stt_when_only_tts_uses_worker(monkeypatch) -> None:
+def test_cloud_voice_factory_uses_null_stt_when_stt_is_not_cloud_worker(monkeypatch) -> None:
     captured: dict[str, object] = {}
     _install_dummy_screen_modules(monkeypatch)
 
@@ -632,7 +631,7 @@ def test_cloud_voice_factory_preserves_local_stt_when_only_tts_uses_worker(monke
         "yoyopod.core.bootstrap.screens_boot.VoiceRuntimeCoordinator",
         _CapturingVoiceRuntime,
     )
-    app = _build_cloud_screen_app(stt_backend="vosk", tts_backend="cloud-worker")
+    app = _build_cloud_screen_app(stt_backend="disabled", tts_backend="cloud-worker")
 
     assert ScreensBoot(app, logger=_quiet_logger()).setup_screens() is True
 
@@ -641,15 +640,15 @@ def test_cloud_voice_factory_preserves_local_stt_when_only_tts_uses_worker(monke
     manager = factory(
         VoiceSettings(
             mode="cloud",
-            stt_backend="vosk",
+            stt_backend="disabled",
             tts_backend="cloud-worker",
             cloud_worker_enabled=True,
         )
     )
 
-    assert manager.settings.stt_backend == "vosk"
+    assert manager.settings.stt_backend == "disabled"
     assert manager.settings.tts_backend == "cloud-worker"
-    assert not isinstance(manager.stt_backend, CloudWorkerSpeechToTextBackend)
+    assert isinstance(manager.stt_backend, NullSpeechToTextBackend)
     assert isinstance(manager.tts_backend, CloudWorkerTextToSpeechBackend)
 
 

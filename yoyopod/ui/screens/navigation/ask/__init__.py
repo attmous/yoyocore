@@ -66,6 +66,7 @@ class AskScreen(Screen):
         voice_settings_provider: Optional[Callable[[], VoiceSettings]] = None,
         voice_service_factory: Optional[Callable[[VoiceSettings], VoiceManager]] = None,
         voice_runtime: Optional["VoiceRuntimeCoordinator"] = None,
+        music_backend: Any | None = None,
     ) -> None:
         super().__init__(display, context, "Ask", app=app)
         resolved_config_manager = config_manager or getattr(app, "config_manager", None)
@@ -104,6 +105,7 @@ class AskScreen(Screen):
             None,
         )
         resolved_voice_runtime = voice_runtime or getattr(app, "voice_runtime", None)
+        resolved_music_backend = music_backend or getattr(app, "music_backend", None)
 
         self.config_manager = resolved_config_manager
         self.voip_manager = resolved_voip_manager
@@ -127,13 +129,14 @@ class AskScreen(Screen):
                 screen_summary_provider=self._screen_summary,
             ),
             voice_service_factory=voice_service_factory,
+            music_backend=resolved_music_backend,
         )
         self._async_voice_capture = (
             resolved_voice_runtime is not None or voice_service_factory is None
         )
         self._state: str = "idle"
-        self._headline: str = "Ask"
-        self._body: str = "Ask me anything..."
+        self._headline: str = "YoYo"
+        self._body: str = "How can I help?"
         self._capture_in_flight = False
         self._listen_generation = 0
         self._quick_command = False
@@ -182,8 +185,8 @@ class AskScreen(Screen):
         """Return the current screen summary for spoken playback."""
 
         if self._quick_command:
-            return "You are on quick Ask. Say a direct command now."
-        return "You are on Ask. Ask a question, or go back to exit."
+            return "You are using YoYo. Say a command or question now."
+        return "You are on YoYo. Ask a question or say a command."
 
     def on_select(self, data=None) -> None:
         """Start listening, or ask again from the reply state."""

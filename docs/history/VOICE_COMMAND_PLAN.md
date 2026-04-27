@@ -2,18 +2,18 @@
 
 **Status:** Transitional design record, partly stale relative to the current `Ask` flow
 
-> Current note: this document captures the original design direction for local voice control. The current codebase now uses a unified `AskScreen` instead of the earlier split `Voice Commands` and `AI Requests` menu shape described below. Keep using this file for design context and future direction, but trust the current code and `docs/architecture/SYSTEM_ARCHITECTURE.md` for what exists on `main`.
+> Current note: this document is historical. The current direction for YoYo voice command and Ask coherence is `docs/superpowers/specs/2026-04-27-cautious-unified-voice-design.md`, which defines the button-gated, command-first, Ask-fallback design.
 
 > Read this as a direction and constraint document, not as proof that every flow, menu shape, or setting below is what ships today.
 
 ## Goal
 
-Add local voice commands and spoken device responses to YoYoPod using:
+Add voice commands and spoken device responses to YoYoPod using:
 
-- `vosk` small model for offline speech-to-text
-- `espeak-ng` for offline text-to-speech
+- cloud-worker speech-to-text
+- cloud-worker text-to-speech
 
-This phase focuses on deterministic local voice control and spoken feedback.
+This phase focuses on deterministic voice control and spoken feedback.
 AI-generated responses remain a future feature and should stay behind a separate
 Ask flow boundary.
 
@@ -30,8 +30,8 @@ This keeps deterministic command handling separate from future conversational AI
 
 ### In Scope
 
-- Local STT with Vosk small
-- Local TTS with `espeak-ng`
+- Cloud-worker STT
+- Cloud-worker TTS
 - Spoken confirmations and basic screen reading
 - Voice-command execution for selected device actions
 - Settings for voice-related behavior
@@ -172,7 +172,7 @@ Suggested implementation structure:
 
 #### STT
 
-- Vosk small model
+- Cloud-worker transcript capture
 - Offline transcript capture from current default mic
 - Bounded capture window
 - Non-blocking integration with app flow where possible
@@ -232,8 +232,8 @@ Voice commands should be able to trigger contact calling through the existing Ta
 
 - Add typed config/settings fields
 - Add Ask submenu split
-- Add TTS backend wrapper for `espeak-ng`
-- Add STT backend wrapper for Vosk
+- Add TTS backend wrapper
+- Add STT backend wrapper
 
 ### Phase 2
 
@@ -263,14 +263,13 @@ Keep STT/TTS behind interfaces so tests do not require hardware.
 
 Expected additions:
 
-- system package: `espeak-ng`
-- Python package(s): `vosk`
-- local Vosk small model asset or documented install path
+- cloud voice worker build
+- provider credentials outside tracked config
 
 Model handling should be explicit:
 
-- document model download/install location
-- fail clearly when model is missing
+- document provider setup
+- fail clearly when voice provider credentials are missing
 
 ## Branch Plan
 
