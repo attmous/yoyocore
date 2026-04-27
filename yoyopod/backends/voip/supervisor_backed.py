@@ -131,11 +131,16 @@ class SupervisorBackedBackend:
         self.running = False
         self.event_callbacks: list[Callable[[VoIPEvent], None]] = []
 
-        self._supervisor = supervisor or SidecarSupervisor(on_event=self._on_protocol_event)
+        self._supervisor = supervisor or SidecarSupervisor(
+            on_event=self._on_protocol_event,
+            on_ready=self._on_supervisor_ready,
+        )
         # If the caller passed in a pre-built supervisor, rewire its event
-        # handler to ours so events from the sidecar reach this backend.
+        # and ready handlers to ours so events from the sidecar reach this
+        # backend (including ``Ready`` callbacks fired after every restart).
         if supervisor is not None:
             self._supervisor._on_event = self._on_protocol_event  # type: ignore[attr-defined]
+            self._supervisor._on_ready = self._on_supervisor_ready  # type: ignore[attr-defined]
 
         self._call_lock = threading.Lock()
         self._current_call_id: str | None = None
@@ -187,6 +192,36 @@ class SupervisorBackedBackend:
         self._supervisor.stop()
         self.running = False
         self._reset_call_state()
+
+    def _on_supervisor_ready(self) -> None:
+        """Re-issue Configure + Register after the supervisor (re)starts the sidecar.
+
+        Called by :class:`SidecarSupervisor` after every successful
+        handshake, including the transparent restart that follows a
+        sidecar pipe-death. The first invocation happens during
+        :meth:`start`, before ``self.running`` is True; we skip it then
+        because the start path will send Configure + Register itself.
+
+        On every subsequent invocation the sidecar is fresh (no backend
+        configured), so we resend Configure + Register so the new sidecar
+        accepts subsequent call-control commands instead of rejecting
+        them as ``not_configured``.
+        """
+
+        if not self.running:
+            # Initial handshake — start() will Configure separately.
+            return
+        try:
+            self._supervisor.send(Configure(config=dataclasses.asdict(self.config)))
+            self._supervisor.send(Register())
+        except Exception as exc:
+            logger.error("VoIP sidecar re-Configure after restart failed: {}", exc)
+            return
+        # Surface a registration progress signal so the manager / UI know
+        # the sidecar bounced and we are re-registering.
+        self._dispatch(BackendRegistrationStateChanged(state=RegistrationState.PROGRESS))
+        self._reset_call_state()
+        logger.info("VoIP sidecar re-Configured after supervisor restart")
 
     def iterate(self) -> int:
         """No-op: the sidecar drives its own iterate cadence."""
@@ -331,15 +366,17 @@ class SupervisorBackedBackend:
                 self._dispatch(BackendStopped(reason=event.message))
                 return
             # Non-terminal sidecar errors that nonetheless mean the call did
-            # not / cannot proceed: synthesize a CallStateChanged(ERROR) so
-            # ``VoIPManager``'s existing terminal-state handling drops the
+            # not / cannot proceed: always synthesize a CallStateChanged(ERROR)
+            # so ``VoIPManager``'s existing terminal-state handling drops the
             # UI back to idle rather than leaving an optimistic "dialing"
-            # state in place. Only fires when there is something call-side
-            # to retreat from.
+            # state in place. Dispatching unconditionally is safe because
+            # the manager treats CallState.ERROR as a no-op when the call
+            # state machine is already idle, and missing the dispatch
+            # silently strands the UI when sidecar's _current_call_id is
+            # set but main's tracker is not (e.g., back-to-back Dials).
             if event.code in _CALL_FATAL_ERROR_CODES:
-                if self._read_current_call_id() is not None or event.code == "dial_failed":
-                    self._reset_call_state()
-                    self._dispatch(BackendCallStateChanged(state=CallState.ERROR))
+                self._reset_call_state()
+                self._dispatch(BackendCallStateChanged(state=CallState.ERROR))
                 return
             # SIP registration cannot proceed — surface as a registration
             # state change so the manager flips to FAILED instead of staying

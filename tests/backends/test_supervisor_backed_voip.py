@@ -348,6 +348,109 @@ def test_call_in_progress_error_during_active_call_drops_to_error() -> None:
     assert backend._read_current_call_id() is None
 
 
+def test_call_fatal_error_dispatches_even_without_tracked_call() -> None:
+    """Call-fatal codes must always dispatch CallStateChanged(ERROR).
+
+    Codex follow-up review on #393 (P1 repeat): the previous guard
+    skipped dispatch when ``_current_call_id`` was None for codes other
+    than ``dial_failed``. That left the UI stranded if sidecar's
+    ``_current_call_id`` was set but main's tracker was not (e.g.,
+    back-to-back Dials, or stale ``unknown_call_id`` rejections).
+    """
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    backend._on_protocol_event(ProtocolError(code="call_in_progress", message="busy", cmd_id=1))
+    assert any(
+        isinstance(event, BackendCallStateChanged) and event.state == CallState.ERROR
+        for event in received
+    )
+
+    received.clear()
+    backend._on_protocol_event(ProtocolError(code="unknown_call_id", message="stale", cmd_id=2))
+    assert any(
+        isinstance(event, BackendCallStateChanged) and event.state == CallState.ERROR
+        for event in received
+    )
+
+
+def test_on_ready_during_initial_start_does_not_resend_configure() -> None:
+    """The very first handshake fires on_ready while ``running`` is still False.
+
+    During ``start()`` the supervisor invokes ``on_ready`` between handshake
+    success and ``start()``'s own Configure+Register sends. The handler
+    must not duplicate the Configure that ``start()`` is about to issue.
+    """
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    # Running is False before start(); on_ready should be a no-op.
+    assert backend.running is False
+    backend._on_supervisor_ready()
+    assert fake.sent == []
+
+
+def test_on_ready_after_restart_resends_configure_and_register() -> None:
+    """After a transparent supervisor restart, the new sidecar is blank.
+
+    Codex follow-up review on #393 (P1 new): the previous backend only
+    sent Configure + Register inside ``start()``. A pipe-death triggered
+    a transparent supervisor restart; the new sidecar came up with no
+    backend configured and rejected later commands as ``not_configured``,
+    while ``make_call`` still returned True from the optimistic pipe send.
+
+    The fix adds an ``on_ready`` callback the supervisor fires after
+    every successful handshake, and the backend re-issues Configure +
+    Register against the freshly handshaked sidecar.
+    """
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    # Initial start — sends Configure + Register.
+    assert backend.start() is True
+    initial_sends = list(fake.sent)
+    assert [type(cmd).__name__ for cmd in initial_sends] == ["Configure", "Register"]
+
+    # Track a call to verify the ready handler clears stale state.
+    backend._set_current_call_id("call-77")
+    fake.sent.clear()
+    received.clear()
+
+    # Simulate the supervisor calling on_ready after a transparent restart.
+    backend._on_supervisor_ready()
+
+    # Configure + Register were re-sent against the new sidecar.
+    assert [type(cmd).__name__ for cmd in fake.sent] == ["Configure", "Register"]
+    # The stale call id was cleared so a fresh dial is not blocked.
+    assert backend._read_current_call_id() is None
+    # Listeners got a registration-progress event so the UI knows we're
+    # re-registering against the fresh sidecar.
+    assert any(
+        isinstance(event, BackendRegistrationStateChanged)
+        and event.state == RegistrationState.PROGRESS
+        for event in received
+    )
+
+
+def test_on_ready_after_restart_logs_when_resend_fails() -> None:
+    """If the supervisor cannot accept the re-Configure, the backend logs and continues."""
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    backend.start()
+    fake.send_should_raise = RuntimeError("sidecar pipe closed mid-restart")
+    fake.sent.clear()
+
+    # Should not raise — error is logged and swallowed.
+    backend._on_supervisor_ready()
+
+
 def test_register_failed_error_dispatches_registration_failed() -> None:
     """``register_failed`` must surface as RegistrationStateChanged(FAILED)."""
 

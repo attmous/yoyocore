@@ -120,8 +120,10 @@ class SidecarSupervisor:
         sidecar_target: SidecarTarget = run_sidecar,
         handshake_timeout_seconds: float = 5.0,
         use_loopback: bool = False,
+        on_ready: Callable[[], None] | None = None,
     ) -> None:
         self._on_event = on_event
+        self._on_ready = on_ready
         self._restart_policy = restart_policy or RestartPolicy()
         self._start_method = start_method or _default_start_method()
         self._sidecar_target = sidecar_target
@@ -338,6 +340,17 @@ class SidecarSupervisor:
         reader.start()
 
         self._state = "running"
+
+        # Notify listeners that a (possibly fresh) sidecar is ready to
+        # receive commands. This fires on every successful handshake —
+        # the initial start AND every transparent restart driven by the
+        # restart timer — so consumers can re-issue setup commands like
+        # ``Configure`` / ``Register`` against the new sidecar.
+        if self._on_ready is not None:
+            try:
+                self._on_ready()
+            except Exception:
+                logger.exception("Sidecar on_ready callback raised")
 
     def _await_handshake(self, conn: Connection) -> bool:
         """Send our :class:`Hello`, wait for the sidecar's :class:`Ready`."""
