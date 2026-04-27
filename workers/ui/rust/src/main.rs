@@ -1,3 +1,4 @@
+mod input;
 mod protocol;
 
 use anyhow::Result;
