@@ -1,0 +1,20 @@
+[package]
+name = "yoyopod-rust-ui-poc"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+embedded-graphics = "0.8.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rppal = { version = "0.22.1", optional = true }
+
+[features]
+default = []
+whisplay-hardware = ["dep:rppal"]
