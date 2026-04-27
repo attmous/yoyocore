@@ -1,5 +1,7 @@
+mod framebuffer;
 mod input;
 mod protocol;
+mod render;
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
