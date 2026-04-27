@@ -8,7 +8,17 @@ from enum import StrEnum
 import re
 
 _TOKEN_RE = re.compile(r"[a-z0-9']+")
+_LATIN_COMMAND_TOKEN_RE = re.compile(r"[A-Za-z0-9']+")
 _SCRIPT_COMMAND_TOKEN_RE = re.compile(r"[\u0600-\u06ff]+")
+_HANGUL_COMMAND_TOKEN_RE = re.compile(r"[\uac00-\ud7af]+")
+_STT_COMMAND_TOKEN_ALIASES = {
+    "kual": "call",
+}
+_HANGUL_COMMAND_ALIASES = {
+    "\uace0": "call",
+    "\ucf5c": "call",
+    "\ub9c8\ub9c8": "mama",
+}
 _POLITE_PREFIX_TOKENS = frozenset(
     {
         "please",
@@ -283,14 +293,30 @@ def _expand_script_command_aliases(transcript: str) -> str:
 
     normalized = transcript.translate(_SCRIPT_CHAR_TRANSLATION)
 
-    def replace_token(match: re.Match[str]) -> str:
+    def replace_script_token(match: re.Match[str]) -> str:
         token = match.group(0)
         replacement = _SCRIPT_COMMAND_ALIASES.get(token)
         if replacement is None:
             return token
         return f" {replacement} "
 
-    return _SCRIPT_COMMAND_TOKEN_RE.sub(replace_token, normalized)
+    def replace_hangul_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        replacement = _HANGUL_COMMAND_ALIASES.get(token)
+        if replacement is None:
+            return token
+        return f" {replacement} "
+
+    def replace_latin_token(match: re.Match[str]) -> str:
+        token = match.group(0)
+        replacement = _STT_COMMAND_TOKEN_ALIASES.get(token.lower())
+        if replacement is None:
+            return token
+        return replacement
+
+    normalized = _SCRIPT_COMMAND_TOKEN_RE.sub(replace_script_token, normalized)
+    normalized = _HANGUL_COMMAND_TOKEN_RE.sub(replace_hangul_token, normalized)
+    return _LATIN_COMMAND_TOKEN_RE.sub(replace_latin_token, normalized)
 
 
 def _match_slot_command(

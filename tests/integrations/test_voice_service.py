@@ -139,6 +139,22 @@ def test_match_voice_command_handles_family_call_variations(
 
 
 @pytest.mark.parametrize(
+    "phrase",
+    [
+        "Kual mama?",
+        "\uace0 \ub9c8\ub9c8",
+    ],
+)
+def test_match_voice_command_handles_observed_stt_noise_for_call_mama(phrase: str) -> None:
+    """Observed ASR variants of "call mama" should still resolve to the call command."""
+
+    match = match_voice_command(phrase)
+
+    assert match.intent is VoiceCommandIntent.CALL_CONTACT
+    assert match.contact_name == "mama"
+
+
+@pytest.mark.parametrize(
     ("phrase", "expected_intent"),
     [
         ("play a song", VoiceCommandIntent.PLAY_MUSIC),
