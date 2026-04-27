@@ -123,6 +123,22 @@ def test_start_returns_false_when_supervisor_refuses() -> None:
     assert backend.running is False
 
 
+def test_start_returns_false_on_spawn_oserror_instead_of_crashing() -> None:
+    """Process spawn failures (OSError) must degrade to ``start() == False``.
+
+    Codex review on #393 (P2): the original ``except RuntimeError`` was
+    too narrow — ``multiprocessing.Process.start()`` can raise OSError
+    (Windows path issues, Linux fork limits, etc.) and that would have
+    escaped this method and crashed ``ManagersBoot.init_managers``.
+    """
+
+    fake = _FakeSupervisor()
+    fake.start_should_raise = OSError("simulated spawn failure")
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    assert backend.start() is False
+    assert backend.running is False
+
+
 def test_start_returns_false_when_configure_send_fails() -> None:
     fake = _FakeSupervisor()
     fake.send_should_raise = RuntimeError("not running")
@@ -289,6 +305,77 @@ def test_protocol_error_with_backend_stopped_dispatches_voip_event() -> None:
     assert any(
         isinstance(event, BackendStopped) and "iterate failed" in event.reason for event in received
     )
+
+
+def test_dial_failed_error_drops_call_state_to_error() -> None:
+    """``dial_failed`` must surface as CallStateChanged(ERROR) so optimistic UI drops back to idle.
+
+    Codex review on #393 (P1): previously ``make_call`` returned True from
+    the optimistic pipe-send, but a sidecar-side rejection (``dial_failed``,
+    ``call_in_progress``, ...) only got logged. Without a corrective event
+    the UI/runtime stayed in "dialing" state forever.
+    """
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    backend._on_protocol_event(
+        ProtocolError(code="dial_failed", message="backend.make_call returned False", cmd_id=3)
+    )
+    assert any(
+        isinstance(event, BackendCallStateChanged) and event.state == CallState.ERROR
+        for event in received
+    )
+    assert backend._read_current_call_id() is None
+
+
+def test_call_in_progress_error_during_active_call_drops_to_error() -> None:
+    """``call_in_progress`` while a call id is tracked must trigger the error transition."""
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    backend._set_current_call_id("call-12")
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    backend._on_protocol_event(ProtocolError(code="call_in_progress", message="...", cmd_id=4))
+    assert any(
+        isinstance(event, BackendCallStateChanged) and event.state == CallState.ERROR
+        for event in received
+    )
+    assert backend._read_current_call_id() is None
+
+
+def test_register_failed_error_dispatches_registration_failed() -> None:
+    """``register_failed`` must surface as RegistrationStateChanged(FAILED)."""
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    backend._on_protocol_event(ProtocolError(code="register_failed", message="bad creds", cmd_id=2))
+    assert any(
+        isinstance(event, BackendRegistrationStateChanged)
+        and event.state == RegistrationState.FAILED
+        for event in received
+    )
+
+
+def test_unrelated_error_codes_do_not_dispatch_voip_event() -> None:
+    """Errors that are neither call-fatal nor registration-fatal stay log-only."""
+
+    fake = _FakeSupervisor()
+    backend = SupervisorBackedBackend(_config(), supervisor=fake)
+    received: list[VoIPEvent] = []
+    backend.on_event(received.append)
+
+    backend._on_protocol_event(
+        ProtocolError(code="invalid_config", message="bogus field", cmd_id=1)
+    )
+    assert received == []
 
 
 def test_protocol_only_events_are_ignored() -> None:

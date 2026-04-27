@@ -94,6 +94,30 @@ _LOG_LEVEL_MAP = {
 }
 
 
+# Sidecar error codes emitted by ``SidecarBackendAdapter`` that mean the
+# active call is finished or the attempted dial was refused. Surfacing
+# them as ``BackendCallStateChanged(ERROR)`` lets the existing
+# ``VoIPManager`` state machine retreat to idle instead of leaving the UI
+# stuck in "dialing" / "connecting" after an optimistic make_call.
+_CALL_FATAL_ERROR_CODES = frozenset(
+    {
+        "dial_failed",
+        "call_in_progress",
+        "accept_failed",
+        "reject_failed",
+        "hangup_failed",
+        "mute_failed",
+        "unknown_call_id",
+    }
+)
+
+
+# Sidecar error codes that mean SIP registration cannot proceed. Translate
+# to ``BackendRegistrationStateChanged(FAILED)`` so the manager can
+# surface a "registration failed" status to the UI.
+_REGISTRATION_FATAL_ERROR_CODES = frozenset({"register_failed"})
+
+
 class SupervisorBackedBackend:
     """``VoIPBackend`` adapter on top of a :class:`SidecarSupervisor`."""
 
@@ -130,7 +154,13 @@ class SupervisorBackedBackend:
 
         try:
             self._supervisor.start()
-        except RuntimeError as exc:
+        except Exception as exc:
+            # ``SidecarSupervisor.start()`` propagates whatever
+            # ``multiprocessing.Process.start()`` raises (typically
+            # ``OSError`` on spawn / fork failure) in addition to its own
+            # ``RuntimeError`` for permanent-failure state. A spawn failure
+            # at boot must not crash ``ManagersBoot.init_managers``;
+            # ``VoIPManager.start()`` treats ``False`` as music-only mode.
             logger.error("VoIP sidecar supervisor refused to start: {}", exc)
             return False
 
@@ -138,7 +168,7 @@ class SupervisorBackedBackend:
         try:
             self._supervisor.send(Configure(config=config_dict))
             self._supervisor.send(Register())
-        except RuntimeError as exc:
+        except Exception as exc:
             logger.error("VoIP sidecar refused configure/register command: {}", exc)
             return False
 
@@ -299,6 +329,24 @@ class SupervisorBackedBackend:
             if event.code == "backend_stopped":
                 self._reset_call_state()
                 self._dispatch(BackendStopped(reason=event.message))
+                return
+            # Non-terminal sidecar errors that nonetheless mean the call did
+            # not / cannot proceed: synthesize a CallStateChanged(ERROR) so
+            # ``VoIPManager``'s existing terminal-state handling drops the
+            # UI back to idle rather than leaving an optimistic "dialing"
+            # state in place. Only fires when there is something call-side
+            # to retreat from.
+            if event.code in _CALL_FATAL_ERROR_CODES:
+                if self._read_current_call_id() is not None or event.code == "dial_failed":
+                    self._reset_call_state()
+                    self._dispatch(BackendCallStateChanged(state=CallState.ERROR))
+                return
+            # SIP registration cannot proceed — surface as a registration
+            # state change so the manager flips to FAILED instead of staying
+            # in PROGRESS forever.
+            if event.code in _REGISTRATION_FATAL_ERROR_CODES:
+                self._dispatch(BackendRegistrationStateChanged(state=RegistrationState.FAILED))
+                return
             return
 
         if isinstance(event, ProtocolRegistrationStateChanged):
