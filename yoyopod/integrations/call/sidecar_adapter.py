@@ -150,7 +150,13 @@ class SidecarBackendAdapter:
         self._stop_iterate_thread()
         backend = self._backend
         self._backend = None
-        if backend is not None and backend.running:
+        # Always stop the backend if one exists. ``backend.running`` is not a
+        # reliable cleanup signal: ``LiblinphoneBackend`` flips ``running``
+        # to False when ``iterate()`` raises, but the native core, transports,
+        # and audio device claims still need ``stop()``/``shutdown()`` to
+        # release them. Skipping the call would leak native state into the
+        # next backend created by a follow-up Configure.
+        if backend is not None:
             try:
                 backend.stop()
             except Exception:

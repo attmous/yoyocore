@@ -161,6 +161,50 @@ def test_configure_with_unknown_field_returns_invalid_config_error(
     assert any(error.code == "invalid_config" and error.cmd_id == 42 for error in errors), events
 
 
+def test_shutdown_stops_backend_even_when_not_running(
+    parent_conn: Connection, child_conn: Connection
+) -> None:
+    """``shutdown()`` must call ``backend.stop()`` regardless of ``backend.running``.
+
+    Codex follow-up review on #389 (P1): liblinphone flips ``running`` to
+    False when ``iterate()`` raises, but the native core/transports/audio
+    devices still need an explicit ``stop()`` to be released. Skipping the
+    call leaks native state into the next backend created by a follow-up
+    ``Configure``.
+    """
+
+    class _StopTrackingMockBackend(MockVoIPBackend):
+        def __init__(self) -> None:
+            super().__init__()
+            self.stop_called = 0
+
+        def stop(self) -> None:
+            self.stop_called += 1
+            super().stop()
+
+    backend = _StopTrackingMockBackend()
+    adapter = SidecarBackendAdapter(
+        conn=child_conn,
+        backend_factory=lambda _config: backend,
+    )
+    try:
+        adapter.handle_command(Configure(config=_config_dict()))
+        adapter.handle_command(Register(cmd_id=1))
+        _drain(parent_conn)
+        assert _wait_for(lambda: backend.running)
+
+        # Simulate the iterate-failure path: liblinphone flips ``running``
+        # to False internally without going through ``stop()``.
+        backend.running = False
+
+        adapter.shutdown()
+        assert (
+            backend.stop_called == 1
+        ), "shutdown() must call backend.stop() even when running is False"
+    finally:
+        adapter.shutdown()  # idempotent — must not double-stop
+
+
 def test_configure_clears_active_call_state(
     adapter: SidecarBackendAdapter,
     parent_conn: Connection,
