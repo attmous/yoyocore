@@ -8,7 +8,7 @@ import typer
 
 from yoyopod_cli.common import configure_logging
 from yoyopod_cli.defaults import DEFAULT_TEST_MUSIC_TARGET_DIR
-from yoyopod_cli._pi_validate_pkg._navigation_soak import (
+from yoyopod_cli.pi_validate._navigation_soak import (
     run_navigation_soak,
 )
 

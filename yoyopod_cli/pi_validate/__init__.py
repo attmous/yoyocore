@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import typer
 
-from yoyopod_cli._pi_validate_pkg import (
+from yoyopod_cli.pi_validate import (
     cloud_voice as _cloud_voice,
     deploy as _deploy,
     lvgl as _lvgl,
