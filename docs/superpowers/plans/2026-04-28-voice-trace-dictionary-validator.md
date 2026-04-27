@@ -609,7 +609,6 @@ def test_voice_group_is_registered() -> None:
 
     assert result.exit_code == 0
     assert "trace" in result.output
-    assert "dictionary" in result.output
 
 
 def test_voice_trace_last_prints_recent_rows(tmp_path: Path) -> None:
@@ -685,7 +684,6 @@ def test_docgen_contains_voice_commands() -> None:
 
     assert "## `yoyopod voice" in md
     assert "`yoyopod voice trace last`" in md
-    assert "`yoyopod voice dictionary validate`" in md
 ```
 
 - [ ] **Step 2: Run CLI tests to verify they fail**
@@ -716,10 +714,8 @@ from yoyopod.integrations.voice.trace import DEFAULT_VOICE_TRACE_PATH, VoiceTrac
 
 app = typer.Typer(name="voice", help="Voice diagnostics and validation.")
 trace_app = typer.Typer(name="trace", help="Inspect local voice trace entries.")
-dictionary_app = typer.Typer(name="dictionary", help="Validate voice command dictionaries.")
 
 app.add_typer(trace_app, name="trace")
-app.add_typer(dictionary_app, name="dictionary")
 
 
 def _cell(value: object, *, width: int = 28) -> str:
@@ -765,35 +761,6 @@ def trace_last(
     for payload in entries:
         typer.echo(_row(payload))
 
-
-@dictionary_app.command("validate")
-def dictionary_validate(
-    path: Path | None = typer.Option(
-        None,
-        "--path",
-        help="Voice command dictionary YAML path.",
-    ),
-    strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures."),
-) -> None:
-    """Validate a voice command dictionary."""
-
-    from yoyopod.integrations.voice.dictionary_validator import (
-        validate_voice_command_dictionary,
-    )
-
-    dictionary_path = path or Path("data/voice/commands.yaml")
-    result = validate_voice_command_dictionary(
-        dictionary_path,
-        allow_missing=path is None,
-    )
-    for issue in result.errors:
-        typer.echo(f"ERROR {issue.location}: {issue.message}", err=True)
-    for issue in result.warnings:
-        typer.echo(f"WARN {issue.location}: {issue.message}")
-    if result.has_errors or (strict and result.has_warnings):
-        raise typer.Exit(code=1)
-    suffix = " (built-ins only)" if path is None and not dictionary_path.exists() else ""
-    typer.echo(f"OK voice dictionary {dictionary_path}{suffix}")
 ```
 
 In `yoyopod_cli/main.py`, add after the health group:
@@ -812,7 +779,7 @@ Run:
 uv run pytest tests/cli/test_yoyopod_cli_voice.py::test_voice_group_is_registered tests/cli/test_yoyopod_cli_voice.py::test_voice_trace_last_prints_recent_rows tests/cli/test_yoyopod_cli_voice.py::test_voice_trace_last_tolerates_missing_file tests/cli/test_yoyopod_cli_voice.py::test_voice_trace_last_ignores_corrupt_lines -q
 ```
 
-Expected: PASS for trace CLI tests. The dictionary command may still fail when invoked because the validator is Task 3.
+Expected: PASS for trace CLI tests.
 
 - [ ] **Step 5: Regenerate command docs**
 
@@ -843,7 +810,10 @@ Expected: quality passes, full pytest passes, commit created.
 **Files:**
 - Create: `yoyopod/integrations/voice/dictionary_validator.py`
 - Create: `tests/integrations/test_voice_dictionary_validator.py`
+- Modify: `yoyopod_cli/voice.py`
 - Modify: `tests/cli/test_yoyopod_cli_voice.py`
+- Modify: `tests/cli/test_yoyopod_cli_docgen.py`
+- Modify: `yoyopod_cli/COMMANDS.md`
 
 - [ ] **Step 1: Add failing validator unit tests**
 
@@ -1263,6 +1233,17 @@ Expected: PASS.
 
 - [ ] **Step 5: Add dictionary CLI tests**
 
+In `tests/cli/test_yoyopod_cli_docgen.py`, update `test_docgen_contains_voice_commands`:
+
+```python
+def test_docgen_contains_voice_commands() -> None:
+    md = generate_commands_md(app)
+
+    assert "## `yoyopod voice" in md
+    assert "`yoyopod voice trace last`" in md
+    assert "`yoyopod voice dictionary validate`" in md
+```
+
 Append these tests to `tests/cli/test_yoyopod_cli_voice.py`:
 
 ```python
@@ -1321,24 +1302,67 @@ def test_voice_dictionary_validate_default_missing_uses_builtins(monkeypatch, tm
     assert "built-ins only" in result.output
 ```
 
-- [ ] **Step 6: Run dictionary CLI tests**
+- [ ] **Step 6: Add dictionary CLI implementation**
+
+In `yoyopod_cli/voice.py`, add a dictionary subapp near the trace subapp:
+
+```python
+dictionary_app = typer.Typer(name="dictionary", help="Validate voice command dictionaries.")
+app.add_typer(dictionary_app, name="dictionary")
+```
+
+Add this command after `trace_last`:
+
+```python
+@dictionary_app.command("validate")
+def dictionary_validate(
+    path: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Voice command dictionary YAML path.",
+    ),
+    strict: bool = typer.Option(False, "--strict", help="Treat warnings as failures."),
+) -> None:
+    """Validate a voice command dictionary."""
+
+    from yoyopod.integrations.voice.dictionary_validator import (
+        validate_voice_command_dictionary,
+    )
+
+    dictionary_path = path or Path("data/voice/commands.yaml")
+    result = validate_voice_command_dictionary(
+        dictionary_path,
+        allow_missing=path is None,
+    )
+    for issue in result.errors:
+        typer.echo(f"ERROR {issue.location}: {issue.message}", err=True)
+    for issue in result.warnings:
+        typer.echo(f"WARN {issue.location}: {issue.message}")
+    if result.has_errors or (strict and result.has_warnings):
+        raise typer.Exit(code=1)
+    suffix = " (built-ins only)" if path is None and not dictionary_path.exists() else ""
+    typer.echo(f"OK voice dictionary {dictionary_path}{suffix}")
+```
+
+- [ ] **Step 7: Run dictionary CLI tests and docs drift tests**
 
 Run:
 
 ```bash
-uv run pytest tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_accepts_valid_file tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_fails_on_errors tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_strict_fails_on_warnings -q
+uv run python -m yoyopod_cli.main dev docs
+uv run pytest tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_accepts_valid_file tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_fails_on_errors tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_strict_fails_on_warnings tests/cli/test_yoyopod_cli_voice.py::test_voice_dictionary_validate_default_missing_uses_builtins tests/cli/test_yoyopod_cli_docgen.py::test_docgen_contains_voice_commands tests/cli/test_yoyopod_cli_docs_drift.py -q
 ```
 
 Expected: PASS.
 
-- [ ] **Step 7: Run required gates and commit Task 3**
+- [ ] **Step 8: Run required gates and commit Task 3**
 
 Run:
 
 ```bash
 uv run python scripts/quality.py gate
 uv run pytest -q
-git add yoyopod/integrations/voice/dictionary_validator.py tests/integrations/test_voice_dictionary_validator.py tests/cli/test_yoyopod_cli_voice.py
+git add yoyopod/integrations/voice/dictionary_validator.py yoyopod_cli/voice.py yoyopod_cli/COMMANDS.md tests/integrations/test_voice_dictionary_validator.py tests/cli/test_yoyopod_cli_voice.py tests/cli/test_yoyopod_cli_docgen.py
 git commit -m "feat: validate voice command dictionaries"
 ```
 
