@@ -26,9 +26,19 @@ YOYOPOD_VOICE_WORKER_ENABLED=true
 YOYOPOD_VOICE_WORKER_PROVIDER=openai
 YOYOPOD_STT_BACKEND=cloud-worker
 YOYOPOD_TTS_BACKEND=cloud-worker
+YOYOPOD_CLOUD_TTS_MODEL=gpt-4o-mini-tts
+YOYOPOD_CLOUD_TTS_VOICE=coral
+YOYOPOD_CLOUD_TTS_INSTRUCTIONS="Speak warmly and calmly for a child. Use simple words, friendly pacing, and brief answers. Avoid scary emphasis."
+YOYOPOD_CLOUD_ASK_MODEL=gpt-4.1-mini
+YOYOPOD_CLOUD_ASK_TIMEOUT_SECONDS=12
+YOYOPOD_CLOUD_ASK_MAX_HISTORY_TURNS=4
+YOYOPOD_CLOUD_ASK_MAX_RESPONSE_CHARS=480
 ```
 
 For the prod lane, use `/etc/default/yoyopod-prod` instead.
+
+OpenAI requires disclosure that TTS output is AI-generated. YoYoPod should be
+treated as an AI voice device whenever cloud TTS is enabled.
 
 The file is group-readable because the remote dev workflow sources lane
 defaults as the SSH deploy user before systemd starts the root-owned service.
@@ -63,6 +73,16 @@ Cloud voice worker ready: provider=openai
 
 If the key is missing or invalid, the app degrades the cloud voice backend and
 keeps local controls usable.
+
+## Ask App Smoke Test
+
+1. Open Ask from the hub, not quick PTT.
+2. Ask "why is the sky blue?"
+3. Confirm the screen shows an answer and the speaker uses the configured cloud voice.
+4. Tap/select Ask again and ask "what is rain?"
+5. Confirm the second answer works without leaving Ask.
+6. Press Back or hold Back and confirm Ask exits and no stale answer plays.
+7. Use quick PTT for "call mama", "play music", and "make it louder" to confirm commands still use command mode.
 
 ## Live Worker Smoke Test
 
