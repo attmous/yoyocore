@@ -7,6 +7,7 @@ use crate::hardware::{ButtonDevice, DisplayDevice};
 
 const WIDTH: usize = 240;
 const HEIGHT: usize = 280;
+const SPI_CHUNK_BYTES: usize = 4096;
 
 pub struct WhisplayDisplay {
     spi: Spi,
@@ -86,7 +87,14 @@ impl WhisplayDisplay {
         self.spi.write(&[command])?;
         if !data.is_empty() {
             self.dc.set_high();
-            self.spi.write(data)?;
+            self.write_data(data)?;
+        }
+        Ok(())
+    }
+
+    fn write_data(&mut self, data: &[u8]) -> Result<()> {
+        for chunk in spi_chunks(data) {
+            self.spi.write(chunk)?;
         }
         Ok(())
     }
@@ -118,7 +126,7 @@ impl DisplayDevice for WhisplayDisplay {
     fn flush_full_frame(&mut self, framebuffer: &Framebuffer) -> Result<()> {
         self.set_address_window(0, 0, (WIDTH - 1) as u16, (HEIGHT - 1) as u16)?;
         self.dc.set_high();
-        self.spi.write(&framebuffer.as_be_bytes())?;
+        self.write_data(&framebuffer.as_be_bytes())?;
         Ok(())
     }
 
@@ -201,5 +209,25 @@ fn spi_cs_from_u8(value: u8) -> Result<SlaveSelect> {
         0 => Ok(SlaveSelect::Ss0),
         1 => Ok(SlaveSelect::Ss1),
         _ => anyhow::bail!("unsupported SPI chip select {value}"),
+    }
+}
+
+fn spi_chunks(data: &[u8]) -> impl Iterator<Item = &[u8]> {
+    data.chunks(SPI_CHUNK_BYTES)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn chunks_full_frame_under_linux_spi_message_limit() {
+        let payload = vec![0u8; WIDTH * HEIGHT * 2];
+        let chunk_lengths: Vec<usize> = spi_chunks(&payload).map(|chunk| chunk.len()).collect();
+
+        assert!(chunk_lengths.iter().all(|length| *length <= SPI_CHUNK_BYTES));
+        assert_eq!(chunk_lengths.iter().sum::<usize>(), payload.len());
+        assert_eq!(chunk_lengths[0], SPI_CHUNK_BYTES);
+        assert_eq!(*chunk_lengths.last().unwrap(), 3328);
     }
 }

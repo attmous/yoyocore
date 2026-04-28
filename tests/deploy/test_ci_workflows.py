@@ -27,6 +27,7 @@ def test_rust_ui_ci_builds_arm64_binary_artifact() -> None:
     workflow = CI_YML.read_text(encoding="utf-8")
 
     assert "runs-on: ubuntu-24.04-arm" in workflow
+    assert "cargo test --locked --features whisplay-hardware" in workflow
     assert "cargo build --release --features whisplay-hardware --locked" in workflow
     assert "uses: actions/upload-artifact@v4" in workflow
     assert "name: yoyopod-rust-ui-poc-${{ github.sha }}" in workflow

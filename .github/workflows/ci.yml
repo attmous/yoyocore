@@ -128,7 +128,7 @@ jobs:
 
       - name: Run Rust UI worker tests
         working-directory: workers/ui/rust
-        run: cargo test --locked
+        run: cargo test --locked --features whisplay-hardware
 
       - name: Build Rust UI Whisplay worker
         working-directory: workers/ui/rust
