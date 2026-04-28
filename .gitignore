@@ -35,6 +35,7 @@ uv.lock
 # Rust
 target/
 Cargo.lock
+!workers/ui/rust/Cargo.lock
 
 # IDEs
 .vscode/
