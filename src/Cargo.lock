@@ -356,7 +356,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "yoyopod-rust-ui-poc"
+name = "yoyopod-ui-host"
 version = "0.1.0"
 dependencies = [
  "anyhow",

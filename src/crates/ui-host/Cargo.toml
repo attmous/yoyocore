@@ -1,8 +1,12 @@
 [package]
-name = "yoyopod-rust-ui-poc"
+name = "yoyopod-ui-host"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
+
+[[bin]]
+name = "yoyopod-ui-host"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0"

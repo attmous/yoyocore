@@ -19,8 +19,8 @@ enum HardwareMode {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "yoyopod-rust-ui-poc")]
-#[command(about = "Whisplay-only Rust UI hardware I/O proof of concept")]
+#[command(name = "yoyopod-ui-host")]
+#[command(about = "Whisplay Rust UI host")]
 struct Args {
     #[arg(long, value_enum, default_value_t = HardwareMode::Mock)]
     hardware: HardwareMode,

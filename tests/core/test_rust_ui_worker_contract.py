@@ -7,12 +7,13 @@ from pathlib import Path
 
 import pytest
 
+RUST_UI_MANIFEST = Path("src/Cargo.toml")
+
 
 def test_rust_ui_worker_mock_contract() -> None:
     if shutil.which("cargo") is None:
         pytest.skip("cargo toolchain not available")
 
-    worker_dir = Path("workers/ui/rust")
     command = {
         "schema_version": 1,
         "kind": "command",
@@ -33,9 +34,19 @@ def test_rust_ui_worker_mock_contract() -> None:
     }
 
     result = subprocess.run(
-        ["cargo", "run", "--quiet", "--", "--hardware", "mock"],
+        [
+            "cargo",
+            "run",
+            "--manifest-path",
+            RUST_UI_MANIFEST.as_posix(),
+            "--quiet",
+            "--bin",
+            "yoyopod-ui-host",
+            "--",
+            "--hardware",
+            "mock",
+        ],
         input=json.dumps(command) + "\n" + json.dumps(shutdown) + "\n",
-        cwd=worker_dir,
         text=True,
         capture_output=True,
         timeout=60,
@@ -51,7 +62,6 @@ def test_rust_ui_worker_accepts_static_hub_command() -> None:
     if shutil.which("cargo") is None:
         pytest.skip("cargo toolchain not available")
 
-    worker_dir = Path("workers/ui/rust")
     command = {
         "schema_version": 1,
         "kind": "command",
@@ -81,9 +91,19 @@ def test_rust_ui_worker_accepts_static_hub_command() -> None:
     }
 
     result = subprocess.run(
-        ["cargo", "run", "--quiet", "--", "--hardware", "mock"],
+        [
+            "cargo",
+            "run",
+            "--manifest-path",
+            RUST_UI_MANIFEST.as_posix(),
+            "--quiet",
+            "--bin",
+            "yoyopod-ui-host",
+            "--",
+            "--hardware",
+            "mock",
+        ],
         input="\n".join(json.dumps(item) for item in (command, health, shutdown)) + "\n",
-        cwd=worker_dir,
         text=True,
         capture_output=True,
         timeout=60,

@@ -5,7 +5,7 @@ from pathlib import Path
 
 CI_YML = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ci.yml"
 REPO_ROOT = CI_YML.parents[2]
-RUST_UI_LOCK = REPO_ROOT / "workers" / "ui" / "rust" / "Cargo.lock"
+RUST_UI_LOCK = REPO_ROOT / "src" / "Cargo.lock"
 
 
 def test_slot_arm64_change_detector_matches_python_release_builder() -> None:
