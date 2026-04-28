@@ -97,6 +97,9 @@ class RustHostBackend:
             if not bool(start(self.domain)):
                 return False
             if not self._send_startup_commands():
+                self._stop_after_startup_command_failure(
+                    "startup_command_failed", notify_backend_stopped=False
+                )
                 return False
         except Exception as exc:
             logger.error("Rust VoIP Host start failed: {}", exc)
@@ -282,7 +285,7 @@ class RustHostBackend:
             logger.info("Rust VoIP Host ready; sending configure/register")
             was_stopped = self._last_stop_reason is not None
             if not self._send_startup_commands():
-                self._mark_stopped("worker_ready_reconfigure_failed")
+                self._stop_after_startup_command_failure("worker_ready_reconfigure_failed")
                 return
             self.running = True
             self._last_stop_reason = None
@@ -295,13 +298,43 @@ class RustHostBackend:
         command = self._pop_pending_command(request_id)
         reason = _worker_error_reason(payload, command=command)
         if command in _STARTUP_COMMANDS or command is None:
-            self._mark_stopped(reason)
+            self._stop_after_startup_command_failure(reason)
             return
         if command in _CALL_CONTROL_COMMANDS:
             logger.warning("Rust VoIP Host call command failed: {}", reason)
             self._dispatch(CallStateChanged(state=CallState.ERROR))
             return
         logger.warning("Rust VoIP Host command failed: {}", reason)
+
+    def _stop_after_startup_command_failure(
+        self,
+        reason: str,
+        *,
+        notify_backend_stopped: bool = True,
+    ) -> None:
+        stop = getattr(self.worker_supervisor, "stop", None)
+        if self._registered_with_supervisor and callable(stop):
+            was_stopping = self._stopping
+            self._stopping = True
+            try:
+                stop(self.domain, grace_seconds=1.0)
+            except Exception as exc:
+                logger.warning(
+                    "Rust VoIP Host failed to stop worker after startup command failure {}: {}",
+                    reason,
+                    exc,
+                )
+            finally:
+                self._stopping = was_stopping
+        self._pending_commands.clear()
+        self._startup_commands_sent = False
+        self._ready_seen = False
+        self._reconfigure_on_ready = False
+        self.running = False
+        if notify_backend_stopped:
+            self._mark_stopped(reason)
+        else:
+            self._last_stop_reason = reason
 
     def _mark_stopped(self, reason: str) -> None:
         if not self.running and self._last_stop_reason == reason:

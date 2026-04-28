@@ -50,6 +50,48 @@ class _FakeSupervisor:
         return True
 
 
+class _SingleRunningSupervisor(_FakeSupervisor):
+    def __init__(self) -> None:
+        super().__init__()
+        self.running = False
+
+    def start(self, domain: str) -> bool:
+        if self.running:
+            raise RuntimeError("worker already running")
+        self.running = True
+        return super().start(domain)
+
+    def stop(self, domain: str, *, grace_seconds: float = 1.0) -> None:
+        self.running = False
+        super().stop(domain, grace_seconds=grace_seconds)
+
+
+class _RejectingStartupSupervisor(_FakeSupervisor):
+    def __init__(self, rejected_type: str) -> None:
+        super().__init__()
+        self.rejected_type = rejected_type
+
+    def send_command(
+        self,
+        domain: str,
+        *,
+        type: str,
+        payload: dict[str, Any] | None = None,
+        request_id: str | None = None,
+        timestamp_ms: int = 0,
+        deadline_ms: int = 0,
+    ) -> bool:
+        super().send_command(
+            domain,
+            type=type,
+            payload=payload,
+            request_id=request_id,
+            timestamp_ms=timestamp_ms,
+            deadline_ms=deadline_ms,
+        )
+        return type != self.rejected_type
+
+
 class _StrictSupervisor(_FakeSupervisor):
     def stop(self, domain: str, *, grace_seconds: float = 1.0) -> None:
         if not any(registered_domain == domain for registered_domain, _config in self.registered):
@@ -206,8 +248,8 @@ def test_worker_events_translate_to_voip_events() -> None:
     assert len(received) == 4
 
 
-def test_worker_startup_error_marks_backend_stopped() -> None:
-    supervisor = _FakeSupervisor()
+def test_worker_startup_error_stops_worker_and_marks_backend_stopped() -> None:
+    supervisor = _SingleRunningSupervisor()
     backend = RustHostBackend(_config(), worker_supervisor=supervisor, worker_path="/bin/voip")
     received: list[object] = []
     backend.on_event(received.append)
@@ -223,8 +265,22 @@ def test_worker_startup_error_marks_backend_stopped() -> None:
     )
 
     assert backend.running is False
+    assert supervisor.stopped == [("voip", 1.0)]
     assert isinstance(received[0], BackendStopped)
     assert received[0].reason == "voip.register command_failed: shim missing"
+
+    assert backend.start() is True
+    assert supervisor.started == ["voip", "voip"]
+
+
+def test_startup_send_failure_stops_worker_before_returning_false() -> None:
+    supervisor = _RejectingStartupSupervisor("voip.register")
+    backend = RustHostBackend(_config(), worker_supervisor=supervisor, worker_path="/bin/voip")
+
+    assert backend.start() is False
+
+    assert backend.running is False
+    assert supervisor.stopped == [("voip", 1.0)]
 
 
 def test_worker_call_command_errors_surface_call_error_events() -> None:
