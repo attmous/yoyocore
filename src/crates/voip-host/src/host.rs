@@ -50,6 +50,13 @@ impl VoipHost {
         })
     }
 
+    pub fn iterate_interval_ms(&self) -> u64 {
+        self.config
+            .as_ref()
+            .map(|config| config.iterate_interval_ms.max(1))
+            .unwrap_or(20)
+    }
+
     pub fn register<B: CallBackend>(&mut self, backend: &mut B) -> Result<(), String> {
         let config = self
             .config
@@ -98,6 +105,47 @@ impl VoipHost {
         muted: bool,
     ) -> Result<(), String> {
         backend.set_muted(muted)
+    }
+
+    pub fn poll_backend_events<B: CallBackend>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<Vec<BackendEvent>, String> {
+        let events = backend.iterate()?;
+        for event in &events {
+            self.apply_backend_event(event);
+        }
+        Ok(events)
+    }
+
+    fn apply_backend_event(&mut self, event: &BackendEvent) {
+        match event {
+            BackendEvent::RegistrationChanged { state, .. } => {
+                if state == "ok" {
+                    self.registered = true;
+                } else if matches!(state.as_str(), "failed" | "cleared" | "none") {
+                    self.registered = false;
+                }
+            }
+            BackendEvent::IncomingCall { call_id, .. } => {
+                self.active_call_id = Some(call_id.clone());
+            }
+            BackendEvent::CallStateChanged { call_id, state } => {
+                if matches!(state.as_str(), "idle" | "released" | "error" | "end") {
+                    if self.active_call_id.as_deref() == Some(call_id.as_str())
+                        || self.active_call_id.is_none()
+                    {
+                        self.active_call_id = None;
+                    }
+                } else {
+                    self.active_call_id = Some(call_id.clone());
+                }
+            }
+            BackendEvent::BackendStopped { .. } => {
+                self.registered = false;
+                self.active_call_id = None;
+            }
+        }
     }
 }
 
@@ -260,5 +308,87 @@ mod command_tests {
             host.health_payload()["active_call_id"],
             serde_json::Value::Null
         );
+    }
+
+    #[test]
+    fn poll_backend_events_updates_registration_and_call_state() {
+        struct EventBackend {
+            events: Vec<BackendEvent>,
+        }
+
+        impl CallBackend for EventBackend {
+            fn start(&mut self, _config: &VoipConfig) -> Result<(), String> {
+                Ok(())
+            }
+
+            fn stop(&mut self) {}
+
+            fn iterate(&mut self) -> Result<Vec<BackendEvent>, String> {
+                Ok(std::mem::take(&mut self.events))
+            }
+
+            fn make_call(&mut self, _sip_address: &str) -> Result<String, String> {
+                Ok("call-outgoing".to_string())
+            }
+
+            fn answer_call(&mut self) -> Result<(), String> {
+                Ok(())
+            }
+
+            fn reject_call(&mut self) -> Result<(), String> {
+                Ok(())
+            }
+
+            fn hangup(&mut self) -> Result<(), String> {
+                Ok(())
+            }
+
+            fn set_muted(&mut self, _muted: bool) -> Result<(), String> {
+                Ok(())
+            }
+        }
+
+        let mut host = VoipHost::default();
+        host.configure(config());
+        let mut backend = EventBackend {
+            events: vec![
+                BackendEvent::RegistrationChanged {
+                    state: "ok".to_string(),
+                    reason: "".to_string(),
+                },
+                BackendEvent::IncomingCall {
+                    call_id: "call-1".to_string(),
+                    from_uri: "sip:bob@example.com".to_string(),
+                },
+                BackendEvent::CallStateChanged {
+                    call_id: "call-1".to_string(),
+                    state: "released".to_string(),
+                },
+            ],
+        };
+
+        let events = host.poll_backend_events(&mut backend).expect("poll");
+
+        assert_eq!(events.len(), 3);
+        assert_eq!(host.health_payload()["registered"], true);
+        assert_eq!(
+            host.health_payload()["active_call_id"],
+            serde_json::Value::Null
+        );
+    }
+
+    #[test]
+    fn iterate_interval_comes_from_config() {
+        let mut host = VoipHost::default();
+        host.configure(
+            VoipConfig::from_payload(&json!({
+                "sip_server":"sip.example.com",
+                "sip_identity":"sip:alice@example.com",
+                "iterate_interval_ms": 37
+            }))
+            .unwrap(),
+        );
+
+        assert_eq!(host.iterate_interval_ms(), 37);
     }
 }

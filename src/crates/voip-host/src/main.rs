@@ -2,6 +2,8 @@ use anyhow::{anyhow, Result};
 use clap::Parser;
 use serde_json::json;
 use std::io::{self, BufRead, Write};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::time::Duration;
 
 mod config;
 mod events;
@@ -10,7 +12,7 @@ mod protocol;
 mod shim;
 
 use config::VoipConfig;
-use host::{CallBackend, VoipHost};
+use host::VoipHost;
 use protocol::WorkerEnvelope;
 
 #[derive(Debug, Parser)]
@@ -36,42 +38,60 @@ fn main() -> Result<()> {
         json!({"capabilities":["calls"]}),
     ))?;
 
-    let stdin = io::stdin();
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
+    let (stdin_tx, stdin_rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let stdin = io::stdin();
+        for line in stdin.lock().lines() {
+            if stdin_tx.send(line).is_err() {
+                break;
+            }
         }
-        let envelope = match WorkerEnvelope::decode(line.as_bytes()) {
-            Ok(envelope) => envelope,
-            Err(error) => {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    None,
-                    "protocol_error",
-                    error.to_string(),
-                ))?;
-                continue;
-            }
-        };
+    });
 
-        let request_id = envelope.request_id.clone();
-        match handle_command(
-            envelope,
-            &mut host,
-            &mut backend,
-            explicit_shim_path.as_deref(),
-        ) {
-            Ok(LoopAction::Continue) => {}
-            Ok(LoopAction::Shutdown) => break,
-            Err(error) => {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    request_id,
-                    "command_failed",
-                    error.to_string(),
-                ))?;
+    loop {
+        match stdin_rx.recv_timeout(next_loop_timeout(&host, backend.is_some())) {
+            Ok(Ok(line)) => {
+                if !line.trim().is_empty() {
+                    let envelope = match WorkerEnvelope::decode(line.as_bytes()) {
+                        Ok(envelope) => envelope,
+                        Err(error) => {
+                            write_envelope(&WorkerEnvelope::error(
+                                "voip.error",
+                                None,
+                                "protocol_error",
+                                error.to_string(),
+                            ))?;
+                            poll_backend(&mut host, &mut backend)?;
+                            continue;
+                        }
+                    };
+
+                    let request_id = envelope.request_id.clone();
+                    match handle_command(
+                        envelope,
+                        &mut host,
+                        &mut backend,
+                        explicit_shim_path.as_deref(),
+                    ) {
+                        Ok(LoopAction::Continue) => {}
+                        Ok(LoopAction::Shutdown) => break,
+                        Err(error) => {
+                            write_envelope(&WorkerEnvelope::error(
+                                "voip.error",
+                                request_id,
+                                "command_failed",
+                                error.to_string(),
+                            ))?;
+                        }
+                    }
+                }
+                poll_backend(&mut host, &mut backend)?;
             }
+            Ok(Err(error)) => return Err(error.into()),
+            Err(RecvTimeoutError::Timeout) => {
+                poll_backend(&mut host, &mut backend)?;
+            }
+            Err(RecvTimeoutError::Disconnected) => break,
         }
     }
     Ok(())
@@ -219,10 +239,25 @@ fn handle_command(
         }
     }
 
-    if let Some(backend_ref) = backend.as_mut() {
-        emit_backend_events(backend_ref.iterate().map_err(|error| anyhow!(error))?)?;
-    }
     Ok(LoopAction::Continue)
+}
+
+fn next_loop_timeout(host: &VoipHost, backend_running: bool) -> Duration {
+    if backend_running {
+        Duration::from_millis(host.iterate_interval_ms())
+    } else {
+        Duration::from_secs(60)
+    }
+}
+
+fn poll_backend(host: &mut VoipHost, backend: &mut Option<shim::ShimBackend>) -> Result<()> {
+    if let Some(backend_ref) = backend.as_mut() {
+        emit_backend_events(
+            host.poll_backend_events(backend_ref)
+                .map_err(|error| anyhow!(error))?,
+        )?;
+    }
+    Ok(())
 }
 
 fn emit_backend_events(events: Vec<host::BackendEvent>) -> Result<()> {
