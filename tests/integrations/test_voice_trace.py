@@ -13,17 +13,28 @@ from yoyopod.integrations.voice.trace import (
     new_turn_id,
     utc_now_iso,
 )
+from yoyopod.integrations.voice.trace_analysis import analyze_voice_trace
 
 
-def _entry(turn_id: str, transcript: str = "play music") -> VoiceTraceEntry:
+def _entry(
+    turn_id: str,
+    transcript: str = "play music",
+    *,
+    route_kind: str = "command",
+    outcome: str = "handled",
+    command_intent: str | None = None,
+    ask_fallback: bool | None = None,
+) -> VoiceTraceEntry:
     return VoiceTraceEntry(
         turn_id=turn_id,
         started_at="2026-04-27T12:00:00.000Z",
         completed_at="2026-04-27T12:00:01.000Z",
         source="ptt",
         mode="cloud",
-        route_kind="command",
-        outcome="handled",
+        route_kind=route_kind,
+        outcome=outcome,
+        command_intent=command_intent,
+        ask_fallback=ask_fallback,
         transcript_raw=transcript,
         transcript_normalized=transcript.lower(),
         assistant_body_preview="Starting local music now",
@@ -130,3 +141,49 @@ def test_voice_trace_helpers_make_trace_identifiers() -> None:
 
 def test_default_voice_trace_path_constant() -> None:
     assert DEFAULT_VOICE_TRACE_PATH == Path("logs/voice/turns.jsonl")
+
+
+def test_voice_trace_analysis_summarizes_routes_and_failures() -> None:
+    entries = [
+        _entry(
+            "turn-1",
+            "call mama",
+            route_kind="command",
+            outcome="handled",
+            command_intent="call_contact",
+        ).to_json_dict(),
+        _entry(
+            "turn-2",
+            "why is the sky blue",
+            route_kind="ask",
+            outcome="answered",
+            ask_fallback=True,
+        ).to_json_dict(),
+        _entry(
+            "turn-3",
+            "call marmar",
+            route_kind="unknown",
+            outcome="not_recognized",
+        ).to_json_dict(),
+        _entry(
+            "turn-4",
+            "",
+            route_kind="error",
+            outcome="stt_failed",
+        ).to_json_dict(),
+    ]
+
+    analysis = analyze_voice_trace(entries, failure_limit=5)
+
+    assert analysis.total_turns == 4
+    assert analysis.route_counts == {"ask": 1, "command": 1, "error": 1, "unknown": 1}
+    assert analysis.outcome_counts == {
+        "answered": 1,
+        "handled": 1,
+        "not_recognized": 1,
+        "stt_failed": 1,
+    }
+    assert analysis.command_counts == {"call_contact": 1}
+    assert analysis.ask_fallback_turns == 1
+    assert [failure.turn_id for failure in analysis.recent_failures] == ["turn-3", "turn-4"]
+    assert analysis.unknown_phrases == {"call marmar": 1}

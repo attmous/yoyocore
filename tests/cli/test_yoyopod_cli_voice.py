@@ -12,7 +12,6 @@ from typer.testing import CliRunner
 from yoyopod.integrations.voice.trace import VoiceTraceEntry, VoiceTraceStore
 from yoyopod_cli.main import app
 
-
 runner = CliRunner()
 
 
@@ -69,6 +68,36 @@ def test_voice_trace_last_uses_configured_default_path(
     assert result.exit_code == 0
     assert "turn-configured" in result.output
     assert "call mama" in result.output
+
+
+def test_voice_trace_analyze_prints_summary(tmp_path: Path) -> None:
+    trace_path = tmp_path / "turns.jsonl"
+    store = VoiceTraceStore(path=trace_path, max_turns=10)
+    store.append(_entry("turn-command", "call mama"))
+    store.append(
+        VoiceTraceEntry(
+            turn_id="turn-unknown",
+            started_at="2026-04-27T12:00:00.000Z",
+            completed_at="2026-04-27T12:00:01.000Z",
+            source="ask_screen",
+            mode="cloud",
+            route_kind="unknown",
+            outcome="not_recognized",
+            transcript_raw="call marmar",
+            transcript_normalized="call marmar",
+        )
+    )
+
+    result = runner.invoke(
+        app,
+        ["voice", "trace", "analyze", "--path", str(trace_path), "--limit", "10"],
+    )
+
+    assert result.exit_code == 0
+    assert "Voice trace analysis: 2 turn(s)" in result.output
+    assert "route_kind: command=1, unknown=1" in result.output
+    assert "recent failures:" in result.output
+    assert "turn-unknown unknown/not_recognized call marmar" in result.output
 
 
 def test_voice_trace_last_tolerates_missing_file(tmp_path: Path) -> None:

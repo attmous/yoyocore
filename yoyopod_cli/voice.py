@@ -9,6 +9,7 @@ import typer
 
 from yoyopod.integrations.voice.dictionary_validator import validate_voice_command_dictionary
 from yoyopod.integrations.voice.trace import VoiceTraceStore
+from yoyopod.integrations.voice.trace_analysis import analyze_voice_trace
 
 app = typer.Typer(name="voice", help="Voice diagnostics and validation.", no_args_is_help=True)
 dictionary_app = typer.Typer(
@@ -47,6 +48,12 @@ def _row(payload: dict[str, Any]) -> str:
         text,
     )
     return " ".join(_cell(value) for value in values).rstrip()
+
+
+def _counts_text(counts: dict[str, int]) -> str:
+    if not counts:
+        return "none"
+    return ", ".join(f"{key}={value}" for key, value in counts.items())
 
 
 def _configured_dictionary_path() -> Path:
@@ -120,3 +127,42 @@ def trace_last(
     )
     for payload in rows:
         typer.echo(_row(payload))
+
+
+@trace_app.command(name="analyze")
+def trace_analyze(
+    limit: int = typer.Option(
+        50, "--limit", min=1, help="Number of recent trace entries to analyze."
+    ),
+    path: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Path to the voice trace JSONL file.",
+    ),
+) -> None:
+    """Summarize recent voice trace outcomes and failures."""
+
+    trace_path = path or _configured_trace_path()
+    rows = VoiceTraceStore(path=trace_path, max_turns=max(1, limit)).read_recent(limit=limit)
+    if not rows:
+        typer.echo(f"No voice trace entries at {trace_path}")
+        return
+
+    analysis = analyze_voice_trace(rows)
+    typer.echo(f"Voice trace analysis: {analysis.total_turns} turn(s)")
+    typer.echo(f"route_kind: {_counts_text(analysis.route_counts)}")
+    typer.echo(f"outcome: {_counts_text(analysis.outcome_counts)}")
+    typer.echo(f"commands: {_counts_text(analysis.command_counts)}")
+    typer.echo(f"ask_fallback: {analysis.ask_fallback_turns}")
+
+    if analysis.unknown_phrases:
+        typer.echo("unknown phrases:")
+        for phrase, count in analysis.unknown_phrases.items():
+            typer.echo(f"- {phrase} ({count})")
+
+    if analysis.recent_failures:
+        typer.echo("recent failures:")
+        for failure in analysis.recent_failures:
+            typer.echo(
+                f"- {failure.turn_id} {failure.route_kind}/{failure.outcome} {failure.text}".rstrip()
+            )
