@@ -72,6 +72,11 @@ Expected result:
 - the command prints a `ui.ready` payload
 - the command prints a `ui.health` payload
 
+For one-button validation, run both checks:
+
+- no-touch `ui.tick` loop: should produce `button_events=0`
+- physical button click while ticking: should emit `ui.input` and move focus
+
 ## Runtime Sidecar Protocol
 
 The Rust worker accepts these UI-owner commands over the same line-delimited

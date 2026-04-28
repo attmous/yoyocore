@@ -6,9 +6,9 @@ pub const DEFAULT_SPI_HZ: u32 = 100_000_000;
 pub const DEFAULT_DC_GPIO: u8 = 27;
 pub const DEFAULT_RESET_GPIO: u8 = 4;
 pub const DEFAULT_BACKLIGHT_GPIO: u8 = 22;
-pub const DEFAULT_BUTTON_GPIO: u8 = 26;
+pub const DEFAULT_BUTTON_GPIO: u8 = 17;
 pub const DEFAULT_BACKLIGHT_ACTIVE_LOW: bool = true;
-pub const DEFAULT_BUTTON_ACTIVE_LOW: bool = true;
+pub const DEFAULT_BUTTON_ACTIVE_LOW: bool = false;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PanelCommand {
@@ -120,9 +120,9 @@ mod tests {
         assert_eq!(DEFAULT_DC_GPIO, 27);
         assert_eq!(DEFAULT_RESET_GPIO, 4);
         assert_eq!(DEFAULT_BACKLIGHT_GPIO, 22);
-        assert_eq!(DEFAULT_BUTTON_GPIO, 26);
+        assert_eq!(DEFAULT_BUTTON_GPIO, 17);
         assert!(DEFAULT_BACKLIGHT_ACTIVE_LOW);
-        assert!(DEFAULT_BUTTON_ACTIVE_LOW);
+        assert!(!DEFAULT_BUTTON_ACTIVE_LOW);
     }
 
     #[test]
