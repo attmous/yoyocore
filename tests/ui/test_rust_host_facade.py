@@ -4,6 +4,12 @@ from types import SimpleNamespace
 from typing import Any
 
 from yoyopod.core.events import WorkerMessageReceivedEvent
+from yoyopod.integrations.call import (
+    AnswerCommand,
+    StartVoiceNoteRecordingCommand,
+    StopVoiceNoteRecordingCommand,
+)
+from yoyopod.integrations.music import LoadPlaylistCommand, PlayRecentTrackCommand
 from yoyopod.ui.rust_host.facade import RustUiFacade
 
 
@@ -90,15 +96,64 @@ def test_facade_dispatches_intents_to_python_services() -> None:
         )
     )
 
-    assert services.calls == [("call", "answer", {"source": "rust-ui"})]
+    assert services.calls == [("call", "answer", AnswerCommand())]
+
+
+def test_facade_builds_typed_music_commands() -> None:
+    services = _Services()
+    app = SimpleNamespace(services=services)
+    facade = RustUiFacade(app, worker_domain="ui")
+
+    facade.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="ui",
+            kind="event",
+            type="ui.intent",
+            request_id=None,
+            payload={
+                "domain": "music",
+                "action": "load_playlist",
+                "payload": {"id": "m3u:tiny"},
+            },
+        )
+    )
+    facade.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="ui",
+            kind="event",
+            type="ui.intent",
+            request_id=None,
+            payload={
+                "domain": "music",
+                "action": "play_recent_track",
+                "payload": {"id": "file:///music/little-song.mp3"},
+            },
+        )
+    )
+
+    assert services.calls == [
+        ("music", "load_playlist", LoadPlaylistCommand(playlist_uri="m3u:tiny")),
+        (
+            "music",
+            "play_recent_track",
+            PlayRecentTrackCommand(track_uri="file:///music/little-song.mp3"),
+        ),
+    ]
 
 
 def test_facade_maps_voice_capture_toggle_to_current_runtime_state() -> None:
     services = _Services()
     interaction = SimpleNamespace(capture_in_flight=False, ptt_active=False)
+    active_voice_note = SimpleNamespace(
+        recipient_address="sip:mama@example.com",
+        recipient_name="Mama",
+    )
     app = SimpleNamespace(
         services=services,
-        context=SimpleNamespace(voice=SimpleNamespace(interaction=interaction)),
+        context=SimpleNamespace(
+            voice=SimpleNamespace(interaction=interaction),
+            talk=SimpleNamespace(active_voice_note=active_voice_note),
+        ),
     )
     facade = RustUiFacade(app, worker_domain="ui")
 
@@ -123,6 +178,13 @@ def test_facade_maps_voice_capture_toggle_to_current_runtime_state() -> None:
     )
 
     assert services.calls == [
-        ("call", "start_voice_note_recording", {}),
-        ("call", "stop_voice_note_recording", {}),
+        (
+            "call",
+            "start_voice_note_recording",
+            StartVoiceNoteRecordingCommand(
+                recipient_address="sip:mama@example.com",
+                recipient_name="Mama",
+            ),
+        ),
+        ("call", "stop_voice_note_recording", StopVoiceNoteRecordingCommand()),
     ]

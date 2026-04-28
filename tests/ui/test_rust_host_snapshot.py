@@ -46,3 +46,49 @@ def test_runtime_snapshot_serializes_current_app_context() -> None:
         "Ask",
         "Setup",
     ]
+
+
+def test_runtime_snapshot_includes_recent_tracks_and_call_history() -> None:
+    app = SimpleNamespace(
+        context=None,
+        app_state_runtime=None,
+        people_directory=None,
+        get_music_library=lambda: SimpleNamespace(
+            list_recent_tracks=lambda: [
+                SimpleNamespace(
+                    uri="file:///music/little-song.mp3",
+                    title="Little Song",
+                    subtitle="YoYo",
+                )
+            ]
+        ),
+        call_history_store=SimpleNamespace(
+            list_recent=lambda: [
+                SimpleNamespace(
+                    sip_address="sip:mama@example.com",
+                    title="Mama",
+                    subtitle="Missed call",
+                    outcome="missed",
+                )
+            ]
+        ),
+    )
+
+    payload = RustUiRuntimeSnapshot.from_app(app).to_payload()
+
+    assert payload["music"]["recent_tracks"] == [
+        {
+            "id": "file:///music/little-song.mp3",
+            "title": "Little Song",
+            "subtitle": "YoYo",
+            "icon_key": "track",
+        }
+    ]
+    assert payload["call"]["history"] == [
+        {
+            "id": "sip:mama@example.com",
+            "title": "Mama",
+            "subtitle": "Missed call",
+            "icon_key": "missed_call",
+        }
+    ]

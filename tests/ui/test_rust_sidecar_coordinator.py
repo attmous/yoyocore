@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from yoyopod.core.events import WorkerMessageReceivedEvent
+from yoyopod.integrations.call import AnswerCommand
 from yoyopod.ui.rust_sidecar.coordinator import RustUiSidecarCoordinator
 
 
@@ -110,4 +111,4 @@ def test_coordinator_dispatches_ui_intents_to_python_services() -> None:
         )
     )
 
-    assert services.calls == [("call", "answer", {"source": "rust-ui"})]
+    assert services.calls == [("call", "answer", AnswerCommand())]

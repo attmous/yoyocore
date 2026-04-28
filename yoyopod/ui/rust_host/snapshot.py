@@ -55,6 +55,7 @@ class RustUiRuntimeSnapshot:
     call_duration_text: str = ""
     call_muted: bool = False
     contacts: list[RustUiListItem] = field(default_factory=list)
+    call_history: list[RustUiListItem] = field(default_factory=list)
     voice_phase: str = "idle"
     voice_headline: str = "Ask"
     voice_body: str = "Ask me anything..."
@@ -93,9 +94,7 @@ class RustUiRuntimeSnapshot:
             else ""
         )
         progress_permille = (
-            int(round(float(context.get_playback_progress()) * 1000))
-            if context is not None
-            else 0
+            int(round(float(context.get_playback_progress()) * 1000)) if context is not None else 0
         )
         call_peer_name, call_peer_address = _call_peer_from_app(app)
 
@@ -107,7 +106,9 @@ class RustUiRuntimeSnapshot:
             music_paused=bool(getattr(playback, "is_paused", False)),
             music_progress_permille=_clamp_int(progress_permille, 0, 1000),
             playlists=_playlist_items(context),
+            recent_tracks=_recent_track_items(app),
             contacts=_contact_items(getattr(app, "people_directory", None)),
+            call_history=_call_history_items(getattr(app, "call_history_store", None)),
             call_state=_call_state_from_app(app),
             call_peer_name=call_peer_name,
             call_peer_address=call_peer_address,
@@ -182,6 +183,7 @@ class RustUiRuntimeSnapshot:
                 "duration_text": snapshot.call_duration_text,
                 "muted": snapshot.call_muted,
                 "contacts": [item.to_payload() for item in snapshot.contacts],
+                "history": [item.to_payload() for item in snapshot.call_history],
             },
             "voice": {
                 "phase": snapshot.voice_phase,
@@ -264,6 +266,61 @@ def _contact_target(contact: Any) -> str:
         if route and address:
             return str(address)
     return str(getattr(contact, "sip_address", "")).strip()
+
+
+def _recent_track_items(app: Any) -> list[RustUiListItem]:
+    music_service = _resolve_music_service(app)
+    list_recent_tracks = getattr(music_service, "list_recent_tracks", None)
+    if not callable(list_recent_tracks):
+        return []
+
+    result: list[RustUiListItem] = []
+    for track in list_recent_tracks():
+        uri = str(getattr(track, "uri", "")).strip()
+        if not uri:
+            continue
+        result.append(
+            RustUiListItem(
+                id=uri,
+                title=str(getattr(track, "title", "") or "Unknown Track"),
+                subtitle=str(getattr(track, "subtitle", "") or "Played recently"),
+                icon_key="track",
+            )
+        )
+    return result
+
+
+def _resolve_music_service(app: Any) -> Any:
+    getter = getattr(app, "get_music_library", None)
+    if callable(getter):
+        try:
+            return getter()
+        except Exception:
+            return None
+    return getattr(app, "local_music_service", None)
+
+
+def _call_history_items(call_history_store: Any) -> list[RustUiListItem]:
+    list_recent = getattr(call_history_store, "list_recent", None)
+    if not callable(list_recent):
+        return []
+
+    result: list[RustUiListItem] = []
+    for entry in list_recent():
+        target = str(getattr(entry, "sip_address", "")).strip()
+        if not target:
+            continue
+        result.append(
+            RustUiListItem(
+                id=target,
+                title=str(getattr(entry, "title", "") or target),
+                subtitle=str(getattr(entry, "subtitle", "") or "Recent call"),
+                icon_key=(
+                    "missed_call" if str(getattr(entry, "outcome", "")) == "missed" else "call"
+                ),
+            )
+        )
+    return result
 
 
 def _call_state_from_app(app: Any) -> str:

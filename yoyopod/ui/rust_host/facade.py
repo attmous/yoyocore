@@ -87,12 +87,13 @@ class RustUiFacade:
             return
 
         service_domain, service_name = self._map_service(domain, action)
+        command = self._build_command(service_domain, service_name, data)
         services = getattr(self.app, "services", None)
         call = getattr(services, "call", None)
         if not callable(call):
             return
         try:
-            call(service_domain, service_name, data)
+            call(service_domain, service_name, command)
         except KeyError:
             logger.warning("No Python service registered for Rust UI intent {}.{}", domain, action)
 
@@ -102,7 +103,7 @@ class RustUiFacade:
         if domain == "call" and action == "start":
             return "call", "dial"
         if domain == "call" and action == "toggle_mute":
-            return "call", "mute"
+            return "call", "unmute" if self._call_muted() else "mute"
         if domain == "voice" and action == "capture_start":
             return "call", "start_voice_note_recording"
         if domain == "voice" and action == "capture_stop":
@@ -125,3 +126,110 @@ class RustUiFacade:
         if bool(getattr(playback, "is_paused", False)):
             return "resume"
         return "play"
+
+    def _call_muted(self) -> bool:
+        manager = getattr(self.app, "voip_manager", None)
+        return bool(getattr(manager, "is_muted", False))
+
+    def _build_command(self, domain: str, service: str, data: dict[str, Any]) -> object:
+        if domain == "music":
+            return self._build_music_command(service, data)
+        if domain == "call":
+            return self._build_call_command(service, data)
+        return data
+
+    def _build_music_command(self, service: str, data: dict[str, Any]) -> object:
+        from yoyopod.integrations.music import (
+            LoadPlaylistCommand,
+            PauseCommand,
+            PlayCommand,
+            PlayRecentTrackCommand,
+            ResumeCommand,
+            ShuffleAllCommand,
+        )
+
+        if service == "load_playlist":
+            return LoadPlaylistCommand(playlist_uri=_payload_value(data, "playlist_uri", "id"))
+        if service == "play_recent_track":
+            return PlayRecentTrackCommand(track_uri=_payload_value(data, "track_uri", "id"))
+        if service == "shuffle_all":
+            return ShuffleAllCommand()
+        if service == "pause":
+            return PauseCommand()
+        if service == "resume":
+            return ResumeCommand()
+        if service == "play":
+            return PlayCommand(track_uri=_payload_value(data, "track_uri", "id"))
+        return data
+
+    def _build_call_command(self, service: str, data: dict[str, Any]) -> object:
+        from yoyopod.integrations.call import (
+            AnswerCommand,
+            DialCommand,
+            HangupCommand,
+            MuteCommand,
+            RejectCommand,
+            StartVoiceNoteRecordingCommand,
+            StopVoiceNoteRecordingCommand,
+            UnmuteCommand,
+        )
+
+        if service == "dial":
+            return DialCommand(
+                sip_address=_payload_value(data, "sip_address", "address", "id"),
+                contact_name=_payload_value(data, "contact_name", "name", "title"),
+            )
+        if service == "answer":
+            return AnswerCommand()
+        if service == "hangup":
+            return HangupCommand()
+        if service == "reject":
+            return RejectCommand()
+        if service == "mute":
+            return MuteCommand()
+        if service == "unmute":
+            return UnmuteCommand()
+        if service == "start_voice_note_recording":
+            context_recipient, context_name = self._active_voice_note_recipient()
+            recipient_address = (
+                _payload_value(
+                    data,
+                    "recipient_address",
+                    "sip_address",
+                    "id",
+                )
+                or context_recipient
+            )
+            if recipient_address:
+                return StartVoiceNoteRecordingCommand(
+                    recipient_address=recipient_address,
+                    recipient_name=_payload_value(
+                        data,
+                        "recipient_name",
+                        "name",
+                        "title",
+                    )
+                    or context_name,
+                )
+            return data
+        if service == "stop_voice_note_recording":
+            return StopVoiceNoteRecordingCommand()
+        return data
+
+    def _active_voice_note_recipient(self) -> tuple[str, str]:
+        context = getattr(self.app, "context", None)
+        active_note = getattr(getattr(context, "talk", None), "active_voice_note", None)
+        return (
+            str(getattr(active_note, "recipient_address", "") or "").strip(),
+            str(getattr(active_note, "recipient_name", "") or "").strip(),
+        )
+
+
+def _payload_value(data: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = data.get(key)
+        if value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    return ""
