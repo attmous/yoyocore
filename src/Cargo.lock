@@ -370,6 +370,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "yoyopod-voip-host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "libloading",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"

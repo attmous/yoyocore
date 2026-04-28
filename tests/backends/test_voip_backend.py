@@ -16,6 +16,7 @@ from cffi import FFI
 
 from yoyopod.backends.voip import LiblinphoneBackend, LiblinphoneBinding, MockVoIPBackend
 from yoyopod.integrations.call.models import (
+    BackendRecovered,
     BackendStopped,
     CallState,
     CallStateChanged,
@@ -912,3 +913,28 @@ def test_voip_manager_handles_backend_stop_event() -> None:
     assert manager.running is False
     assert manager.registered is False
     assert manager.registration_state == RegistrationState.FAILED
+
+
+def test_voip_manager_marks_available_after_backend_recovery() -> None:
+    """A recovered worker should restore availability after an unexpected stop."""
+
+    backend = MockVoIPBackend()
+    manager = VoIPManager(build_config(), backend=backend)
+    availability_changes: list[tuple[bool, str, RegistrationState]] = []
+    manager.on_availability_change(
+        lambda available, reason, registration_state: availability_changes.append(
+            (available, reason, registration_state)
+        )
+    )
+
+    assert manager.start()
+    backend.emit(RegistrationStateChanged(state=RegistrationState.OK))
+    backend.emit(BackendStopped(reason="process_exited"))
+    backend.emit(BackendRecovered(reason="worker_ready"))
+
+    assert manager.running is True
+    assert manager.registration_state == RegistrationState.PROGRESS
+    assert availability_changes[-2:] == [
+        (False, "process_exited", RegistrationState.FAILED),
+        (True, "worker_ready", RegistrationState.PROGRESS),
+    ]

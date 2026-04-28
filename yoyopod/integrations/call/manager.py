@@ -15,6 +15,7 @@ from yoyopod.backends.voip import LiblinphoneBackend
 from yoyopod.integrations.call.messaging import MessagingService
 from yoyopod.integrations.call.message_store import VoIPMessageStore
 from yoyopod.integrations.call.models import (
+    BackendRecovered,
     BackendStopped,
     CallState,
     CallStateChanged,
@@ -513,6 +514,12 @@ class VoIPManager:
             self._update_registration_state(RegistrationState.FAILED)
             self.running = False
             self._notify_availability_change(False, event.reason or "backend_stopped")
+            return
+        if isinstance(event, BackendRecovered):
+            logger.info("VoIP backend recovered: {}", event.reason or "backend_recovered")
+            self.running = True
+            self._update_registration_state(RegistrationState.PROGRESS)
+            self._notify_availability_change(True, event.reason or "backend_recovered")
             return
         if isinstance(event, MessageReceived):
             self._messaging_service.handle_message_received(event.message)

@@ -45,6 +45,7 @@ if TYPE_CHECKING:
     )
     from yoyopod.integrations.call.status import is_voip_configured, sync_context_voip_status
     from yoyopod.integrations.call.models import (
+        BackendRecovered,
         BackendStopped,
         CallState,
         CallStateChanged,
@@ -128,6 +129,7 @@ _PUBLIC_EXPORTS = {
     ),
     "CallStateChanged": ("yoyopod.integrations.call.models", "CallStateChanged"),
     "IncomingCallDetected": ("yoyopod.integrations.call.models", "IncomingCallDetected"),
+    "BackendRecovered": ("yoyopod.integrations.call.models", "BackendRecovered"),
     "BackendStopped": ("yoyopod.integrations.call.models", "BackendStopped"),
     "MessageReceived": ("yoyopod.integrations.call.models", "MessageReceived"),
     "MessageDeliveryChanged": (
@@ -576,6 +578,7 @@ __all__ = [
     "RegistrationStateChanged",
     "CallStateChanged",
     "IncomingCallDetected",
+    "BackendRecovered",
     "BackendStopped",
     "MessageReceived",
     "MessageDeliveryChanged",

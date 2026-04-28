@@ -2,4 +2,5 @@
 resolver = "2"
 members = [
     "crates/ui-host",
+    "crates/voip-host",
 ]

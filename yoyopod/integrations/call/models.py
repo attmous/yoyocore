@@ -224,6 +224,13 @@ class BackendStopped:
 
 
 @dataclass(frozen=True, slots=True)
+class BackendRecovered:
+    """Typed event emitted when a stopped backend becomes usable again."""
+
+    reason: str = "backend_recovered"
+
+
+@dataclass(frozen=True, slots=True)
 class MessageReceived:
     """Typed event emitted when a new message is received."""
 
@@ -262,6 +269,7 @@ VoIPEvent: TypeAlias = (
     | CallStateChanged
     | IncomingCallDetected
     | BackendStopped
+    | BackendRecovered
     | MessageReceived
     | MessageDeliveryChanged
     | MessageDownloadCompleted
