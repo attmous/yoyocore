@@ -219,12 +219,22 @@ def test_build_voice_worker_invokes_go_build(monkeypatch: pytest.MonkeyPatch) ->
     assert env["GOFLAGS"] == "-p=1"
 
 
+def test_rust_ui_host_paths_point_at_yoyopod_rs_workspace() -> None:
+    suffix = ".exe" if build_cli.os.name == "nt" else ""
+
+    assert build_cli._rust_ui_host_workspace_dir() == build_cli._REPO_ROOT / "yoyopod_rs"
+    assert build_cli._rust_ui_host_crate_dir() == build_cli._REPO_ROOT / "yoyopod_rs" / "ui-host"
+    assert build_cli._rust_ui_host_binary_path() == (
+        build_cli._REPO_ROOT / "yoyopod_rs" / "ui-host" / "build" / f"yoyopod-ui-host{suffix}"
+    )
+
+
 def test_build_rust_ui_poc_invokes_cargo(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     workspace_dir = tmp_path / "src"
-    crate_dir = workspace_dir / "crates" / "ui-host"
+    crate_dir = workspace_dir / "ui-host"
     crate_dir.mkdir(parents=True)
     calls: list[tuple[list[str], Path | None, dict[str, str] | None]] = []
     copies: list[tuple[Path, Path]] = []
@@ -262,7 +272,7 @@ def test_build_rust_ui_host_invokes_cargo_workspace(
     tmp_path: Path,
 ) -> None:
     workspace_dir = tmp_path / "src"
-    crate_dir = workspace_dir / "crates" / "ui-host"
+    crate_dir = workspace_dir / "ui-host"
     crate_dir.mkdir(parents=True)
     calls: list[tuple[list[str], Path | None, dict[str, str] | None]] = []
     copies: list[tuple[Path, Path]] = []

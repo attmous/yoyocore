@@ -202,11 +202,11 @@ def _voice_worker_binary_path() -> Path:
 
 
 def _rust_ui_host_workspace_dir() -> Path:
-    return _REPO_ROOT / "src"
+    return _REPO_ROOT / "yoyopod_rs"
 
 
 def _rust_ui_host_crate_dir() -> Path:
-    return _rust_ui_host_workspace_dir() / "crates" / "ui-host"
+    return _rust_ui_host_workspace_dir() / "ui-host"
 
 
 def _rust_ui_host_binary_path() -> Path:
