@@ -254,6 +254,9 @@ class VoIPRuntimeSnapshot:
     active_call_peer: str = ""
     muted: bool = False
     pending_outbound_messages: int = 0
+    unread_voice_notes: int = 0
+    unread_voice_notes_by_contact: dict[str, int] = field(default_factory=dict)
+    latest_voice_note_by_contact: dict[str, dict[str, object]] = field(default_factory=dict)
     lifecycle: VoIPLifecycleSnapshot = field(default_factory=VoIPLifecycleSnapshot)
     call_session: VoIPCallSessionSnapshot = field(default_factory=VoIPCallSessionSnapshot)
     voice_note: VoIPVoiceNoteSnapshot = field(default_factory=VoIPVoiceNoteSnapshot)
