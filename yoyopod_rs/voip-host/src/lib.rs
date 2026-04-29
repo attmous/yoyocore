@@ -1,6 +1,11 @@
+pub mod calls;
 pub mod config;
 pub mod events;
 pub mod host;
+pub mod lifecycle;
+pub mod messages;
 pub mod protocol;
+pub mod runtime_snapshot;
 pub mod shim;
+pub mod voice_notes;
 pub mod worker;

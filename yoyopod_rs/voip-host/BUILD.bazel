@@ -21,11 +21,16 @@ yoyopod_rust_host_binary(
 )
 
 VOIP_HOST_TESTS = [
+    "calls",
     "config",
     "events",
     "host",
+    "lifecycle",
+    "messages",
     "protocol",
+    "runtime_snapshot",
     "shim",
+    "voice_notes",
     "worker",
 ]
 
