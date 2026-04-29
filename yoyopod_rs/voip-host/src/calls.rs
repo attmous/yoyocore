@@ -1,3 +1,4 @@
+use crate::history::CallHistoryEntry;
 use serde_json::json;
 use std::time::Instant;
 
@@ -34,6 +35,7 @@ struct CallSessionRecord {
     terminal_state: String,
     local_end_action: String,
     duration_seconds: Option<u64>,
+    history_recorded: bool,
 }
 
 impl CallSessionRecord {
@@ -47,6 +49,7 @@ impl CallSessionRecord {
             terminal_state: String::new(),
             local_end_action: String::new(),
             duration_seconds: None,
+            history_recorded: false,
         }
     }
 
@@ -186,6 +189,22 @@ impl CallSession {
         self.state = state.to_string();
         self.finish_session(state, Some(local_end_action));
         self.clear_identity();
+    }
+
+    pub fn take_unrecorded_history_entry(&mut self) -> Option<CallHistoryEntry> {
+        let session = self.last_finished_session.as_mut()?;
+        if session.history_recorded || session.terminal_state.is_empty() {
+            return None;
+        }
+        session.history_recorded = true;
+        Some(CallHistoryEntry {
+            session_id: session.session_id.clone(),
+            peer_sip_address: session.peer_sip_address.clone(),
+            direction: session.direction.clone(),
+            outcome: session.history_outcome(),
+            duration_seconds: session.duration_seconds(),
+            seen: false,
+        })
     }
 
     fn clear_identity(&mut self) {

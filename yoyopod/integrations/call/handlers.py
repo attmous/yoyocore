@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+from typing import Any
 
 from yoyopod.core.events import BackendStoppedEvent
 from yoyopod.integrations.call.events import (
@@ -28,7 +28,6 @@ from yoyopod.integrations.call.commands import (
     UnmuteCommand,
 )
 from yoyopod.integrations.call.events import CallHistoryUpdatedEvent, VoiceNoteSummaryChangedEvent
-from yoyopod.integrations.call.history import CallDirection, CallHistoryEntry, CallOutcome
 from yoyopod.integrations.call.models import (
     CallState,
     RegistrationState,
@@ -199,6 +198,7 @@ def handle_runtime_snapshot_changed_event(
     _apply_rust_call_session_side_effects(app, integration, event.snapshot)
     _apply_call_state(app, integration.manager, event.snapshot.call_state)
     app.states.set("call.muted", bool(event.snapshot.muted), {})
+    publish_call_history_updated(app, integration)
 
 
 def _apply_rust_call_session_side_effects(
@@ -224,7 +224,6 @@ def _apply_rust_call_session_side_effects(
 
     if _rust_call_session_is_terminal(session):
         _stop_ringer(integration)
-        _persist_rust_call_session_history(app, integration, session)
         _release_focus_if_owned(app)
 
 
@@ -247,45 +246,6 @@ def _clear_finalized_rust_call_sessions(integration: Any) -> None:
     finalized_sessions = getattr(integration, "finalized_rust_call_sessions", None)
     if isinstance(finalized_sessions, set):
         finalized_sessions.clear()
-
-
-def _persist_rust_call_session_history(
-    app: Any,
-    integration: Any,
-    session: VoIPCallSessionSnapshot,
-) -> None:
-    finalized_sessions = getattr(integration, "finalized_rust_call_sessions", None)
-    if not isinstance(finalized_sessions, set):
-        return
-    if session.session_id in finalized_sessions:
-        return
-    direction = cast(
-        CallDirection,
-        session.direction if session.direction in {"incoming", "outgoing"} else "outgoing",
-    )
-    outcome = _history_outcome(session.history_outcome)
-    if outcome is None:
-        publish_call_history_updated(app, integration)
-        return
-    finalized_sessions.add(session.session_id)
-
-    history_store = integration.history_store
-    if history_store is None:
-        publish_call_history_updated(app, integration)
-        return
-
-    sip_address = session.peer_sip_address.strip()
-    display_name = _session_display_name(integration.manager, sip_address)
-    history_store.add_entry(
-        CallHistoryEntry.create(
-            direction=direction,
-            display_name=display_name,
-            sip_address=sip_address,
-            outcome=outcome,
-            duration_seconds=max(0, int(session.duration_seconds)),
-        )
-    )
-    publish_call_history_updated(app, integration)
 
 
 def handle_call_history_updated_event(
@@ -476,6 +436,12 @@ def mark_history_seen(app: Any, integration: Any, command: MarkHistorySeenComman
 
     if not isinstance(command, MarkHistorySeenCommand):
         raise TypeError("call.mark_history_seen expects MarkHistorySeenCommand")
+    if _manager_owns_runtime_snapshot(integration.manager):
+        mark_seen = getattr(integration.manager, "mark_call_history_seen", None)
+        if callable(mark_seen):
+            mark_seen("")
+        publish_call_history_updated(app, integration)
+        return _runtime_call_history_unread_count(integration.manager)
     if integration.history_store is None:
         publish_call_history_updated(app, integration)
         return 0
@@ -486,6 +452,17 @@ def mark_history_seen(app: Any, integration: Any, command: MarkHistorySeenComman
 
 def publish_call_history_updated(app: Any, integration: Any) -> None:
     """Publish one typed history-summary update event."""
+
+    if _manager_owns_runtime_snapshot(integration.manager):
+        unread_count = _runtime_call_history_unread_count(integration.manager)
+        recent_preview = _runtime_call_history_preview(integration.manager)
+        app.bus.publish(
+            CallHistoryUpdatedEvent(
+                unread_count=unread_count,
+                recent_preview=recent_preview,
+            )
+        )
+        return
 
     history_store = integration.history_store
     unread_count = 0 if history_store is None else history_store.missed_count()
@@ -572,27 +549,6 @@ def _call_duration_seconds(manager: Any) -> int:
     return max(0, int(get_call_duration() or 0))
 
 
-def _history_outcome(value: str) -> CallOutcome | None:
-    outcome = str(value or "").strip()
-    if outcome in {"completed", "missed", "rejected", "cancelled", "failed"}:
-        return cast(CallOutcome, outcome)
-    return None
-
-
-def _session_display_name(manager: Any, sip_address: str) -> str:
-    lookup_contact_name = getattr(manager, "_lookup_contact_name", None)
-    if callable(lookup_contact_name):
-        name = str(lookup_contact_name(sip_address) or "").strip()
-        if name:
-            return name
-    caller = _caller_info(manager)
-    if str(caller.get("address") or "").strip() == sip_address:
-        display_name = str(caller.get("display_name") or caller.get("name") or "").strip()
-        if display_name:
-            return display_name
-    return _extract_username(sip_address)
-
-
 def _extract_username(sip_address: str) -> str:
     if not sip_address:
         return "Unknown"
@@ -609,6 +565,23 @@ def _manager_owns_runtime_snapshot(manager: Any) -> bool:
     if not callable(owns_runtime_snapshot):
         return False
     return bool(owns_runtime_snapshot())
+
+
+def _runtime_call_history_unread_count(manager: Any) -> int:
+    unread_count = getattr(manager, "call_history_unread_count", None)
+    if not callable(unread_count):
+        return 0
+    return max(0, int(unread_count() or 0))
+
+
+def _runtime_call_history_preview(manager: Any) -> tuple[str, ...]:
+    recent_preview = getattr(manager, "call_history_recent_preview", None)
+    if not callable(recent_preview):
+        return ()
+    raw_preview = recent_preview()
+    if not isinstance(raw_preview, (list, tuple)):
+        return ()
+    return tuple(str(value) for value in raw_preview if str(value).strip())
 
 
 def _as_registration_state(value: object) -> RegistrationState:

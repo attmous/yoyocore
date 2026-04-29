@@ -341,6 +341,38 @@ fn incoming_call_session_snapshot_reports_missed_terminal_outcome() {
 }
 
 #[test]
+fn terminal_call_state_records_unseen_call_history_snapshot() {
+    let mut host = VoipHost::default();
+    host.configure(config());
+    let mut backend = FakeBackend {
+        events: vec![
+            BackendEvent::IncomingCall {
+                call_id: "sip:mom@example.com".to_string(),
+                from_uri: "sip:mom@example.com".to_string(),
+            },
+            BackendEvent::CallStateChanged {
+                call_id: "sip:mom@example.com".to_string(),
+                state: "end".to_string(),
+            },
+        ],
+        ..FakeBackend::default()
+    };
+
+    host.poll_backend_events(&mut backend).expect("poll");
+
+    let snapshot = host.session_snapshot_payload();
+    assert_eq!(snapshot["unseen_call_history"], 1);
+    assert_eq!(
+        snapshot["recent_call_history"][0]["peer_sip_address"],
+        "sip:mom@example.com"
+    );
+    assert_eq!(snapshot["recent_call_history"][0]["outcome"], "missed");
+
+    host.mark_call_history_seen("sip:mom@example.com");
+    assert_eq!(host.session_snapshot_payload()["unseen_call_history"], 0);
+}
+
+#[test]
 fn register_starts_backend_and_health_reports_registered() {
     let mut host = VoipHost::default();
     let mut backend = FakeBackend::default();
