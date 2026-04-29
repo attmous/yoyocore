@@ -219,6 +219,16 @@ def test_build_voice_worker_invokes_go_build(monkeypatch: pytest.MonkeyPatch) ->
     assert env["GOFLAGS"] == "-p=1"
 
 
+def test_rust_ui_host_paths_point_at_yoyopod_rs_workspace() -> None:
+    suffix = ".exe" if build_cli.os.name == "nt" else ""
+
+    assert build_cli._rust_ui_host_workspace_dir() == build_cli._REPO_ROOT / "yoyopod_rs"
+    assert build_cli._rust_ui_host_crate_dir() == build_cli._REPO_ROOT / "yoyopod_rs" / "ui-host"
+    assert build_cli._rust_ui_host_binary_path() == (
+        build_cli._REPO_ROOT / "yoyopod_rs" / "ui-host" / "build" / f"yoyopod-ui-host{suffix}"
+    )
+
+
 def test_build_rust_ui_poc_invokes_cargo(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
