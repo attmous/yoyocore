@@ -21,6 +21,8 @@ yoyopod_rust_host_binary(
 )
 
 NETWORK_HOST_TESTS = [
+    "gps",
+    "ppp",
     "protocol",
     "worker",
 ]
