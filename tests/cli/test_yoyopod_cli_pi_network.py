@@ -42,7 +42,28 @@ def test_probe_uses_rust_network_snapshot(monkeypatch) -> None:
 
     def fake_request(config_dir: str, *, timeout_seconds: float = 10.0) -> dict[str, Any]:
         snapshots.append(config_dir)
-        return {"enabled": True, "state": "registered", "error_code": "", "error_message": ""}
+        return {
+            "enabled": True,
+            "state": "registered",
+            "error_code": "",
+            "error_message": "",
+            "views": {
+                "cli": {
+                    "probe_ok": True,
+                    "probe_error": "",
+                    "status_lines": [
+                        "phase=registered",
+                        "sim_ready=True",
+                        "carrier=Telekom.de",
+                        "network_type=4G",
+                        "signal_csq=20",
+                        "signal_bars=3",
+                        "ppp_up=False",
+                        "error=none",
+                    ],
+                }
+            },
+        }
 
     monkeypatch.setattr(network_cli, "_request_network_snapshot", fake_request)
 
@@ -67,6 +88,22 @@ def test_status_uses_rust_network_snapshot(monkeypatch) -> None:
             "ppp": {"up": True},
             "error_code": "",
             "error_message": "",
+            "views": {
+                "cli": {
+                    "probe_ok": True,
+                    "probe_error": "",
+                    "status_lines": [
+                        "phase=online",
+                        "sim_ready=True",
+                        "carrier=Telekom.de",
+                        "network_type=4G",
+                        "signal_csq=20",
+                        "signal_bars=3",
+                        "ppp_up=True",
+                        "error=none",
+                    ],
+                }
+            },
         },
     )
 
@@ -127,6 +164,13 @@ def test_probe_reports_snapshot_error_before_disabled_flag(monkeypatch) -> None:
             "enabled": False,
             "error_code": "config_load_failed",
             "error_message": "config load failed",
+            "views": {
+                "cli": {
+                    "probe_ok": False,
+                    "probe_error": "config load failed",
+                    "status_lines": [],
+                }
+            },
         },
     )
 
@@ -144,6 +188,13 @@ def test_status_reports_snapshot_error_before_disabled_flag(monkeypatch) -> None
             "enabled": False,
             "error_code": "config_load_failed",
             "error_message": "config load failed",
+            "views": {
+                "cli": {
+                    "probe_ok": False,
+                    "probe_error": "config load failed",
+                    "status_lines": [],
+                }
+            },
         },
     )
 
@@ -151,3 +202,56 @@ def test_status_reports_snapshot_error_before_disabled_flag(monkeypatch) -> None
 
     assert result.exit_code == 1
     assert "config load failed" in _combined_output(result).lower()
+
+
+def test_probe_uses_rust_cli_projection(monkeypatch) -> None:
+    monkeypatch.setattr(
+        network_cli,
+        "_request_network_snapshot",
+        lambda _config_dir, *, timeout_seconds=10.0: {
+            "enabled": False,
+            "error_code": "",
+            "error_message": "",
+            "views": {"cli": {"probe_ok": True, "probe_error": "", "status_lines": []}},
+        },
+    )
+
+    result = CliRunner().invoke(app, ["probe"])
+
+    assert result.exit_code == 0
+    assert "Modem OK" in result.output
+
+
+def test_status_uses_rust_cli_projection(monkeypatch) -> None:
+    monkeypatch.setattr(
+        network_cli,
+        "_request_network_snapshot",
+        lambda _config_dir, *, timeout_seconds=10.0: {
+            "enabled": False,
+            "error_code": "",
+            "error_message": "",
+            "views": {
+                "cli": {
+                    "probe_ok": True,
+                    "probe_error": "",
+                    "status_lines": [
+                        "phase=online",
+                        "sim_ready=True",
+                        "carrier=Telekom.de",
+                        "network_type=4G",
+                        "signal_csq=20",
+                        "signal_bars=3",
+                        "ppp_up=True",
+                        "error=none",
+                    ],
+                }
+            },
+        },
+    )
+
+    result = CliRunner().invoke(app, ["status"])
+
+    assert result.exit_code == 0
+    assert "Rust Network Host Status" in result.output
+    assert "phase=online" in result.output
+    assert "ppp_up=True" in result.output

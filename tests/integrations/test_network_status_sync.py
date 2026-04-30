@@ -30,6 +30,7 @@ def _snapshot(
     gps_status = "disabled"
     if enabled and gps_enabled:
         gps_status = "fix" if gps_has_fix else "searching"
+    probe_error = "" if enabled else "network module disabled in config/network/cellular.yaml"
     return {
         "enabled": enabled,
         "gps_enabled": gps_enabled,
@@ -68,6 +69,71 @@ def _snapshot(
         "error_code": "",
         "error_message": "",
         "updated_at_ms": 1,
+        "app_state": {
+            "network_enabled": enabled,
+            "signal_bars": signal_bars,
+            "connection_type": "4g" if enabled else "none",
+            "connected": connected,
+            "gps_has_fix": gps_has_fix,
+        },
+        "views": {
+            "setup": {
+                "network_enabled": enabled,
+                "gps_refresh_allowed": enabled and gps_enabled,
+                "network_rows": (
+                    [["Status", "Disabled"]]
+                    if not enabled
+                    else [
+                        ["Status", "Online" if connected else "Registered"],
+                        ["Carrier", "Telekom.de"],
+                        ["Type", "4G"],
+                        ["Signal", f"{signal_bars}/4"],
+                        ["PPP", "Up" if connected else "Down"],
+                    ]
+                ),
+                "gps_rows": (
+                    [
+                        ["Fix", "Disabled"],
+                        ["Lat", "--"],
+                        ["Lng", "--"],
+                        ["Alt", "--"],
+                        ["Speed", "--"],
+                    ]
+                    if not enabled or not gps_enabled
+                    else (
+                        [
+                            ["Fix", "Yes"],
+                            ["Lat", "48.708300"],
+                            ["Lng", "9.661000"],
+                            ["Alt", "328.2m"],
+                            ["Speed", "0.0km/h"],
+                        ]
+                        if gps_has_fix
+                        else [
+                            ["Fix", "Searching"],
+                            ["Lat", "--"],
+                            ["Lng", "--"],
+                            ["Alt", "--"],
+                            ["Speed", "--"],
+                        ]
+                    )
+                ),
+            },
+            "cli": {
+                "probe_ok": enabled,
+                "probe_error": probe_error,
+                "status_lines": [
+                    f"phase={state}",
+                    f"sim_ready={enabled}",
+                    f"carrier={'Telekom.de' if enabled else 'unknown'}",
+                    f"network_type={'4G' if enabled else 'unknown'}",
+                    f"signal_csq={20 if enabled else 'unknown'}",
+                    f"signal_bars={signal_bars}",
+                    f"ppp_up={connected}",
+                    f"error={probe_error or 'none'}",
+                ],
+            },
+        },
     }
 
 

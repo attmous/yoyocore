@@ -115,3 +115,61 @@ fn registered_snapshot_exposes_rust_owned_app_projection_fields() {
     assert_eq!(payload["network_status"], json!("registered"));
     assert_eq!(payload["gps_status"], json!("fix"));
 }
+
+#[test]
+fn snapshot_serializes_rust_owned_app_and_view_projections() {
+    let mut snapshot = NetworkRuntimeSnapshot::offline("config");
+    snapshot.enabled = true;
+    snapshot.gps_enabled = true;
+    snapshot.state = NetworkLifecycleState::Online;
+    snapshot.sim_ready = true;
+    snapshot.registered = true;
+    snapshot.carrier = "Telekom.de".to_string();
+    snapshot.network_type = "4G".to_string();
+    snapshot.signal = SignalSnapshot {
+        csq: Some(17),
+        bars: 3,
+    };
+    snapshot.ppp = PppSnapshot {
+        up: true,
+        interface: "ppp0".to_string(),
+        pid: Some(1234),
+        default_route_owned: true,
+        last_failure: String::new(),
+    };
+    snapshot.gps = GpsSnapshot {
+        has_fix: true,
+        lat: Some(48.8738),
+        lng: Some(2.3522),
+        altitude: Some(349.6),
+        speed: Some(0.0),
+        timestamp: Some("2026-04-30T10:00:00Z".to_string()),
+        last_query_result: "fix".to_string(),
+    };
+    snapshot.refresh_derived();
+
+    let payload = serde_json::to_value(snapshot).expect("serialize");
+
+    assert_eq!(payload["app_state"]["network_enabled"], json!(true));
+    assert_eq!(payload["app_state"]["signal_bars"], json!(3));
+    assert_eq!(payload["app_state"]["connected"], json!(true));
+    assert_eq!(payload["app_state"]["gps_has_fix"], json!(true));
+    assert_eq!(
+        payload["views"]["setup"]["network_rows"][0],
+        json!(["Status", "Online"])
+    );
+    assert_eq!(
+        payload["views"]["setup"]["gps_rows"][0],
+        json!(["Fix", "Yes"])
+    );
+    assert_eq!(
+        payload["views"]["setup"]["gps_refresh_allowed"],
+        json!(true)
+    );
+    assert_eq!(payload["views"]["cli"]["probe_ok"], json!(true));
+    assert_eq!(payload["views"]["cli"]["probe_error"], json!(""));
+    assert_eq!(
+        payload["views"]["cli"]["status_lines"][0],
+        json!("phase=online")
+    );
+}

@@ -99,13 +99,38 @@ def _snapshot_error_text(snapshot: dict[str, Any]) -> str:
     return str(snapshot.get("error_message", "") or snapshot.get("error_code", "") or "").strip()
 
 
+def _cli_view(snapshot: dict[str, Any]) -> dict[str, Any] | None:
+    views = snapshot.get("views")
+    if not isinstance(views, dict):
+        return None
+    cli_view = views.get("cli")
+    if isinstance(cli_view, dict):
+        return cli_view
+    return None
+
+
 def _ensure_snapshot_healthy(snapshot: dict[str, Any]) -> None:
-    error_text = _snapshot_error_text(snapshot)
+    cli_view = _cli_view(snapshot)
+    if not isinstance(cli_view, dict):
+        raise RuntimeError("network snapshot missing Rust cli projection")
+    error_text = str(cli_view.get("probe_error", "") or "").strip() or _snapshot_error_text(
+        snapshot
+    )
     if error_text:
         raise RuntimeError(error_text)
-    if bool(snapshot.get("enabled", False)):
+    if bool(cli_view.get("probe_ok", False)):
         return
-    raise RuntimeError("network module disabled in config/network/cellular.yaml")
+    raise RuntimeError("network host reported unhealthy probe")
+
+
+def _cli_status_lines(snapshot: dict[str, Any]) -> list[str]:
+    cli_view = _cli_view(snapshot)
+    if not isinstance(cli_view, dict):
+        raise RuntimeError("network snapshot missing Rust cli projection")
+    raw_lines = cli_view.get("status_lines")
+    if not isinstance(raw_lines, list):
+        raise RuntimeError("network snapshot missing Rust cli status lines")
+    return [str(line) for line in raw_lines]
 
 
 def _request_network_snapshot(config_dir: str, *, timeout_seconds: float = 10.0) -> dict[str, Any]:
@@ -223,25 +248,10 @@ def status(
         logger.error(f"Modem status failed: {exc}")
         raise typer.Exit(code=1) from exc
 
-    signal = snapshot.get("signal", {})
-    if not isinstance(signal, dict):
-        signal = {}
-    ppp = snapshot.get("ppp", {})
-    if not isinstance(ppp, dict):
-        ppp = {}
+    lines = _cli_status_lines(snapshot)
 
     print("")
     print("Rust Network Host Status")
     print("========================")
-    lines = [
-        f"phase={snapshot.get('state', 'unknown')}",
-        f"sim_ready={snapshot.get('sim_ready', False)}",
-        f"carrier={snapshot.get('carrier') or 'unknown'}",
-        f"network_type={snapshot.get('network_type') or 'unknown'}",
-        f"signal_csq={signal.get('csq', 'unknown')}",
-        f"signal_bars={signal.get('bars', 'unknown')}",
-        f"ppp_up={ppp.get('up', False)}",
-        f"error={snapshot.get('error_message') or snapshot.get('error_code') or 'none'}",
-    ]
     for line in lines:
         print(line)

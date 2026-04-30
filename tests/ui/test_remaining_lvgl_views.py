@@ -981,6 +981,47 @@ def test_power_screen_reports_full_network_page_count_through_lvgl() -> None:
                 "error_code": "",
                 "error_message": "",
                 "updated_at_ms": 1,
+                "app_state": {
+                    "network_enabled": True,
+                    "signal_bars": 3,
+                    "connection_type": "4g",
+                    "connected": False,
+                    "gps_has_fix": False,
+                },
+                "views": {
+                    "setup": {
+                        "network_enabled": True,
+                        "gps_refresh_allowed": True,
+                        "network_rows": [
+                            ["Status", "Registered"],
+                            ["Carrier", "Telekom.de"],
+                            ["Type", "4G"],
+                            ["Signal", "3/4"],
+                            ["PPP", "Down"],
+                        ],
+                        "gps_rows": [
+                            ["Fix", "Searching"],
+                            ["Lat", "--"],
+                            ["Lng", "--"],
+                            ["Alt", "--"],
+                            ["Speed", "--"],
+                        ],
+                    },
+                    "cli": {
+                        "probe_ok": True,
+                        "probe_error": "",
+                        "status_lines": [
+                            "phase=registered",
+                            "sim_ready=True",
+                            "carrier=Telekom.de",
+                            "network_type=4G",
+                            "signal_csq=20",
+                            "signal_bars=3",
+                            "ppp_up=False",
+                            "error=none",
+                        ],
+                    },
+                },
             }
             self.query_gps_calls = 0
 

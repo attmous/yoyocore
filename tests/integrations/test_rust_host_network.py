@@ -52,6 +52,8 @@ def _snapshot(
     raw_state = state or ("online" if connected else "registered")
     raw_network_status = network_status or ("online" if connected else "registered")
     raw_gps_status = gps_status or ("fix" if gps_has_fix else "searching")
+    signal_bars = 3 if enabled else 0
+    probe_error = "" if enabled else "network module disabled in config/network/cellular.yaml"
     return {
         "enabled": enabled,
         "gps_enabled": gps_enabled,
@@ -90,6 +92,71 @@ def _snapshot(
         "error_code": "",
         "error_message": "",
         "updated_at_ms": 1,
+        "app_state": {
+            "network_enabled": enabled,
+            "signal_bars": signal_bars,
+            "connection_type": "4g" if enabled else "none",
+            "connected": connected,
+            "gps_has_fix": gps_has_fix,
+        },
+        "views": {
+            "setup": {
+                "network_enabled": enabled,
+                "gps_refresh_allowed": enabled and gps_enabled,
+                "network_rows": (
+                    [["Status", "Disabled"]]
+                    if not enabled
+                    else [
+                        ["Status", "Online" if connected else "Registered"],
+                        ["Carrier", "Telekom.de"],
+                        ["Type", "4G"],
+                        ["Signal", "3/4"],
+                        ["PPP", "Up" if connected else "Down"],
+                    ]
+                ),
+                "gps_rows": (
+                    [
+                        ["Fix", "Disabled"],
+                        ["Lat", "--"],
+                        ["Lng", "--"],
+                        ["Alt", "--"],
+                        ["Speed", "--"],
+                    ]
+                    if not enabled or not gps_enabled
+                    else (
+                        [
+                            ["Fix", "Yes"],
+                            ["Lat", "48.856600"],
+                            ["Lng", "2.352200"],
+                            ["Alt", "35.0m"],
+                            ["Speed", "0.0km/h"],
+                        ]
+                        if gps_has_fix
+                        else [
+                            ["Fix", "Searching"],
+                            ["Lat", "--"],
+                            ["Lng", "--"],
+                            ["Alt", "--"],
+                            ["Speed", "--"],
+                        ]
+                    )
+                ),
+            },
+            "cli": {
+                "probe_ok": enabled,
+                "probe_error": probe_error,
+                "status_lines": [
+                    f"phase={raw_state}",
+                    f"sim_ready={enabled}",
+                    f"carrier={'Telekom.de' if enabled else 'unknown'}",
+                    f"network_type={'4G' if enabled else 'unknown'}",
+                    f"signal_csq={20 if enabled else 'unknown'}",
+                    f"signal_bars={signal_bars}",
+                    f"ppp_up={connected}",
+                    f"error={probe_error or 'none'}",
+                ],
+            },
+        },
     }
 
 
@@ -185,3 +252,37 @@ def test_facade_clears_context_when_worker_is_unavailable_but_keeps_last_raw_sna
     assert app.context.network.enabled is False
     assert app.context.network.connected is False
     assert app.context.network.connection_type == "none"
+
+
+def test_facade_prefers_rust_app_state_projection_for_context_sync() -> None:
+    supervisor = _Supervisor()
+    app = SimpleNamespace(
+        worker_supervisor=supervisor,
+        context=AppContext(),
+        cloud_manager=None,
+    )
+    facade = RustNetworkFacade(app, worker_domain="network")
+    snapshot = _snapshot(enabled=False, connected=False, gps_has_fix=False)
+    snapshot["app_state"] = {
+        "network_enabled": True,
+        "signal_bars": 4,
+        "connection_type": "4g",
+        "connected": True,
+        "gps_has_fix": True,
+    }
+
+    facade.handle_worker_message(
+        WorkerMessageReceivedEvent(
+            domain="network",
+            kind="event",
+            type="network.snapshot",
+            request_id=None,
+            payload=snapshot,
+        )
+    )
+
+    assert app.context.network.enabled is True
+    assert app.context.network.signal_strength == 4
+    assert app.context.network.connected is True
+    assert app.context.network.connection_type == "4g"
+    assert app.context.network.gps_has_fix is True

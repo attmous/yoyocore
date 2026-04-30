@@ -64,6 +64,70 @@ def _runtime_snapshot(
         "timestamp": None,
         "last_query_result": "idle",
     }
+    if not enabled:
+        network_rows = [["Status", "Disabled"]]
+        gps_rows = [
+            ["Fix", "Disabled"],
+            ["Lat", "--"],
+            ["Lng", "--"],
+            ["Alt", "--"],
+            ["Speed", "--"],
+        ]
+    else:
+        network_rows = [
+            [
+                "Status",
+                {
+                    "online": "Online",
+                    "registered": "Registered",
+                    "connecting": "Connecting",
+                    "degraded": "Degraded",
+                    "offline": "Offline",
+                    "disabled": "Disabled",
+                }.get(network_status, "Offline"),
+            ],
+            ["Carrier", "Telekom.de"],
+            ["Type", "4G"],
+            ["Signal", "3/4"],
+            ["PPP", "Up" if connected else "Down"],
+        ]
+        if not gps_enabled:
+            gps_rows = [
+                ["Fix", "Disabled"],
+                ["Lat", "--"],
+                ["Lng", "--"],
+                ["Alt", "--"],
+                ["Speed", "--"],
+            ]
+        elif gps_payload.get("has_fix", False):
+            gps_rows = [
+                ["Fix", "Yes"],
+                ["Lat", f"{float(gps_payload.get('lat', 0.0) or 0.0):.6f}"],
+                ["Lng", f"{float(gps_payload.get('lng', 0.0) or 0.0):.6f}"],
+                ["Alt", f"{float(gps_payload.get('altitude', 0.0) or 0.0):.1f}m"],
+                ["Speed", f"{float(gps_payload.get('speed', 0.0) or 0.0):.1f}km/h"],
+            ]
+        else:
+            gps_rows = [
+                [
+                    "Fix",
+                    {
+                        "disabled": "Disabled",
+                        "starting": "Starting",
+                        "searching": "Searching",
+                        "unavailable": "Unavailable",
+                    }.get(
+                        "disabled"
+                        if not enabled or not gps_enabled
+                        else ("fix" if gps_payload.get("has_fix", False) else "searching"),
+                        "Searching",
+                    ),
+                ],
+                ["Lat", "--"],
+                ["Lng", "--"],
+                ["Alt", "--"],
+                ["Speed", "--"],
+            ]
     return {
         "enabled": enabled,
         "gps_enabled": gps_enabled,
@@ -98,6 +162,35 @@ def _runtime_snapshot(
         "error_code": "",
         "error_message": "",
         "updated_at_ms": 1,
+        "app_state": {
+            "network_enabled": enabled,
+            "signal_bars": 3 if enabled else 0,
+            "connection_type": "4g" if enabled else "none",
+            "connected": connected,
+            "gps_has_fix": bool(gps_payload.get("has_fix", False)),
+        },
+        "views": {
+            "setup": {
+                "network_enabled": enabled,
+                "gps_refresh_allowed": enabled and gps_enabled,
+                "network_rows": network_rows,
+                "gps_rows": gps_rows,
+            },
+            "cli": {
+                "probe_ok": enabled,
+                "probe_error": "" if enabled else "network module disabled in config/network/cellular.yaml",
+                "status_lines": [
+                    f"phase={state}",
+                    f"sim_ready={enabled}",
+                    f"carrier={'Telekom.de' if enabled else 'unknown'}",
+                    f"network_type={'4G' if enabled else 'unknown'}",
+                    f"signal_csq={20 if enabled else 'unknown'}",
+                    f"signal_bars={3 if enabled else 0}",
+                    f"ppp_up={connected}",
+                    f"error={'none' if enabled else 'network module disabled in config/network/cellular.yaml'}",
+                ],
+            },
+        },
     }
 
 
@@ -259,6 +352,23 @@ def test_active_gps_page_refreshes_coordinates_via_explicit_state_hook():
         },
         "gps_has_fix": True,
         "gps_status": "fix",
+        "app_state": {
+            **dict(initial_snapshot["app_state"]),
+            "gps_has_fix": True,
+        },
+        "views": {
+            **dict(initial_snapshot["views"]),
+            "setup": {
+                **dict(initial_snapshot["views"]["setup"]),
+                "gps_rows": [
+                    ["Fix", "Yes"],
+                    ["Lat", "48.873800"],
+                    ["Lng", "2.352200"],
+                    ["Alt", "349.6m"],
+                    ["Speed", "0.0km/h"],
+                ],
+            },
+        },
     }
     runtime = FakeNetworkRuntime(initial_snapshot, refreshed_snapshot=refreshed_snapshot)
     screen = PowerScreen(
@@ -316,3 +426,71 @@ def test_build_pages_excludes_network_when_disabled():
     titles = [page.title for page in pages]
     assert "Network" not in titles
     assert "GPS" not in titles
+
+
+def test_network_page_uses_rust_setup_projection_rows() -> None:
+    runtime = FakeNetworkRuntime(
+        {
+            **_runtime_snapshot(enabled=False, connected=False, gps_enabled=False),
+            "views": {
+                "setup": {
+                    "network_enabled": True,
+                    "gps_refresh_allowed": True,
+                    "network_rows": [
+                        ["Status", "Online"],
+                        ["Carrier", "Telekom.de"],
+                        ["Type", "4G"],
+                        ["Signal", "3/4"],
+                        ["PPP", "Up"],
+                    ],
+                    "gps_rows": [
+                        ["Fix", "Searching"],
+                        ["Lat", "--"],
+                        ["Lng", "--"],
+                        ["Alt", "--"],
+                        ["Speed", "--"],
+                    ],
+                }
+            },
+        }
+    )
+    screen = PowerScreen(
+        FakeDisplay(),
+        state_provider=build_power_screen_state_provider(network_runtime=runtime),
+    )
+    screen.enter()
+
+    assert screen._build_network_rows() == [
+        ("Status", "Online"),
+        ("Carrier", "Telekom.de"),
+        ("Type", "4G"),
+        ("Signal", "3/4"),
+        ("PPP", "Up"),
+    ]
+
+
+def test_gps_refresh_uses_rust_setup_projection_allow_flag() -> None:
+    runtime = FakeNetworkRuntime(
+        {
+            **_runtime_snapshot(enabled=False, connected=False, gps_enabled=False),
+            "views": {
+                "setup": {
+                    "network_enabled": True,
+                    "gps_refresh_allowed": True,
+                    "network_rows": [["Status", "Online"]],
+                    "gps_rows": [
+                        ["Fix", "Searching"],
+                        ["Lat", "--"],
+                        ["Lng", "--"],
+                        ["Alt", "--"],
+                        ["Speed", "--"],
+                    ],
+                }
+            },
+        }
+    )
+    actions = build_power_screen_actions(network_runtime=runtime)
+
+    assert actions.refresh_gps is not None
+    assert actions.refresh_gps() is True
+    assert runtime.query_gps_calls == 1

@@ -166,16 +166,15 @@ class RustNetworkFacade:
         context = getattr(self.app, "context", None)
         if context is None:
             return
-        signal = snapshot.get("signal")
-        signal_bars = 0
-        if isinstance(signal, dict):
-            signal_bars = max(0, min(4, int(signal.get("bars", 0) or 0)))
+        app_state = snapshot.get("app_state")
+        if not isinstance(app_state, dict):
+            return
         context.update_network_status(
-            network_enabled=bool(snapshot.get("enabled", False)),
-            signal_bars=signal_bars,
-            connection_type=str(snapshot.get("connection_type", "none") or "none"),
-            connected=_snapshot_connected(snapshot),
-            gps_has_fix=bool(snapshot.get("gps_has_fix", False)),
+            network_enabled=bool(app_state.get("network_enabled", False)),
+            signal_bars=max(0, min(4, int(app_state.get("signal_bars", 0) or 0))),
+            connection_type=str(app_state.get("connection_type", "none") or "none"),
+            connected=bool(app_state.get("connected", False)),
+            gps_has_fix=bool(app_state.get("gps_has_fix", False)),
         )
 
     def _clear_context(self) -> None:
@@ -214,7 +213,10 @@ _UNAVAILABLE_WORKER_STATES = {"degraded", "disabled", "stopped"}
 def _snapshot_connected(snapshot: dict[str, Any] | None) -> bool | None:
     if snapshot is None:
         return None
-    return bool(snapshot.get("connected", False))
+    app_state = snapshot.get("app_state")
+    if not isinstance(app_state, dict):
+        return None
+    return bool(app_state.get("connected", False))
 
 
 __all__ = ["RustNetworkFacade"]

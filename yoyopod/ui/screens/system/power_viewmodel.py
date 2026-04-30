@@ -73,71 +73,51 @@ def _runtime_snapshot(network_runtime: object | None) -> object | None:
     return None
 
 
+def _setup_view(snapshot: object | None) -> dict[str, object] | None:
+    if not isinstance(snapshot, dict):
+        return None
+    views = snapshot.get("views")
+    if not isinstance(views, dict):
+        return None
+    setup = views.get("setup")
+    if isinstance(setup, dict):
+        return setup
+    return None
+
+
+def _projected_rows(
+    setup_view: dict[str, object] | None,
+    key: str,
+    default_rows: list[tuple[str, str]],
+) -> list[tuple[str, str]]:
+    if not isinstance(setup_view, dict):
+        return default_rows
+    raw_rows = setup_view.get(key)
+    if not isinstance(raw_rows, list):
+        return default_rows
+
+    rows: list[tuple[str, str]] = []
+    for raw_row in raw_rows:
+        if (
+            isinstance(raw_row, (list, tuple))
+            and len(raw_row) == 2
+        ):
+            rows.append((str(raw_row[0]), str(raw_row[1])))
+    return rows or default_rows
+
+
 def _build_network_rows_from_runtime(network_runtime: object | None) -> list[tuple[str, str]]:
-    """Build cellular rows from the Rust-owned network snapshot."""
+    """Build cellular rows from the Rust-owned setup projection."""
 
     snapshot = _runtime_snapshot(network_runtime)
-    if snapshot is None or not bool(snapshot.get("enabled", False)):
-        return [("Status", "Disabled")]
-
-    status_text = {
-        "online": "Online",
-        "registered": "Registered",
-        "connecting": "Connecting",
-        "degraded": "Degraded",
-        "offline": "Offline",
-        "disabled": "Disabled",
-    }.get(str(snapshot.get("network_status", "") or "").strip(), "Offline")
-
-    signal = snapshot.get("signal")
-    signal_data = signal if isinstance(signal, dict) else {}
-    signal_bars = max(0, min(4, int(signal_data.get("bars", 0) or 0)))
-    signal_text = "Unknown"
-    if signal_data.get("csq") is not None or signal_bars > 0:
-        signal_text = f"{signal_bars}/4"
-
-    return [
-        ("Status", status_text),
-        ("Carrier", str(snapshot.get("carrier", "") or "Unknown")),
-        ("Type", str(snapshot.get("network_type", "") or "Unknown")),
-        ("Signal", signal_text),
-        ("PPP", "Up" if bool(snapshot.get("connected", False)) else "Down"),
-    ]
+    return _projected_rows(_setup_view(snapshot), "network_rows", [("Status", "Disabled")])
 
 
 def _build_gps_rows_from_runtime(network_runtime: object | None) -> list[tuple[str, str]]:
-    """Build GPS rows from the Rust-owned network snapshot."""
+    """Build GPS rows from the Rust-owned setup projection."""
 
     snapshot = _runtime_snapshot(network_runtime)
-    if snapshot is None or not bool(snapshot.get("enabled", False)):
-        return _disabled_gps_rows()
-    if not bool(snapshot.get("gps_enabled", False)):
-        return _disabled_gps_rows()
-
-    gps = snapshot.get("gps")
-    gps_data = gps if isinstance(gps, dict) else {}
-    if str(snapshot.get("gps_status", "") or "").strip() != "fix":
-        fix_status = {
-            "disabled": "Disabled",
-            "starting": "Starting",
-            "searching": "Searching",
-            "unavailable": "Unavailable",
-        }.get(str(snapshot.get("gps_status", "") or "").strip(), "Searching")
-        return [
-            ("Fix", fix_status),
-            ("Lat", "--"),
-            ("Lng", "--"),
-            ("Alt", "--"),
-            ("Speed", "--"),
-        ]
-
-    return [
-        ("Fix", "Yes"),
-        ("Lat", f"{float(gps_data.get('lat', 0.0) or 0.0):.6f}"),
-        ("Lng", f"{float(gps_data.get('lng', 0.0) or 0.0):.6f}"),
-        ("Alt", f"{float(gps_data.get('altitude', 0.0) or 0.0):.1f}m"),
-        ("Speed", f"{float(gps_data.get('speed', 0.0) or 0.0):.1f}km/h"),
-    ]
+    return _projected_rows(_setup_view(snapshot), "gps_rows", _disabled_gps_rows())
 
 
 def build_power_screen_state_provider(
@@ -158,10 +138,13 @@ def build_power_screen_state_provider(
             status = {}
 
         network_snapshot = _runtime_snapshot(network_runtime)
+        setup_view = _setup_view(network_snapshot)
         return PowerScreenState(
             snapshot=power_snapshot,
             status=status,
-            network_enabled=bool(network_snapshot is not None and network_snapshot.get("enabled", False)),
+            network_enabled=bool(
+                isinstance(setup_view, dict) and setup_view.get("network_enabled", False)
+            ),
             network_rows=tuple(_build_network_rows_from_runtime(network_runtime)),
             gps_rows=tuple(_build_gps_rows_from_runtime(network_runtime)),
             playback_devices=tuple(
@@ -190,9 +173,8 @@ def build_power_screen_actions(
 
     def refresh_gps() -> bool:
         snapshot = _runtime_snapshot(network_runtime)
-        if snapshot is None or not bool(snapshot.get("enabled", False)):
-            return False
-        if not bool(snapshot.get("gps_enabled", False)):
+        setup_view = _setup_view(snapshot)
+        if not isinstance(setup_view, dict) or not bool(setup_view.get("gps_refresh_allowed", False)):
             return False
 
         query_gps = getattr(network_runtime, "query_gps", None)
