@@ -114,6 +114,7 @@ class ManagersBoot:
                     music_config,
                     worker_supervisor=self.app.worker_supervisor,
                     worker_path=worker_path,
+                    scheduler=self.app.scheduler,
                 )
             except TypeError:
                 self.app.music_backend = self.mpv_backend_cls(music_config)

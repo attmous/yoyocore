@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import threading
-from dataclasses import asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,6 +14,23 @@ from yoyopod.backends.music.models import MusicConfig, Playlist, Track
 from yoyopod.core.workers import WorkerProcessConfig
 
 _STARTUP_COMMANDS = frozenset({"media.configure", "media.start"})
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedRemoteAsset:
+    path: str
+    cache_hit: bool
+
+
+@dataclass(slots=True)
+class _PendingWorkerRequest:
+    request_id: str
+    expected_type: str
+    timeout_seconds: float
+    send_lock: threading.Lock = field(default_factory=threading.Lock)
+    event: threading.Event = field(default_factory=threading.Event)
+    result: dict[str, Any] | None = None
+    error: BaseException | None = None
 
 
 class RustHostBackend:
@@ -27,6 +44,7 @@ class RustHostBackend:
         *,
         worker_supervisor: Any,
         worker_path: str,
+        scheduler: Any | None = None,
         domain: str = "media",
         env: dict[str, str] | None = None,
         cwd: str | None = None,
@@ -34,6 +52,7 @@ class RustHostBackend:
         self.config = config
         self.worker_supervisor = worker_supervisor
         self.worker_path = worker_path
+        self.scheduler = scheduler
         self.domain = domain
         self.env = env
         self.cwd = cwd
@@ -45,6 +64,8 @@ class RustHostBackend:
         self._registered_with_supervisor = False
         self._request_counter = 0
         self._pending_commands: dict[str, str] = {}
+        self._pending_requests: dict[str, _PendingWorkerRequest] = {}
+        self._request_lock = threading.Lock()
         self._startup_commands_sent = False
         self._ready_seen = False
         self._reconfigure_on_ready = False
@@ -222,6 +243,51 @@ class RustHostBackend:
     def menu_items(self) -> list[Any]:
         return list(self._menu_items)
 
+    def prepare_remote_playback_asset(
+        self,
+        *,
+        track_id: str,
+        media_url: str,
+        checksum_sha256: str | None = None,
+        extension: str = ".mp3",
+        timeout_seconds: float | None = None,
+    ) -> PreparedRemoteAsset:
+        payload = self._request_result(
+            "media.prepare_remote_asset",
+            {
+                "track_id": track_id,
+                "media_url": media_url,
+                "checksum_sha256": checksum_sha256,
+                "extension": extension,
+            },
+            timeout_seconds=timeout_seconds,
+        )
+        return PreparedRemoteAsset(
+            path=str(payload.get("path", "") or ""),
+            cache_hit=bool(payload.get("cache_hit", False)),
+        )
+
+    def import_remote_media_asset(
+        self,
+        *,
+        track_id: str,
+        cached_path: str,
+        title: str | None = None,
+        filename: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        payload = self._request_result(
+            "media.import_remote_asset",
+            {
+                "track_id": track_id,
+                "cached_path": cached_path,
+                "title": title,
+                "filename": filename,
+            },
+            timeout_seconds=timeout_seconds,
+        )
+        return str(payload.get("path", "") or "")
+
     def on_track_change(self, callback: Callable[[Track | None], None]) -> None:
         self._track_change_callbacks.append(callback)
 
@@ -240,9 +306,20 @@ class RustHostBackend:
         kind = getattr(event, "kind", "event")
         event_type = getattr(event, "type", "")
         if kind == "result":
+            if self._complete_pending_request_result(
+                request_id=request_id,
+                event_type=event_type,
+                payload=payload,
+            ):
+                return
             self._pending_commands.pop(request_id, None)
             return
         if kind == "error":
+            if self._complete_pending_request_error(
+                request_id=request_id,
+                payload=payload,
+            ):
+                return
             self._handle_worker_error(payload, request_id=request_id)
             return
         if kind != "event":
@@ -295,6 +372,72 @@ class RustHostBackend:
             self._pending_commands[request_id] = message_type
             return request_id
         return None
+
+    def _request_result(
+        self,
+        message_type: str,
+        payload: dict[str, Any],
+        *,
+        timeout_seconds: float | None,
+    ) -> dict[str, Any]:
+        scheduler = self.scheduler
+        send_request = getattr(self.worker_supervisor, "send_request", None)
+        if scheduler is None or not callable(getattr(scheduler, "run_on_main", None)):
+            raise RuntimeError("Rust media host scheduler is unavailable for blocking requests")
+        if not callable(send_request):
+            raise RuntimeError("Rust media host supervisor cannot send tracked requests")
+
+        main_thread_id = getattr(scheduler, "main_thread_id", None)
+        if main_thread_id is not None and threading.get_ident() == main_thread_id:
+            raise RuntimeError("Rust media host blocking requests cannot run on the main thread")
+
+        normalized_timeout = 30.0 if timeout_seconds is None else max(0.1, float(timeout_seconds))
+        request_id = self._next_request_id(message_type)
+        pending = _PendingWorkerRequest(
+            request_id=request_id,
+            expected_type=message_type,
+            timeout_seconds=normalized_timeout,
+        )
+        with self._request_lock:
+            self._pending_requests[request_id] = pending
+
+        def _send_on_main() -> None:
+            with pending.send_lock:
+                with self._request_lock:
+                    if self._pending_requests.get(request_id) is not pending:
+                        return
+                try:
+                    sent = bool(
+                        send_request(
+                            self.domain,
+                            type=message_type,
+                            payload=payload,
+                            request_id=request_id,
+                            timeout_seconds=normalized_timeout,
+                        )
+                    )
+                except Exception as exc:
+                    self._complete_pending_request_once(
+                        pending,
+                        error=RuntimeError(str(exc) or "media worker unavailable"),
+                    )
+                    return
+                if not sent:
+                    self._complete_pending_request_once(
+                        pending,
+                        error=RuntimeError("media worker unavailable"),
+                    )
+
+        scheduler.run_on_main(_send_on_main)
+        completed = pending.event.wait(normalized_timeout + 0.05)
+        with pending.send_lock:
+            with self._request_lock:
+                self._pending_requests.pop(request_id, None)
+        if not completed:
+            raise TimeoutError(f"media worker request {request_id} timed out")
+        if pending.error is not None:
+            raise pending.error
+        return pending.result or {}
 
     def _config_payload(self) -> dict[str, Any]:
         payload = asdict(self.config)
@@ -354,11 +497,19 @@ class RustHostBackend:
             finally:
                 self._stopping = was_stopping
         self._pending_commands.clear()
+        with self._request_lock:
+            pending_requests = list(self._pending_requests.values())
+            self._pending_requests.clear()
         self._startup_commands_sent = False
         self._ready_seen = False
         self._reconfigure_on_ready = False
         self._starting = False
         self.running = False
+        for pending in pending_requests:
+            self._complete_pending_request_once(
+                pending,
+                error=RuntimeError(reason),
+            )
         if notify_connection_change:
             self._mark_connection(False, reason)
 
@@ -405,6 +556,53 @@ class RustHostBackend:
         self._request_counter += 1
         command_name = message_type.replace(".", "_")
         return f"{self.domain}-{command_name}-{self._request_counter}"
+
+    def _complete_pending_request_result(
+        self,
+        *,
+        request_id: str | None,
+        event_type: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        if request_id is None:
+            return False
+        with self._request_lock:
+            pending = self._pending_requests.get(request_id)
+        if pending is None or pending.expected_type != event_type:
+            return False
+        self._complete_pending_request_once(pending, result=payload)
+        return True
+
+    def _complete_pending_request_error(
+        self,
+        *,
+        request_id: str | None,
+        payload: dict[str, Any],
+    ) -> bool:
+        if request_id is None:
+            return False
+        with self._request_lock:
+            pending = self._pending_requests.get(request_id)
+        if pending is None:
+            return False
+        self._complete_pending_request_once(
+            pending,
+            error=RuntimeError(_worker_error_reason(payload, command=pending.expected_type)),
+        )
+        return True
+
+    def _complete_pending_request_once(
+        self,
+        pending: _PendingWorkerRequest,
+        *,
+        result: dict[str, Any] | None = None,
+        error: BaseException | None = None,
+    ) -> None:
+        if pending.event.is_set():
+            return
+        pending.result = result
+        pending.error = error
+        pending.event.set()
 
 
 def _track_from_payload(value: object) -> Track | None:
@@ -524,4 +722,4 @@ def _worker_error_reason(payload: dict[str, Any], *, command: str | None) -> str
     return prefix
 
 
-__all__ = ["RustHostBackend"]
+__all__ = ["PreparedRemoteAsset", "RustHostBackend"]

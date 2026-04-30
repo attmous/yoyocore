@@ -43,6 +43,20 @@ class _FakeSupervisor:
         self.request_ids.append(request_id)
         return True
 
+    def send_request(
+        self,
+        domain: str,
+        *,
+        type: str,
+        payload: dict[str, Any],
+        request_id: str,
+        timeout_seconds: float,
+    ) -> bool:
+        del timeout_seconds
+        self.sent.append((domain, type, payload))
+        self.request_ids.append(request_id)
+        return True
+
 
 class _StrictSupervisor(_FakeSupervisor):
     def stop(self, domain: str, *, grace_seconds: float = 1.0) -> None:
@@ -70,6 +84,30 @@ def _event(message_type: str, payload: dict[str, Any], *, domain: str = "media")
 
 def _state(state: str, reason: str, *, domain: str = "media") -> Any:
     return SimpleNamespace(domain=domain, state=state, reason=reason)
+
+
+def _reply(
+    kind: str,
+    message_type: str,
+    payload: dict[str, Any],
+    *,
+    request_id: str | None,
+    domain: str = "media",
+) -> Any:
+    return SimpleNamespace(
+        domain=domain,
+        kind=kind,
+        type=message_type,
+        request_id=request_id,
+        payload=payload,
+    )
+
+
+class _InlineScheduler:
+    main_thread_id = 0
+
+    def run_on_main(self, callback) -> None:
+        callback()
 
 
 def test_start_registers_worker_and_sends_configure_start() -> None:
@@ -261,3 +299,83 @@ def test_wrong_domain_worker_messages_are_ignored() -> None:
 
     assert backend.is_connected is False
     assert backend.get_current_track() is None
+
+
+def test_prepare_remote_playback_asset_waits_for_worker_result() -> None:
+    supervisor = _FakeSupervisor()
+    backend = RustHostBackend(
+        _config(),
+        worker_supervisor=supervisor,
+        worker_path="/bin/media",
+        scheduler=_InlineScheduler(),
+    )
+    result: dict[str, object] = {}
+
+    def _run() -> None:
+        result["asset"] = backend.prepare_remote_playback_asset(
+            track_id="track-1",
+            media_url="https://media.example.test/track.mp3",
+            checksum_sha256="abc123",
+            extension=".mp3",
+        )
+
+    import threading
+    import time
+
+    thread = threading.Thread(target=_run)
+    thread.start()
+    deadline = time.monotonic() + 1.0
+    while not supervisor.request_ids and time.monotonic() < deadline:
+        time.sleep(0.01)
+    backend.handle_worker_message(
+        _reply(
+            "result",
+            "media.prepare_remote_asset",
+            {"path": "/tmp/cached-track.mp3", "cache_hit": False},
+            request_id=supervisor.request_ids[-1],
+        )
+    )
+    thread.join(timeout=1.0)
+
+    asset = result["asset"]
+    assert getattr(asset, "path") == "/tmp/cached-track.mp3"
+    assert getattr(asset, "cache_hit") is False
+
+
+def test_import_remote_media_asset_waits_for_worker_result() -> None:
+    supervisor = _FakeSupervisor()
+    backend = RustHostBackend(
+        _config(),
+        worker_supervisor=supervisor,
+        worker_path="/bin/media",
+        scheduler=_InlineScheduler(),
+    )
+    result: dict[str, object] = {}
+
+    def _run() -> None:
+        result["path"] = backend.import_remote_media_asset(
+            track_id="track-2",
+            cached_path="/tmp/cached-track.mp3",
+            title="Track Two",
+            filename="track-two.mp3",
+        )
+
+    import threading
+    import time
+
+    thread = threading.Thread(target=_run)
+    thread.start()
+    deadline = time.monotonic() + 1.0
+    while not supervisor.request_ids and time.monotonic() < deadline:
+        time.sleep(0.01)
+    backend.handle_worker_message(
+        _reply(
+            "result",
+            "media.import_remote_asset",
+            {"path": "/music/dashboard_uploads/Track-Two-track-2.mp3"},
+            request_id=supervisor.request_ids[-1],
+        )
+    )
+    thread.join(timeout=1.0)
+
+    assert result["path"] == "/music/dashboard_uploads/Track-Two-track-2.mp3"

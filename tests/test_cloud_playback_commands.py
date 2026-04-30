@@ -65,6 +65,53 @@ class _FakeMusicBackend:
             callback(state)
 
 
+class _FakeRustMusicBackend(_FakeMusicBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.prepare_calls: list[dict[str, object]] = []
+        self.import_calls: list[dict[str, object]] = []
+
+    def prepare_remote_playback_asset(
+        self,
+        *,
+        track_id: str,
+        media_url: str,
+        checksum_sha256: str | None = None,
+        extension: str = ".mp3",
+        timeout_seconds: float | None = None,
+    ):
+        self.prepare_calls.append(
+            {
+                "track_id": track_id,
+                "media_url": media_url,
+                "checksum_sha256": checksum_sha256,
+                "extension": extension,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return SimpleNamespace(path="/tmp/rust-cached-track.mp3", cache_hit=False)
+
+    def import_remote_media_asset(
+        self,
+        *,
+        track_id: str,
+        cached_path: str,
+        title: str | None = None,
+        filename: str | None = None,
+        timeout_seconds: float | None = None,
+    ) -> str:
+        self.import_calls.append(
+            {
+                "track_id": track_id,
+                "cached_path": cached_path,
+                "title": title,
+                "filename": filename,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return "/music/dashboard_uploads/Track-Seven-track-7.mp3"
+
+
 class _FakeConfigManager:
     def __init__(self) -> None:
         backend = SimpleNamespace(
@@ -477,3 +524,98 @@ def test_store_media_keeps_distinct_files_for_same_title(tmp_path) -> None:
     assert imported_paths[0] != imported_paths[1]
     assert imported_paths[0].endswith("Shared-Name-track-10.mp3")
     assert imported_paths[1].endswith("Shared-Name-track-11.mp3")
+
+
+def test_play_track_command_prefers_rust_media_host_asset_prepare() -> None:
+    music_backend = _FakeRustMusicBackend()
+    manager = CloudManager(
+        app=_FakeApp(music_backend),
+        config_manager=_FakeConfigManager(),
+        client=SimpleNamespace(),
+    )
+    manager._mqtt = _FakeMqttClient()
+    manager._remote_playback_cache = _FakePlaybackCache()
+    manager._bind_playback_callbacks()
+    manager._start_worker = lambda *, name, work: work()  # type: ignore[method-assign]
+    manager._start_media_worker = lambda *, name, work: work()  # type: ignore[method-assign]
+
+    manager._apply_mqtt_command(
+        {
+            "messageType": "playback.command",
+            "commandId": "cmd-rust-1",
+            "command": "play_track",
+            "payload": {
+                "trackId": "track-rust-1",
+                "mediaUrl": "https://media.example.test/file.mp3",
+                "checksumSha256": "abc123",
+            },
+        }
+    )
+
+    assert music_backend.prepare_calls == [
+        {
+            "track_id": "track-rust-1",
+            "media_url": "https://media.example.test/file.mp3",
+            "checksum_sha256": "abc123",
+            "extension": ".mp3",
+            "timeout_seconds": None,
+        }
+    ]
+    assert manager._remote_playback_cache.calls == []
+    assert music_backend.loaded == [["/tmp/rust-cached-track.mp3"]]
+
+
+def test_store_media_command_prefers_rust_media_host_import(tmp_path) -> None:
+    music_backend = _FakeRustMusicBackend()
+    config_manager = _FakeConfigManager()
+    config_manager.get_media_settings = lambda: SimpleNamespace(  # type: ignore[method-assign]
+        music=SimpleNamespace(
+            remote_cache_dir=str(tmp_path / "cache"),
+            remote_cache_max_bytes=64 * 1024 * 1024,
+            music_dir=str(tmp_path / "Music"),
+        )
+    )
+    manager = CloudManager(
+        app=_FakeApp(music_backend),
+        config_manager=config_manager,
+        client=SimpleNamespace(),
+    )
+    manager._mqtt = _FakeMqttClient()
+    manager._remote_playback_cache = _FakePlaybackCache()
+    manager._start_worker = lambda *, name, work: work()  # type: ignore[method-assign]
+    manager._start_media_worker = lambda *, name, work: work()  # type: ignore[method-assign]
+
+    manager._apply_mqtt_command(
+        {
+            "commandId": "cmd-rust-2",
+            "command": "store_media",
+            "payload": {
+                "trackId": "track-7",
+                "mediaUrl": "https://media.example.test/file.mp3",
+                "title": "Track Seven",
+                "filename": "track-seven.mp3",
+            },
+        }
+    )
+
+    assert music_backend.prepare_calls == [
+        {
+            "track_id": "track-7",
+            "media_url": "https://media.example.test/file.mp3",
+            "checksum_sha256": None,
+            "extension": ".mp3",
+            "timeout_seconds": None,
+        }
+    ]
+    assert music_backend.import_calls == [
+        {
+            "track_id": "track-7",
+            "cached_path": "/tmp/rust-cached-track.mp3",
+            "title": "Track Seven",
+            "filename": "track-seven.mp3",
+            "timeout_seconds": None,
+        }
+    ]
+    assert manager._mqtt.events[-1]["payload"]["payload"]["path"] == (
+        "/music/dashboard_uploads/Track-Seven-track-7.mp3"
+    )

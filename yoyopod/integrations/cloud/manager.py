@@ -1348,7 +1348,7 @@ class CloudManager:
         activation_generation: int,
     ) -> None:
         try:
-            cached_asset = self._remote_playback_cache.prepare(
+            cached_asset = self._prepare_remote_playback_asset_for_media_backend(
                 track_id=track_id,
                 media_url=media_url,
                 checksum_sha256=checksum_sha256,
@@ -1492,14 +1492,14 @@ class CloudManager:
         payload: dict[str, Any],
     ) -> None:
         try:
-            cached_asset = self._remote_playback_cache.prepare(
+            cached_asset = self._prepare_remote_playback_asset_for_media_backend(
                 track_id=track_id,
                 media_url=media_url,
                 checksum_sha256=checksum_sha256,
             )
-            target_path = self._persist_device_media_asset(
+            target_path = self._import_remote_media_asset_for_media_backend(
                 track_id=track_id,
-                cached_path=Path(cached_asset.path),
+                cached_path=str(cached_asset.path),
                 payload=payload,
             )
         except Exception as exc:
@@ -1521,12 +1521,69 @@ class CloudManager:
             )
         )
 
+    def _prepare_remote_playback_asset_for_media_backend(
+        self,
+        *,
+        track_id: str,
+        media_url: str,
+        checksum_sha256: str | None,
+    ) -> Any:
+        music_backend = getattr(self.app, "music_backend", None)
+        prepare_remote_playback_asset = getattr(
+            music_backend,
+            "prepare_remote_playback_asset",
+            None,
+        )
+        if callable(prepare_remote_playback_asset):
+            return prepare_remote_playback_asset(
+                track_id=track_id,
+                media_url=media_url,
+                checksum_sha256=checksum_sha256,
+                extension=self._remote_media_extension(media_url),
+            )
+        return self._remote_playback_cache.prepare(
+            track_id=track_id,
+            media_url=media_url,
+            checksum_sha256=checksum_sha256,
+        )
+
+    def _import_remote_media_asset_for_media_backend(
+        self,
+        *,
+        track_id: str,
+        cached_path: str,
+        payload: dict[str, Any],
+    ) -> str:
+        music_backend = getattr(self.app, "music_backend", None)
+        import_remote_media_asset = getattr(
+            music_backend,
+            "import_remote_media_asset",
+            None,
+        )
+        if callable(import_remote_media_asset):
+            return import_remote_media_asset(
+                track_id=track_id,
+                cached_path=cached_path,
+                title=str(payload.get("title") or "").strip() or None,
+                filename=str(
+                    payload.get("filename") or payload.get("originalFilename") or ""
+                ).strip()
+                or None,
+            )
+        return str(
+            self._persist_device_media_asset(
+                track_id=track_id,
+                cached_path=Path(cached_path),
+                payload=payload,
+            )
+        )
+
     def _complete_store_media_command(
         self,
         *,
         command_id: str,
         track_id: str,
-        target_path: Path | None = None,
+        target_path: Path | str | None = None,
         error: Exception | None = None,
     ) -> None:
         if error is not None or target_path is None:
@@ -1627,6 +1684,11 @@ class CloudManager:
     def _safe_media_suffix(suffix: str) -> str:
         safe_suffix = suffix if suffix.startswith(".") else f".{suffix}"
         return safe_suffix[:16]
+
+    @staticmethod
+    def _remote_media_extension(media_url: str) -> str:
+        suffix = Path(urlparse(media_url).path).suffix
+        return suffix or ".mp3"
 
     def _is_backend_configured(self) -> bool:
         return bool(self.config_manager.get_cloud_settings().backend.api_base_url.strip())

@@ -1294,10 +1294,18 @@ def test_rust_media_host_backend_is_default_and_receives_worker_supervisor(
     class _FakeRustMediaBackend:
         owns_library_state = True
 
-        def __init__(self, config, *, worker_supervisor, worker_path) -> None:
+        def __init__(
+            self,
+            config,
+            *,
+            worker_supervisor,
+            worker_path,
+            scheduler,
+        ) -> None:
             captured_backend["config"] = config
             captured_backend["worker_supervisor"] = worker_supervisor
             captured_backend["worker_path"] = worker_path
+            captured_backend["scheduler"] = scheduler
             self.is_connected = False
 
     class _FakeLocalMusicService:
@@ -1373,6 +1381,7 @@ def test_rust_media_host_backend_is_default_and_receives_worker_supervisor(
     assert service.init_managers() is True
     assert captured_backend["worker_supervisor"] is app.worker_supervisor
     assert captured_backend["worker_path"] == "/bin/yoyopod-media-host"
+    assert captured_backend["scheduler"] is app.scheduler
     assert captured_backend["service_backend"] is app.music_backend
     assert captured_backend["output_backend"] is app.music_backend
 
