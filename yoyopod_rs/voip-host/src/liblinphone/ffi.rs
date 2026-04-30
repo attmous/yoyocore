@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_float, c_int, c_void};
 use std::sync::Arc;
 
@@ -101,6 +102,9 @@ pub type ChatRoomEventLogReceivedCb =
     Option<unsafe extern "C" fn(*mut LinphoneChatRoom, *mut LinphoneEventLog)>;
 
 unsafe extern "C" {
+    #[cfg(unix)]
+    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+
     fn linphone_factory_get() -> *mut LinphoneFactory;
     fn linphone_factory_create_core_3(
         factory: *mut LinphoneFactory,
@@ -134,10 +138,6 @@ unsafe extern "C" {
         cbs: *mut LinphoneCoreCbs,
         callback: CoreMessageReceivedCb,
     );
-    fn linphone_core_cbs_set_message_received_unable_decrypt(
-        cbs: *mut LinphoneCoreCbs,
-        callback: CoreMessageUnableDecryptCb,
-    );
     fn linphone_core_add_callbacks(core: *mut LinphoneCore, cbs: *mut LinphoneCoreCbs);
     fn linphone_core_start(core: *mut LinphoneCore) -> c_int;
     fn linphone_core_stop(core: *mut LinphoneCore);
@@ -165,11 +165,6 @@ unsafe extern "C" {
     fn linphone_core_set_nat_policy(core: *mut LinphoneCore, policy: *mut LinphoneNatPolicy);
     fn linphone_core_set_stun_server(core: *mut LinphoneCore, server: *const c_char);
     fn linphone_core_set_file_transfer_server(core: *mut LinphoneCore, server: *const c_char);
-    fn linphone_core_enable_lime_x3dh(core: *mut LinphoneCore, enabled: c_int);
-    fn linphone_core_get_im_notif_policy(core: *mut LinphoneCore) -> *mut LinphoneImNotifPolicy;
-    fn linphone_core_add_linphone_spec(core: *mut LinphoneCore, spec: *const c_char);
-    fn linphone_core_set_chat_messages_aggregation_enabled(core: *mut LinphoneCore, enabled: c_int);
-    fn linphone_core_enable_auto_download_voice_recordings(core: *mut LinphoneCore, enabled: c_int);
     fn linphone_core_create_account_params(core: *mut LinphoneCore) -> *mut LinphoneAccountParams;
     fn linphone_core_create_account(
         core: *mut LinphoneCore,
@@ -191,12 +186,6 @@ unsafe extern "C" {
         core: *mut LinphoneCore,
         uri: *const c_char,
     ) -> *mut LinphoneChatRoom;
-    fn linphone_core_create_recorder_params(core: *mut LinphoneCore)
-        -> *mut LinphoneRecorderParams;
-    fn linphone_core_create_recorder(
-        core: *mut LinphoneCore,
-        params: *mut LinphoneRecorderParams,
-    ) -> *mut LinphoneRecorder;
     fn linphone_account_params_set_server_address(
         params: *mut LinphoneAccountParams,
         address: *mut LinphoneAddress,
@@ -206,26 +195,6 @@ unsafe extern "C" {
         address: *mut LinphoneAddress,
     ) -> c_int;
     fn linphone_account_params_enable_register(params: *mut LinphoneAccountParams, enabled: c_int);
-    fn linphone_account_params_enable_cpim_in_basic_chat_room(
-        params: *mut LinphoneAccountParams,
-        enabled: c_int,
-    );
-    fn linphone_account_params_set_conference_factory_address(
-        params: *mut LinphoneAccountParams,
-        address: *mut LinphoneAddress,
-    );
-    fn linphone_account_params_set_audio_video_conference_factory_address(
-        params: *mut LinphoneAccountParams,
-        address: *mut LinphoneAddress,
-    );
-    fn linphone_account_params_set_file_transfer_server(
-        params: *mut LinphoneAccountParams,
-        server: *const c_char,
-    );
-    fn linphone_account_params_set_lime_server_url(
-        params: *mut LinphoneAccountParams,
-        url: *const c_char,
-    );
     fn linphone_account_cbs_new() -> *mut LinphoneAccountCbs;
     fn linphone_account_cbs_set_registration_state_changed(
         cbs: *mut LinphoneAccountCbs,
@@ -253,21 +222,9 @@ unsafe extern "C" {
         chat_room: *mut LinphoneChatRoom,
         text: *const c_char,
     ) -> *mut LinphoneChatMessage;
-    fn linphone_chat_room_create_voice_recording_message(
-        chat_room: *mut LinphoneChatRoom,
-        recorder: *mut LinphoneRecorder,
-    ) -> *mut LinphoneChatMessage;
     fn linphone_chat_room_cbs_set_message_received(
         cbs: *mut LinphoneChatRoomCbs,
         callback: ChatRoomMessageReceivedCb,
-    );
-    fn linphone_chat_room_cbs_set_messages_received(
-        cbs: *mut LinphoneChatRoomCbs,
-        callback: ChatRoomMessagesReceivedCb,
-    );
-    fn linphone_chat_room_cbs_set_chat_message_received(
-        cbs: *mut LinphoneChatRoomCbs,
-        callback: ChatRoomEventLogReceivedCb,
     );
     fn linphone_chat_message_cbs_new() -> *mut LinphoneChatMessageCbs;
     fn linphone_chat_message_cbs_unref(cbs: *mut LinphoneChatMessageCbs);
@@ -283,8 +240,6 @@ unsafe extern "C" {
     fn linphone_chat_message_get_message_id(message: *mut LinphoneChatMessage) -> *const c_char;
     fn linphone_chat_message_get_user_data(message: *mut LinphoneChatMessage) -> *mut c_void;
     fn linphone_chat_message_set_user_data(message: *mut LinphoneChatMessage, data: *mut c_void);
-    fn linphone_chat_message_get_utf8_text(message: *const LinphoneChatMessage) -> *const c_char;
-    fn linphone_chat_message_get_text(message: *const LinphoneChatMessage) -> *const c_char;
     fn linphone_chat_message_get_file_transfer_information(
         message: *mut LinphoneChatMessage,
     ) -> *mut LinphoneContent;
@@ -311,25 +266,11 @@ unsafe extern "C" {
     fn linphone_content_set_file_path(content: *mut LinphoneContent, path: *const c_char);
     fn linphone_core_cbs_unref(cbs: *mut LinphoneCoreCbs);
     fn linphone_chat_room_cbs_unref(cbs: *mut LinphoneChatRoomCbs);
-    fn linphone_event_log_get_chat_message(
-        event_log: *mut LinphoneEventLog,
-    ) -> *mut LinphoneChatMessage;
-    fn linphone_im_notif_policy_enable_all(policy: *mut LinphoneImNotifPolicy);
     fn linphone_nat_policy_enable_stun(policy: *mut LinphoneNatPolicy, enabled: c_int);
     fn linphone_nat_policy_enable_ice(policy: *mut LinphoneNatPolicy, enabled: c_int);
     fn linphone_nat_policy_set_stun_server(policy: *mut LinphoneNatPolicy, server: *const c_char);
     fn linphone_nat_policy_unref(policy: *mut LinphoneNatPolicy);
-    fn linphone_recorder_params_set_file_format(params: *mut LinphoneRecorderParams, format: c_int);
-    fn linphone_recorder_params_unref(params: *mut LinphoneRecorderParams);
-    fn linphone_recorder_open(recorder: *mut LinphoneRecorder, path: *const c_char) -> c_int;
-    fn linphone_recorder_start(recorder: *mut LinphoneRecorder) -> c_int;
-    fn linphone_recorder_pause(recorder: *mut LinphoneRecorder) -> c_int;
-    fn linphone_recorder_get_duration(recorder: *mut LinphoneRecorder) -> c_int;
-    fn linphone_recorder_close(recorder: *mut LinphoneRecorder) -> c_int;
-    fn linphone_recorder_unref(recorder: *mut LinphoneRecorder);
     fn linphone_core_get_version() -> *const c_char;
-    fn linphone_registration_state_to_string(state: c_int) -> *const c_char;
-    fn linphone_call_state_to_string(state: c_int) -> *const c_char;
 }
 
 pub struct LinphoneApi {
@@ -527,9 +468,9 @@ impl LinphoneApi {
             factory_create_auth_info_2: linphone_factory_create_auth_info_2,
             core_cbs_set_call_state_changed: linphone_core_cbs_set_call_state_changed,
             core_cbs_set_message_received: linphone_core_cbs_set_message_received,
-            core_cbs_set_message_received_unable_decrypt: Some(
-                linphone_core_cbs_set_message_received_unable_decrypt,
-            ),
+            core_cbs_set_message_received_unable_decrypt: unsafe {
+                optional_symbol(c"linphone_core_cbs_set_message_received_unable_decrypt")
+            },
             core_add_callbacks: linphone_core_add_callbacks,
             core_start: linphone_core_start,
             core_stop: linphone_core_stop,
@@ -549,15 +490,17 @@ impl LinphoneApi {
             core_set_nat_policy: linphone_core_set_nat_policy,
             core_set_stun_server: linphone_core_set_stun_server,
             core_set_file_transfer_server: linphone_core_set_file_transfer_server,
-            core_enable_lime_x3dh: Some(linphone_core_enable_lime_x3dh),
-            core_get_im_notif_policy: Some(linphone_core_get_im_notif_policy),
-            core_add_linphone_spec: Some(linphone_core_add_linphone_spec),
-            core_set_chat_messages_aggregation_enabled: Some(
-                linphone_core_set_chat_messages_aggregation_enabled,
-            ),
-            core_enable_auto_download_voice_recordings: Some(
-                linphone_core_enable_auto_download_voice_recordings,
-            ),
+            core_enable_lime_x3dh: unsafe { optional_symbol(c"linphone_core_enable_lime_x3dh") },
+            core_get_im_notif_policy: unsafe {
+                optional_symbol(c"linphone_core_get_im_notif_policy")
+            },
+            core_add_linphone_spec: unsafe { optional_symbol(c"linphone_core_add_linphone_spec") },
+            core_set_chat_messages_aggregation_enabled: unsafe {
+                optional_symbol(c"linphone_core_set_chat_messages_aggregation_enabled")
+            },
+            core_enable_auto_download_voice_recordings: unsafe {
+                optional_symbol(c"linphone_core_enable_auto_download_voice_recordings")
+            },
             core_create_account_params: linphone_core_create_account_params,
             core_create_account: linphone_core_create_account,
             core_add_account: linphone_core_add_account,
@@ -566,24 +509,30 @@ impl LinphoneApi {
             core_create_call_params: linphone_core_create_call_params,
             core_invite_address_with_params: linphone_core_invite_address_with_params,
             core_get_chat_room_from_uri: linphone_core_get_chat_room_from_uri,
-            core_create_recorder_params: Some(linphone_core_create_recorder_params),
-            core_create_recorder: Some(linphone_core_create_recorder),
+            core_create_recorder_params: unsafe {
+                optional_symbol(c"linphone_core_create_recorder_params")
+            },
+            core_create_recorder: unsafe { optional_symbol(c"linphone_core_create_recorder") },
             account_params_set_server_address: linphone_account_params_set_server_address,
             account_params_set_identity_address: linphone_account_params_set_identity_address,
             account_params_enable_register: linphone_account_params_enable_register,
-            account_params_enable_cpim_in_basic_chat_room: Some(
-                linphone_account_params_enable_cpim_in_basic_chat_room,
-            ),
-            account_params_set_conference_factory_address: Some(
-                linphone_account_params_set_conference_factory_address,
-            ),
-            account_params_set_audio_video_conference_factory_address: Some(
-                linphone_account_params_set_audio_video_conference_factory_address,
-            ),
-            account_params_set_file_transfer_server: Some(
-                linphone_account_params_set_file_transfer_server,
-            ),
-            account_params_set_lime_server_url: Some(linphone_account_params_set_lime_server_url),
+            account_params_enable_cpim_in_basic_chat_room: unsafe {
+                optional_symbol(c"linphone_account_params_enable_cpim_in_basic_chat_room")
+            },
+            account_params_set_conference_factory_address: unsafe {
+                optional_symbol(c"linphone_account_params_set_conference_factory_address")
+            },
+            account_params_set_audio_video_conference_factory_address: unsafe {
+                optional_symbol(
+                    c"linphone_account_params_set_audio_video_conference_factory_address",
+                )
+            },
+            account_params_set_file_transfer_server: unsafe {
+                optional_symbol(c"linphone_account_params_set_file_transfer_server")
+            },
+            account_params_set_lime_server_url: unsafe {
+                optional_symbol(c"linphone_account_params_set_lime_server_url")
+            },
             account_cbs_new: linphone_account_cbs_new,
             account_cbs_set_registration_state_changed:
                 linphone_account_cbs_set_registration_state_changed,
@@ -603,14 +552,16 @@ impl LinphoneApi {
             call_set_microphone_muted: linphone_call_set_microphone_muted,
             chat_room_add_callbacks: linphone_chat_room_add_callbacks,
             chat_room_create_message_from_utf8: linphone_chat_room_create_message_from_utf8,
-            chat_room_create_voice_recording_message: Some(
-                linphone_chat_room_create_voice_recording_message,
-            ),
+            chat_room_create_voice_recording_message: unsafe {
+                optional_symbol(c"linphone_chat_room_create_voice_recording_message")
+            },
             chat_room_cbs_set_message_received: linphone_chat_room_cbs_set_message_received,
-            chat_room_cbs_set_messages_received: Some(linphone_chat_room_cbs_set_messages_received),
-            chat_room_cbs_set_chat_message_received: Some(
-                linphone_chat_room_cbs_set_chat_message_received,
-            ),
+            chat_room_cbs_set_messages_received: unsafe {
+                optional_symbol(c"linphone_chat_room_cbs_set_messages_received")
+            },
+            chat_room_cbs_set_chat_message_received: unsafe {
+                optional_symbol(c"linphone_chat_room_cbs_set_chat_message_received")
+            },
             chat_message_cbs_new: linphone_chat_message_cbs_new,
             chat_message_cbs_unref: linphone_chat_message_cbs_unref,
             chat_message_cbs_set_msg_state_changed: linphone_chat_message_cbs_set_msg_state_changed,
@@ -619,8 +570,10 @@ impl LinphoneApi {
             chat_message_get_message_id: linphone_chat_message_get_message_id,
             chat_message_get_user_data: linphone_chat_message_get_user_data,
             chat_message_set_user_data: linphone_chat_message_set_user_data,
-            chat_message_get_utf8_text: Some(linphone_chat_message_get_utf8_text),
-            chat_message_get_text: Some(linphone_chat_message_get_text),
+            chat_message_get_utf8_text: unsafe {
+                optional_symbol(c"linphone_chat_message_get_utf8_text")
+            },
+            chat_message_get_text: unsafe { optional_symbol(c"linphone_chat_message_get_text") },
             chat_message_get_file_transfer_information:
                 linphone_chat_message_get_file_transfer_information,
             chat_message_get_state: linphone_chat_message_get_state,
@@ -637,23 +590,46 @@ impl LinphoneApi {
             content_set_file_path: linphone_content_set_file_path,
             core_cbs_unref: linphone_core_cbs_unref,
             chat_room_cbs_unref: linphone_chat_room_cbs_unref,
-            event_log_get_chat_message: Some(linphone_event_log_get_chat_message),
-            im_notif_policy_enable_all: Some(linphone_im_notif_policy_enable_all),
+            event_log_get_chat_message: unsafe {
+                optional_symbol(c"linphone_event_log_get_chat_message")
+            },
+            im_notif_policy_enable_all: unsafe {
+                optional_symbol(c"linphone_im_notif_policy_enable_all")
+            },
             nat_policy_enable_stun: linphone_nat_policy_enable_stun,
             nat_policy_enable_ice: linphone_nat_policy_enable_ice,
             nat_policy_set_stun_server: linphone_nat_policy_set_stun_server,
             nat_policy_unref: linphone_nat_policy_unref,
-            recorder_params_set_file_format: Some(linphone_recorder_params_set_file_format),
-            recorder_params_unref: Some(linphone_recorder_params_unref),
-            recorder_open: Some(linphone_recorder_open),
-            recorder_start: Some(linphone_recorder_start),
-            recorder_pause: Some(linphone_recorder_pause),
-            recorder_get_duration: Some(linphone_recorder_get_duration),
-            recorder_close: Some(linphone_recorder_close),
-            recorder_unref: Some(linphone_recorder_unref),
+            recorder_params_set_file_format: unsafe {
+                optional_symbol(c"linphone_recorder_params_set_file_format")
+            },
+            recorder_params_unref: unsafe { optional_symbol(c"linphone_recorder_params_unref") },
+            recorder_open: unsafe { optional_symbol(c"linphone_recorder_open") },
+            recorder_start: unsafe { optional_symbol(c"linphone_recorder_start") },
+            recorder_pause: unsafe { optional_symbol(c"linphone_recorder_pause") },
+            recorder_get_duration: unsafe { optional_symbol(c"linphone_recorder_get_duration") },
+            recorder_close: unsafe { optional_symbol(c"linphone_recorder_close") },
+            recorder_unref: unsafe { optional_symbol(c"linphone_recorder_unref") },
             core_get_version: linphone_core_get_version,
-            registration_state_to_string: Some(linphone_registration_state_to_string),
-            call_state_to_string: Some(linphone_call_state_to_string),
+            registration_state_to_string: unsafe {
+                optional_symbol(c"linphone_registration_state_to_string")
+            },
+            call_state_to_string: unsafe { optional_symbol(c"linphone_call_state_to_string") },
         }))
     }
+}
+
+#[cfg(unix)]
+unsafe fn optional_symbol<T: Copy>(name: &CStr) -> Option<T> {
+    let symbol = unsafe { dlsym(std::ptr::null_mut(), name.as_ptr()) };
+    if symbol.is_null() {
+        return None;
+    }
+    debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<*mut c_void>());
+    Some(unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) })
+}
+
+#[cfg(not(unix))]
+unsafe fn optional_symbol<T>(_name: &CStr) -> Option<T> {
+    None
 }
