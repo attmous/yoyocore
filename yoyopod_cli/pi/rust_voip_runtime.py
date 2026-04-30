@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,15 +21,6 @@ def rust_voip_worker_path() -> str:
     ).strip()
 
 
-def rust_liblinphone_shim_path() -> Path:
-    file_name = (
-        "yoyopod_liblinphone_shim.dll" if os.name == "nt" else "libyoyopod_liblinphone_shim.so"
-    )
-    if sys.platform == "darwin":
-        file_name = "libyoyopod_liblinphone_shim.dylib"
-    return REPO_ROOT / "yoyopod_rs" / "liblinphone-shim" / "build" / file_name
-
-
 def assert_rust_voip_artifacts_present() -> None:
     missing: list[Path] = []
     worker_path = Path(rust_voip_worker_path())
@@ -38,13 +28,10 @@ def assert_rust_voip_artifacts_present() -> None:
         worker_path = REPO_ROOT / worker_path
     if not worker_path.is_file():
         missing.append(worker_path)
-    shim_path = rust_liblinphone_shim_path()
-    if not shim_path.is_file():
-        missing.append(shim_path)
     if missing:
         details = "\n".join(f"- {path}" for path in missing)
         raise RuntimeError(
-            "Rust VoIP artifacts are missing. Download the GitHub Actions artifacts "
+            "Rust VoIP host artifact is missing. Download the GitHub Actions artifact "
             "for the exact commit under test; do not build Rust binaries on the Pi.\n"
             f"{details}"
         )

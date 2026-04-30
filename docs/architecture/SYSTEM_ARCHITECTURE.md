@@ -157,7 +157,7 @@ yoyopod.py / yoyopod.main
       -> VoIPManager
          -> RustHostBackend
             -> yoyopod_rs/voip-host worker
-               -> Rust liblinphone shim
+               -> internal Rust Liblinphone runtime
                   -> Liblinphone
       -> PowerManager
          -> PiSugarBackend

@@ -1,84 +1,111 @@
 use anyhow::{anyhow, Result};
 use serde_json::json;
-use std::io::{self, BufRead, Write};
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, OnceLock};
+use std::io::{BufRead, Write};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use std::thread;
 use std::time::Duration;
 
-#[cfg(unix)]
-use std::fs::File;
-#[cfg(unix)]
-use std::os::fd::FromRawFd;
-#[cfg(unix)]
-use std::os::raw::c_int;
-
 use crate::config::VoipConfig;
-use crate::host::{self, VoipHost};
+use crate::host::{self, VoipHost, VoipRuntimeBackend};
 use crate::protocol::WorkerEnvelope;
-use crate::shim;
 
-pub fn run(explicit_shim_path: Option<&str>) -> Result<()> {
-    init_protocol_stdout()?;
-    let mut host = VoipHost::default();
-    let mut backend: Option<shim::ShimBackend> = None;
-
-    write_envelope(&WorkerEnvelope::event(
-        "voip.ready",
-        json!({"capabilities":["calls", "text_messages", "voice_notes"]}),
-    ))?;
-
-    let (stdin_tx, stdin_rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let stdin = io::stdin();
-        for line in stdin.lock().lines() {
-            if stdin_tx.send(line).is_err() {
-                break;
-            }
-        }
-    });
+pub fn run_worker<R, W, E, B>(
+    input: R,
+    output: &mut W,
+    _errors: &mut E,
+    host: &mut VoipHost,
+    backend: &mut B,
+) -> Result<()>
+where
+    R: BufRead + Send + 'static,
+    W: Write + ?Sized,
+    E: Write + ?Sized,
+    B: VoipRuntimeBackend,
+{
+    let mut backend_state = AttachedBackend::new(backend);
+    let input = spawn_input_reader(input);
+    write_envelope_to(
+        output,
+        &WorkerEnvelope::event(
+            "voip.ready",
+            json!({"capabilities":["calls", "text_messages", "voice_notes"]}),
+        ),
+    )?;
 
     loop {
-        match stdin_rx.recv_timeout(next_loop_timeout(&host, backend.is_some())) {
-            Ok(Ok(line)) => {
-                if !line.trim().is_empty() {
-                    let envelope = match WorkerEnvelope::decode(line.as_bytes()) {
-                        Ok(envelope) => envelope,
-                        Err(error) => {
-                            write_envelope(&WorkerEnvelope::error(
-                                "voip.error",
-                                None,
-                                "protocol_error",
-                                error.to_string(),
-                            ))?;
-                            poll_backend(&mut host, &mut backend)?;
-                            continue;
-                        }
-                    };
-
-                    let request_id = envelope.request_id.clone();
-                    match handle_command(envelope, &mut host, &mut backend, explicit_shim_path) {
-                        Ok(LoopAction::Continue) => {}
-                        Ok(LoopAction::Shutdown) => break,
-                        Err(error) => {
-                            write_envelope(&WorkerEnvelope::error(
-                                "voip.error",
-                                request_id,
-                                "command_failed",
-                                error.to_string(),
-                            ))?;
-                        }
-                    }
-                }
-                poll_backend(&mut host, &mut backend)?;
-            }
-            Ok(Err(error)) => return Err(error.into()),
+        let poll_interval = Duration::from_millis(host.iterate_interval_ms().max(1));
+        let line = match input.recv_timeout(poll_interval) {
+            Ok(InputLine::Line(line)) => line,
+            Ok(InputLine::ReadError(error)) => return Err(anyhow!(error)),
+            Ok(InputLine::Eof) => break,
             Err(RecvTimeoutError::Timeout) => {
-                poll_backend(&mut host, &mut backend)?;
+                poll_worker_backend(host, &mut backend_state, output)?;
+                continue;
             }
             Err(RecvTimeoutError::Disconnected) => break,
+        };
+        if line.trim().is_empty() {
+            poll_worker_backend(host, &mut backend_state, output)?;
+            continue;
         }
+        let envelope = match WorkerEnvelope::decode(line.as_bytes()) {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error("voip.error", None, "protocol_error", error.to_string()),
+                )?;
+                poll_worker_backend(host, &mut backend_state, output)?;
+                continue;
+            }
+        };
+
+        let request_id = envelope.request_id.clone();
+        match handle_worker_command(envelope, host, &mut backend_state, output) {
+            Ok(LoopAction::Continue) => {}
+            Ok(LoopAction::Shutdown) => break,
+            Err(error) => {
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        request_id,
+                        "command_failed",
+                        error.to_string(),
+                    ),
+                )?;
+            }
+        }
+        poll_worker_backend(host, &mut backend_state, output)?;
     }
     Ok(())
+}
+
+enum InputLine {
+    Line(String),
+    ReadError(String),
+    Eof,
+}
+
+fn spawn_input_reader<R>(input: R) -> Receiver<InputLine>
+where
+    R: BufRead + Send + 'static,
+{
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        for line in input.lines() {
+            let message = match line {
+                Ok(line) => InputLine::Line(line),
+                Err(error) => InputLine::ReadError(error.to_string()),
+            };
+            let terminal = matches!(message, InputLine::ReadError(_));
+            if sender.send(message).is_err() || terminal {
+                return;
+            }
+        }
+        let _ = sender.send(InputLine::Eof);
+    });
+    receiver
 }
 
 pub enum LoopAction {
@@ -86,212 +113,279 @@ pub enum LoopAction {
     Shutdown,
 }
 
-pub fn handle_command(
+pub trait WorkerBackendState {
+    fn is_running(&self) -> bool;
+    fn register(&mut self, host: &mut VoipHost) -> Result<()>;
+    fn unregister(&mut self, host: &mut VoipHost);
+    fn with_backend<T>(
+        &mut self,
+        operation: impl FnOnce(&mut dyn VoipRuntimeBackend) -> Result<T, String>,
+    ) -> Result<T>;
+}
+
+struct AttachedBackend<'a, B: VoipRuntimeBackend> {
+    backend: &'a mut B,
+    running: bool,
+}
+
+impl<'a, B: VoipRuntimeBackend> AttachedBackend<'a, B> {
+    fn new(backend: &'a mut B) -> Self {
+        Self {
+            backend,
+            running: false,
+        }
+    }
+}
+
+impl<B: VoipRuntimeBackend> WorkerBackendState for AttachedBackend<'_, B> {
+    fn is_running(&self) -> bool {
+        self.running
+    }
+
+    fn register(&mut self, host: &mut VoipHost) -> Result<()> {
+        if !self.running {
+            host.register(self.backend)
+                .map_err(|error| anyhow!(error))?;
+            self.running = true;
+        }
+        Ok(())
+    }
+
+    fn unregister(&mut self, host: &mut VoipHost) {
+        if self.running {
+            host.unregister(self.backend);
+            self.running = false;
+        }
+    }
+
+    fn with_backend<T>(
+        &mut self,
+        operation: impl FnOnce(&mut dyn VoipRuntimeBackend) -> Result<T, String>,
+    ) -> Result<T> {
+        if !self.running {
+            return Err(anyhow!("voip host is not registered"));
+        }
+        operation(self.backend).map_err(|error| anyhow!(error))
+    }
+}
+
+fn handle_worker_command<S, W>(
     envelope: WorkerEnvelope,
     host: &mut VoipHost,
-    backend: &mut Option<shim::ShimBackend>,
-    explicit_shim_path: Option<&str>,
-) -> Result<LoopAction> {
+    backend: &mut S,
+    output: &mut W,
+) -> Result<LoopAction>
+where
+    S: WorkerBackendState,
+    W: Write + ?Sized,
+{
     match envelope.message_type.as_str() {
         "voip.configure" => {
             let config = VoipConfig::from_payload(&envelope.payload)?;
             host.configure(config);
-            write_envelope(&WorkerEnvelope::result(
-                "voip.configure",
-                envelope.request_id,
-                json!({"configured": true}),
-            ))?;
-            write_lifecycle_events(host)?;
-            write_session_snapshot(host)?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.configure",
+                    envelope.request_id,
+                    json!({"configured": true}),
+                ),
+            )?;
+            write_lifecycle_events(host, output)?;
+            write_session_snapshot(host, output)?;
         }
         "voip.health" => {
             let mut payload = host.health_payload();
             payload["ready"] = json!(true);
-            write_envelope(&WorkerEnvelope::result(
-                "voip.health",
-                envelope.request_id,
-                payload,
-            ))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result("voip.health", envelope.request_id, payload),
+            )?;
         }
         "voip.register" => {
-            if backend.is_none() {
-                let path = shim::resolve_shim_path(explicit_shim_path)?;
-                *backend = Some(unsafe { shim::ShimBackend::load(&path) }?);
+            if let Err(error) = backend.register(host) {
+                write_lifecycle_events(host, output)?;
+                write_session_snapshot(host, output)?;
+                return Err(error);
             }
-            let backend_ref = backend.as_mut().expect("backend was just created");
-            if let Err(error) = host.register(backend_ref) {
-                write_lifecycle_events(host)?;
-                write_session_snapshot(host)?;
-                return Err(anyhow!(error));
-            }
-            write_envelope(&WorkerEnvelope::result(
-                "voip.register",
-                envelope.request_id,
-                json!({"registered": true}),
-            ))?;
-            write_lifecycle_events(host)?;
-            write_session_snapshot(host)?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.register",
+                    envelope.request_id,
+                    json!({"registered": true}),
+                ),
+            )?;
+            write_lifecycle_events(host, output)?;
+            write_session_snapshot(host, output)?;
         }
         "voip.unregister" => {
-            if let Some(mut backend_ref) = backend.take() {
-                host.unregister(&mut backend_ref);
-            }
-            write_envelope(&WorkerEnvelope::result(
-                "voip.unregister",
-                envelope.request_id,
-                json!({"registered": false}),
-            ))?;
-            write_lifecycle_events(host)?;
-            write_session_snapshot(host)?;
+            backend.unregister(host);
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.unregister",
+                    envelope.request_id,
+                    json!({"registered": false}),
+                ),
+            )?;
+            write_lifecycle_events(host, output)?;
+            write_session_snapshot(host, output)?;
         }
         "voip.dial" => {
             let uri = envelope.payload["uri"].as_str().unwrap_or("").trim();
             if uri.is_empty() {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    envelope.request_id,
-                    "invalid_command",
-                    "voip.dial requires uri",
-                ))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        envelope.request_id,
+                        "invalid_command",
+                        "voip.dial requires uri",
+                    ),
+                )?;
             } else {
-                let backend_ref = backend
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("voip host is not registered"))?;
-                host.dial(backend_ref, uri)
-                    .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.dial",
-                    envelope.request_id,
-                    host.health_payload(),
-                ))?;
-                write_session_snapshot(host)?;
+                backend.with_backend(|backend_ref| host.dial(backend_ref, uri))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.dial",
+                        envelope.request_id,
+                        host.health_payload(),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.answer" => {
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            host.answer(backend_ref).map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.answer",
-                envelope.request_id,
-                json!({"accepted": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            backend.with_backend(|backend_ref| host.answer(backend_ref))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.answer",
+                    envelope.request_id,
+                    json!({"accepted": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.reject" => {
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            host.reject(backend_ref).map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.reject",
-                envelope.request_id,
-                json!({"rejected": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            backend.with_backend(|backend_ref| host.reject(backend_ref))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.reject",
+                    envelope.request_id,
+                    json!({"rejected": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.hangup" => {
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            host.hangup(backend_ref).map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.hangup",
-                envelope.request_id,
-                json!({"hung_up": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            backend.with_backend(|backend_ref| host.hangup(backend_ref))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.hangup",
+                    envelope.request_id,
+                    json!({"hung_up": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.set_mute" => {
             let muted = envelope.payload["muted"].as_bool().unwrap_or(false);
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            host.set_muted(backend_ref, muted)
-                .map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.set_mute",
-                envelope.request_id,
-                json!({"muted": muted}),
-            ))?;
-            write_session_snapshot(host)?;
+            backend.with_backend(|backend_ref| host.set_muted(backend_ref, muted))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.set_mute",
+                    envelope.request_id,
+                    json!({"muted": muted}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.send_text_message" => {
             let uri = envelope.payload["uri"].as_str().unwrap_or("").trim();
             let text = envelope.payload["text"].as_str().unwrap_or("");
             let client_id = envelope.payload["client_id"].as_str().unwrap_or("").trim();
             if uri.is_empty() || text.is_empty() || client_id.is_empty() {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    envelope.request_id,
-                    "invalid_command",
-                    "voip.send_text_message requires uri, text, and client_id",
-                ))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        envelope.request_id,
+                        "invalid_command",
+                        "voip.send_text_message requires uri, text, and client_id",
+                    ),
+                )?;
             } else {
-                let backend_ref = backend
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("voip host is not registered"))?;
-                let message_id = host
-                    .send_text_message(backend_ref, uri, text, client_id)
-                    .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.send_text_message",
-                    envelope.request_id,
-                    json!({"message_id": message_id}),
-                ))?;
-                write_session_snapshot(host)?;
+                let message_id = backend.with_backend(|backend_ref| {
+                    host.send_text_message(backend_ref, uri, text, client_id)
+                })?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.send_text_message",
+                        envelope.request_id,
+                        json!({"message_id": message_id}),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.start_voice_note_recording" => {
             let file_path = envelope.payload["file_path"].as_str().unwrap_or("").trim();
             if file_path.is_empty() {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    envelope.request_id,
-                    "invalid_command",
-                    "voip.start_voice_note_recording requires file_path",
-                ))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        envelope.request_id,
+                        "invalid_command",
+                        "voip.start_voice_note_recording requires file_path",
+                    ),
+                )?;
             } else {
-                let backend_ref = backend
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("voip host is not registered"))?;
-                host.start_voice_recording(backend_ref, file_path)
-                    .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.start_voice_note_recording",
-                    envelope.request_id,
-                    json!({"recording": true}),
-                ))?;
-                write_session_snapshot(host)?;
+                backend.with_backend(|backend_ref| {
+                    host.start_voice_recording(backend_ref, file_path)
+                })?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.start_voice_note_recording",
+                        envelope.request_id,
+                        json!({"recording": true}),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.stop_voice_note_recording" => {
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            let duration_ms = host
-                .stop_voice_recording(backend_ref)
-                .map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.stop_voice_note_recording",
-                envelope.request_id,
-                json!({"duration_ms": duration_ms}),
-            ))?;
-            write_session_snapshot(host)?;
+            let duration_ms =
+                backend.with_backend(|backend_ref| host.stop_voice_recording(backend_ref))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.stop_voice_note_recording",
+                    envelope.request_id,
+                    json!({"duration_ms": duration_ms}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.cancel_voice_note_recording" => {
-            let backend_ref = backend
-                .as_mut()
-                .ok_or_else(|| anyhow!("voip host is not registered"))?;
-            host.cancel_voice_recording(backend_ref)
-                .map_err(|error| anyhow!(error))?;
-            write_envelope(&WorkerEnvelope::result(
-                "voip.cancel_voice_note_recording",
-                envelope.request_id,
-                json!({"cancelled": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            backend.with_backend(|backend_ref| host.cancel_voice_recording(backend_ref))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.cancel_voice_note_recording",
+                    envelope.request_id,
+                    json!({"cancelled": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.send_voice_note" => {
             let uri = envelope.payload["uri"].as_str().unwrap_or("").trim();
@@ -306,18 +400,15 @@ pub fn handle_command(
                 || duration_ms < 0
                 || duration_ms > i32::MAX as i64
             {
-                write_envelope(&WorkerEnvelope::error(
+                write_envelope_to(output, &WorkerEnvelope::error(
                     "voip.error",
                     envelope.request_id,
                     "invalid_command",
                     "voip.send_voice_note requires uri, file_path, duration_ms, mime_type, and client_id",
                 ))?;
             } else {
-                let backend_ref = backend
-                    .as_mut()
-                    .ok_or_else(|| anyhow!("voip host is not registered"))?;
-                let message_id = host
-                    .send_voice_note(
+                let message_id = backend.with_backend(|backend_ref| {
+                    host.send_voice_note(
                         backend_ref,
                         uri,
                         file_path,
@@ -325,13 +416,16 @@ pub fn handle_command(
                         mime_type,
                         client_id,
                     )
-                    .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.send_voice_note",
-                    envelope.request_id,
-                    json!({"message_id": message_id}),
-                ))?;
-                write_session_snapshot(host)?;
+                })?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.send_voice_note",
+                        envelope.request_id,
+                        json!({"message_id": message_id}),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.mark_voice_notes_seen" => {
@@ -343,21 +437,27 @@ pub fn handle_command(
                 .unwrap_or("")
                 .trim();
             if uri.is_empty() {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    envelope.request_id,
-                    "invalid_command",
-                    "voip.mark_voice_notes_seen requires uri",
-                ))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        envelope.request_id,
+                        "invalid_command",
+                        "voip.mark_voice_notes_seen requires uri",
+                    ),
+                )?;
             } else {
                 host.mark_voice_notes_seen(uri)
                     .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.mark_voice_notes_seen",
-                    envelope.request_id,
-                    json!({"marked_seen": true}),
-                ))?;
-                write_session_snapshot(host)?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.mark_voice_notes_seen",
+                        envelope.request_id,
+                        json!({"marked_seen": true}),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.mark_call_history_seen" => {
@@ -369,94 +469,105 @@ pub fn handle_command(
                 .unwrap_or("")
                 .trim();
             host.mark_call_history_seen(uri);
-            write_envelope(&WorkerEnvelope::result(
-                "voip.mark_call_history_seen",
-                envelope.request_id,
-                json!({"marked_seen": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.mark_call_history_seen",
+                    envelope.request_id,
+                    json!({"marked_seen": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.play_voice_note" => {
             let file_path = envelope.payload["file_path"].as_str().unwrap_or("").trim();
             if file_path.is_empty() {
-                write_envelope(&WorkerEnvelope::error(
-                    "voip.error",
-                    envelope.request_id,
-                    "invalid_command",
-                    "voip.play_voice_note requires file_path",
-                ))?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::error(
+                        "voip.error",
+                        envelope.request_id,
+                        "invalid_command",
+                        "voip.play_voice_note requires file_path",
+                    ),
+                )?;
             } else {
                 host.play_voice_note(file_path)
                     .map_err(|error| anyhow!(error))?;
-                write_envelope(&WorkerEnvelope::result(
-                    "voip.play_voice_note",
-                    envelope.request_id,
-                    json!({"playing": true}),
-                ))?;
-                write_session_snapshot(host)?;
+                write_envelope_to(
+                    output,
+                    &WorkerEnvelope::result(
+                        "voip.play_voice_note",
+                        envelope.request_id,
+                        json!({"playing": true}),
+                    ),
+                )?;
+                write_session_snapshot(host, output)?;
             }
         }
         "voip.stop_voice_note_playback" => {
             host.stop_voice_note_playback();
-            write_envelope(&WorkerEnvelope::result(
-                "voip.stop_voice_note_playback",
-                envelope.request_id,
-                json!({"stopped": true}),
-            ))?;
-            write_session_snapshot(host)?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    "voip.stop_voice_note_playback",
+                    envelope.request_id,
+                    json!({"stopped": true}),
+                ),
+            )?;
+            write_session_snapshot(host, output)?;
         }
         "voip.shutdown" | "worker.stop" => {
-            if let Some(mut backend_ref) = backend.take() {
-                host.unregister(&mut backend_ref);
-            }
-            write_envelope(&WorkerEnvelope::result(
-                envelope.message_type,
-                envelope.request_id,
-                json!({"shutdown": true}),
-            ))?;
-            write_lifecycle_events(host)?;
-            write_session_snapshot(host)?;
+            backend.unregister(host);
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::result(
+                    envelope.message_type,
+                    envelope.request_id,
+                    json!({"shutdown": true}),
+                ),
+            )?;
+            write_lifecycle_events(host, output)?;
+            write_session_snapshot(host, output)?;
             return Ok(LoopAction::Shutdown);
         }
         _ => {
-            write_envelope(&WorkerEnvelope::error(
-                "voip.error",
-                envelope.request_id,
-                "unsupported_command",
-                format!("unsupported command {}", envelope.message_type),
-            ))?;
+            write_envelope_to(
+                output,
+                &WorkerEnvelope::error(
+                    "voip.error",
+                    envelope.request_id,
+                    "unsupported_command",
+                    format!("unsupported command {}", envelope.message_type),
+                ),
+            )?;
         }
     }
 
     Ok(LoopAction::Continue)
 }
 
-fn next_loop_timeout(host: &VoipHost, backend_running: bool) -> Duration {
-    if backend_running {
-        Duration::from_millis(host.iterate_interval_ms())
-    } else {
-        Duration::from_secs(60)
-    }
-}
-
-fn poll_backend(host: &mut VoipHost, backend: &mut Option<shim::ShimBackend>) -> Result<()> {
-    if let Some(backend_ref) = backend.as_mut() {
-        let events = host
-            .poll_backend_events(backend_ref)
-            .map_err(|error| anyhow!(error))?;
+fn poll_worker_backend<S, W>(host: &mut VoipHost, backend: &mut S, output: &mut W) -> Result<()>
+where
+    S: WorkerBackendState,
+    W: Write + ?Sized,
+{
+    if backend.is_running() {
+        let events = backend.with_backend(|backend_ref| host.poll_backend_events(backend_ref))?;
         let lifecycle_events = host.take_lifecycle_events();
-        emit_backend_events(events, lifecycle_events, host)?;
+        emit_backend_events(events, lifecycle_events, host, output)?;
     }
     Ok(())
 }
 
-fn emit_backend_events(
+fn emit_backend_events<W: Write + ?Sized>(
     events: Vec<host::BackendEvent>,
     lifecycle_events: Vec<host::LifecycleEvent>,
     host: &VoipHost,
+    output: &mut W,
 ) -> Result<()> {
     for envelope in backend_event_envelopes(events, lifecycle_events, host) {
-        write_envelope(&envelope)?;
+        write_envelope_to(output, &envelope)?;
     }
     Ok(())
 }
@@ -476,9 +587,9 @@ pub fn backend_event_envelopes(
     envelopes
 }
 
-fn write_lifecycle_events(host: &mut VoipHost) -> Result<()> {
+fn write_lifecycle_events<W: Write + ?Sized>(host: &mut VoipHost, output: &mut W) -> Result<()> {
     for event in host.take_lifecycle_events() {
-        write_envelope(&lifecycle_event_envelope(event))?;
+        write_envelope_to(output, &lifecycle_event_envelope(event))?;
     }
     Ok(())
 }
@@ -495,8 +606,8 @@ fn lifecycle_event_envelope(event: host::LifecycleEvent) -> WorkerEnvelope {
     )
 }
 
-fn write_session_snapshot(host: &VoipHost) -> Result<()> {
-    write_envelope(&session_snapshot_envelope(host))
+fn write_session_snapshot<W: Write + ?Sized>(host: &VoipHost, output: &mut W) -> Result<()> {
+    write_envelope_to(output, &session_snapshot_envelope(host))
 }
 
 fn session_snapshot_envelope(host: &VoipHost) -> WorkerEnvelope {
@@ -571,63 +682,9 @@ pub fn backend_event_envelope(event: host::BackendEvent) -> WorkerEnvelope {
     }
 }
 
-fn write_envelope(envelope: &WorkerEnvelope) -> Result<()> {
+fn write_envelope_to<W: Write + ?Sized>(output: &mut W, envelope: &WorkerEnvelope) -> Result<()> {
     let encoded = envelope.encode()?;
-    let output = protocol_stdout();
-    let mut output = output
-        .lock()
-        .map_err(|_| anyhow!("protocol stdout lock poisoned"))?;
     output.write_all(&encoded)?;
     output.flush()?;
     Ok(())
-}
-
-static PROTOCOL_STDOUT: OnceLock<Mutex<Box<dyn Write + Send>>> = OnceLock::new();
-
-fn init_protocol_stdout() -> Result<()> {
-    PROTOCOL_STDOUT
-        .set(Mutex::new(capture_protocol_stdout()?))
-        .map_err(|_| anyhow!("protocol stdout already initialized"))?;
-    Ok(())
-}
-
-fn protocol_stdout() -> &'static Mutex<Box<dyn Write + Send>> {
-    PROTOCOL_STDOUT.get_or_init(|| Mutex::new(default_protocol_stdout()))
-}
-
-fn default_protocol_stdout() -> Box<dyn Write + Send> {
-    Box::new(io::stdout())
-}
-
-#[cfg(unix)]
-fn capture_protocol_stdout() -> io::Result<Box<dyn Write + Send>> {
-    const STDOUT_FILENO: c_int = 1;
-    const STDERR_FILENO: c_int = 2;
-
-    extern "C" {
-        fn close(fd: c_int) -> c_int;
-        fn dup(fd: c_int) -> c_int;
-        fn dup2(oldfd: c_int, newfd: c_int) -> c_int;
-    }
-
-    let protocol_fd = unsafe { dup(STDOUT_FILENO) };
-    if protocol_fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
-
-    if unsafe { dup2(STDERR_FILENO, STDOUT_FILENO) } < 0 {
-        let error = io::Error::last_os_error();
-        unsafe {
-            close(protocol_fd);
-        }
-        return Err(error);
-    }
-
-    let protocol_file = unsafe { File::from_raw_fd(protocol_fd) };
-    Ok(Box::new(protocol_file))
-}
-
-#[cfg(not(unix))]
-fn capture_protocol_stdout() -> io::Result<Box<dyn Write + Send>> {
-    Ok(default_protocol_stdout())
 }

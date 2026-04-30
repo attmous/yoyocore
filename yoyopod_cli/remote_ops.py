@@ -70,7 +70,7 @@ def _build_startup_verification(pi: PiPaths, *, attempts: int = 20) -> str:
 
 
 def _build_native_shim_refresh(pi: PiPaths) -> str:
-    """Build the shell that rebuilds missing or stale native shims before restart."""
+    """Build the shell that refreshes missing or stale native artifacts before restart."""
     return "{ " f"{checkout_module_command(pi.venv, 'build', 'ensure-native')}" " ; }"
 
 

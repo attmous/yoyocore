@@ -897,7 +897,8 @@ def test_hydrate_slot_uses_build_subapp_entrypoint(run_remote_mock: MagicMock) -
     assert "PYTHONPATH=" not in cmd
     assert "libyoyopod_lvgl_shim.so" in cmd
     assert "yoyopod-media-host" in cmd
-    assert "libyoyopod_liblinphone_shim.so" in cmd
+    assert "yoyopod-voip-host" in cmd
+    assert "libyoyopod_liblinphone_shim.so" not in cmd
     assert "pip install -r /opt/yoyopod-prod/releases/2026.04.22-abc/runtime-requirements.txt" in cmd
     assert 'python3 -m venv "$tmp_venv"' in cmd
     assert "cp -aL /opt/yoyopod-prod/current/venv" not in cmd
@@ -962,7 +963,7 @@ def test_build_pi_downloads_artifact_and_cleans_up_remote_root(
     remote_result = MagicMock()
     remote_result.returncode = 0
     remote_result.stdout = (
-        "Ensured native shims: LVGL, Liblinphone\n"
+        "Ensured native artifacts: LVGL\n"
         "YOYOPOD_BUILD_ROOT=/tmp/yoyopod-release-build.abcd12\n"
         "YOYOPOD_SLOT=/tmp/yoyopod-release-build.abcd12/2026.04.22-abc\n"
         "YOYOPOD_ARTIFACT=/tmp/yoyopod-release-build.abcd12/2026.04.22-abc.tar.gz\n"

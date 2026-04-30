@@ -1,26 +1,22 @@
-mod error;
-pub mod event;
-mod ffi;
-mod state;
-
-use ffi::{
-    LinphoneAccount, LinphoneAddress, LinphoneApi, LinphoneCall, LinphoneChatMessage,
+use super::ffi::{
+    self, LinphoneAccount, LinphoneAddress, LinphoneApi, LinphoneCall, LinphoneChatMessage,
     LinphoneChatRoom, LinphoneContent, LinphoneCore, LinphoneEventLog, LinphoneRecorderParams,
 };
+use super::{abi_event as event, runtime_error as error, state};
 use once_cell::sync::Lazy;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr;
 use std::sync::Arc;
 
-pub use event::YoyopodLiblinphoneEvent;
+pub use super::abi_event::YoyopodLiblinphoneEvent;
 
 const FALSE: c_int = 0;
 const TRUE: c_int = 1;
 const LINPHONE_REASON_DECLINED: c_int = 4;
 const LINPHONE_RECORDER_FILE_FORMAT_WAV: c_int = 0;
 
-static VERSION: &[u8] = b"rust-liblinphone-shim/0.1.0\0";
+static VERSION: &[u8] = b"yoyopod-voip-host-liblinphone/0.1.0\0";
 static STATE: Lazy<std::sync::Mutex<state::ShimState>> =
     Lazy::new(|| std::sync::Mutex::new(state::ShimState::new()));
 
@@ -47,7 +43,7 @@ pub unsafe extern "C" fn yoyopod_liblinphone_init() -> c_int {
     let mut state = match STATE.lock() {
         Ok(state) => state,
         Err(_) => {
-            error::set_last_error("liblinphone shim state lock poisoned");
+            error::set_last_error("liblinphone runtime state lock poisoned");
             return -1;
         }
     };
@@ -112,7 +108,7 @@ pub unsafe extern "C" fn yoyopod_liblinphone_start(
     let mut state = match STATE.lock() {
         Ok(state) => state,
         Err(_) => {
-            error::set_last_error("liblinphone shim state lock poisoned");
+            error::set_last_error("liblinphone runtime state lock poisoned");
             return -1;
         }
     };
@@ -418,7 +414,7 @@ pub unsafe extern "C" fn yoyopod_liblinphone_start_voice_recording(
     let mut state = match STATE.lock() {
         Ok(state) => state,
         Err(_) => {
-            error::set_last_error("liblinphone shim state lock poisoned");
+            error::set_last_error("liblinphone runtime state lock poisoned");
             return -1;
         }
     };
@@ -490,7 +486,7 @@ pub unsafe extern "C" fn yoyopod_liblinphone_stop_voice_recording(
     let mut state = match STATE.lock() {
         Ok(state) => state,
         Err(_) => {
-            error::set_last_error("liblinphone shim state lock poisoned");
+            error::set_last_error("liblinphone runtime state lock poisoned");
             return -1;
         }
     };
@@ -1002,7 +998,7 @@ fn state_handles() -> Result<
 > {
     let state = STATE
         .lock()
-        .map_err(|_| "liblinphone shim state lock poisoned".to_string())?;
+        .map_err(|_| "liblinphone runtime state lock poisoned".to_string())?;
     if !state.started || state.core.is_null() {
         return Err("Liblinphone core is not ready".to_string());
     }
@@ -1046,7 +1042,7 @@ fn create_chat_message(
 ) -> Result<(Arc<LinphoneApi>, String, *mut LinphoneChatMessage), String> {
     let mut state = STATE
         .lock()
-        .map_err(|_| "liblinphone shim state lock poisoned".to_string())?;
+        .map_err(|_| "liblinphone runtime state lock poisoned".to_string())?;
     if !state.started || state.core.is_null() {
         return Err("Liblinphone text message send is missing peer or payload".to_string());
     }

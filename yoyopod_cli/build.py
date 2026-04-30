@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Optional
@@ -103,29 +102,6 @@ def _resolve_lvgl_native_dir() -> Path:
         _REPO_ROOT / "yoyopod" / "ui" / "lvgl_binding" / "native",
         _REPO_ROOT / "src" / "yoyopod" / "ui" / "lvgl_binding" / "native",
     )
-
-
-def _rust_liblinphone_shim_workspace_dir() -> Path:
-    return _REPO_ROOT / "yoyopod_rs"
-
-
-def _rust_liblinphone_shim_crate_dir() -> Path:
-    return _rust_liblinphone_shim_workspace_dir() / "liblinphone-shim"
-
-
-def _rust_liblinphone_shim_file_name() -> str:
-    if os.name == "nt":
-        return "yoyopod_liblinphone_shim.dll"
-    if sys.platform == "darwin":
-        return "libyoyopod_liblinphone_shim.dylib"
-    return "libyoyopod_liblinphone_shim.so"
-
-
-def _rust_liblinphone_shim_library_path(build_dir: Path | None = None) -> Path:
-    output_dir = (
-        build_dir if build_dir is not None else _rust_liblinphone_shim_crate_dir() / "build"
-    )
-    return output_dir / _rust_liblinphone_shim_file_name()
 
 
 # ---------------------------------------------------------------------------
@@ -263,30 +239,6 @@ def build_rust_ui_poc(*, hardware_feature: bool = True) -> Path:
     return build_rust_ui_host(hardware_feature=hardware_feature)
 
 
-def build_rust_liblinphone_shim(*, build_dir: Path | None = None) -> Path:
-    """Build the Rust Liblinphone shim cdylib and return the copied artifact path."""
-
-    workspace_dir = _rust_liblinphone_shim_workspace_dir()
-    output = _rust_liblinphone_shim_library_path(build_dir)
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    _run(
-        [
-            "cargo",
-            "build",
-            "--release",
-            "-p",
-            "yoyopod-liblinphone-shim",
-            "--locked",
-        ],
-        cwd=workspace_dir,
-    )
-
-    built_library = workspace_dir / "target" / "release" / output.name
-    shutil.copy2(built_library, output)
-    return output
-
-
 def _default_lvgl_source_dir() -> Path:
     """Return the stable cache path for the pinned LVGL source checkout."""
 
@@ -323,30 +275,17 @@ def _native_artifacts() -> tuple[NativeArtifact, ...]:
     """Return the canonical native artifacts for the current checkout."""
 
     lvgl_native_dir = _resolve_lvgl_native_dir()
-    liblinphone_shim_dir = _rust_liblinphone_shim_crate_dir()
-    liblinphone_workspace_dir = _rust_liblinphone_shim_workspace_dir()
     return (
         NativeArtifact(
             label="LVGL",
             output=lvgl_native_dir / "build" / "libyoyopod_lvgl_shim.so",
             sources=(lvgl_native_dir,),
         ),
-        NativeArtifact(
-            label="Liblinphone",
-            output=_rust_liblinphone_shim_library_path(),
-            sources=(
-                liblinphone_shim_dir / "Cargo.toml",
-                liblinphone_shim_dir / "build.rs",
-                liblinphone_shim_dir / "src",
-                liblinphone_workspace_dir / "Cargo.toml",
-                liblinphone_workspace_dir / "Cargo.lock",
-            ),
-        ),
     )
 
 
 def _native_build_dirs() -> tuple[Path, ...]:
-    """Return mutable CMake build directories for native shims."""
+    """Return mutable CMake build directories for native artifacts."""
 
     return (_resolve_lvgl_native_dir() / "build",)
 
@@ -364,7 +303,7 @@ def _clean_native_build_dirs() -> tuple[Path, ...]:
 
 
 def _ensure_native_shims(*, skip_lvgl_fetch: bool = False) -> tuple[str, ...]:
-    """Build missing or stale native shims and return the labels that were rebuilt."""
+    """Build missing or stale native artifacts and return the labels that were rebuilt."""
 
     rebuilt: list[str] = []
     lvgl_native_dir = _resolve_lvgl_native_dir()
@@ -380,12 +319,6 @@ def _ensure_native_shims(*, skip_lvgl_fetch: bool = False) -> tuple[str, ...]:
                 lvgl_native_dir,
                 lvgl_source_dir,
                 lvgl_native_dir / "build",
-            )
-        elif artifact.label == "Liblinphone":
-            raise SystemExit(
-                "Rust Liblinphone shim artifact is missing or stale at "
-                f"{artifact.output}. Download the GitHub Actions artifact for the exact "
-                "commit under test; do not build Rust binaries on the Pi."
             )
         else:
             raise SystemExit(f"Unknown native artifact: {artifact.label}")
@@ -475,19 +408,6 @@ def build_lvgl(
     typer.echo(f"Built LVGL shim in {resolved_build}")
 
 
-@app.command("liblinphone")
-def build_liblinphone(
-    build_dir: Annotated[
-        Optional[Path],
-        typer.Option("--build-dir", help="Path to the Rust shim artifact output directory."),
-    ] = None,
-) -> None:
-    """Build the Rust Liblinphone shim for the current platform."""
-
-    output = build_rust_liblinphone_shim(build_dir=build_dir)
-    typer.echo(f"Built Rust Liblinphone shim: {output}")
-
-
 @app.command("ensure-native")
 def ensure_native(
     skip_lvgl_fetch: Annotated[
@@ -498,13 +418,13 @@ def ensure_native(
         ),
     ] = False,
 ) -> None:
-    """Build missing or stale native shims required by the app."""
+    """Build missing or stale native artifacts required by the app."""
 
     rebuilt = _ensure_native_shims(skip_lvgl_fetch=skip_lvgl_fetch)
     if rebuilt:
-        typer.echo(f"Ensured native shims: {', '.join(rebuilt)}")
+        typer.echo(f"Ensured native artifacts: {', '.join(rebuilt)}")
         return
-    typer.echo("Native shims already current")
+    typer.echo("Native artifacts already current")
 
 
 @app.command("clean-native")

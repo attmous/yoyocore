@@ -295,7 +295,7 @@ Only use it when:
 - `display` fails: check attached HAT, driver and library install, and `display.hardware` config
 - `input` fails: check the matching display adapter initialized correctly first
 - `music` fails: verify `mpv` is installed, the configured socket path is writable, and the provision target under `test_music_target_dir` is writable when deterministic seeding is enabled
-- `voip` fails: verify the Liblinphone shim build, `config/communication/integrations/liblinphone_factory.conf`, SIP credentials, network reachability, and audio device configuration
+- `voip` fails: verify the CI-built Rust VoIP host artifact, `config/communication/integrations/liblinphone_factory.conf`, SIP credentials, network reachability, and audio device configuration
 - `voip --soak registration` fails: compare `logs/voip-validation/*/summary.json` across runs and look for whether startup never reached `ok` or whether `ok` flapped during the hold window
 - `voip --soak reconnect` fails: check whether the run ever recorded a non-`ok` registration state, whether the outage lasted long enough to force a drop, and whether recovery returned before the timeout
 - `voip --soak call` fails: check whether the target endpoint actually answered, whether registration stayed `ok`, and which non-connected call state ended the soak

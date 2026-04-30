@@ -25,7 +25,6 @@ _RUST_UI_HOST_WORKER = "yoyopod_rs/ui-host/build/yoyopod-ui-host"
 _RUST_UI_POC_WORKER = _RUST_UI_HOST_WORKER
 _RUST_MEDIA_HOST_WORKER = "yoyopod_rs/media-host/build/yoyopod-media-host"
 _RUST_VOIP_HOST_WORKER = "yoyopod_rs/voip-host/build/yoyopod-voip-host"
-_RUST_LIBLINPHONE_SHIM = "yoyopod_rs/liblinphone-shim/build/libyoyopod_liblinphone_shim.so"
 
 
 def _build_preflight_steps() -> list[tuple[str, list[str]]]:
@@ -168,16 +167,12 @@ def _build_validate(
         steps.append(checkout_module_command(venv_relpath, "pi", "validate", "music"))
     if with_voip or with_voip_call_soak:
         voip_worker = shell_quote(_RUST_VOIP_HOST_WORKER)
-        voip_shim = shell_quote(_RUST_LIBLINPHONE_SHIM)
         voip_message = shell_quote(
-            "Missing CI-built Rust VoIP artifacts. Download the GitHub Actions "
-            "artifacts for this exact commit before VoIP validation; do not build "
+            "Missing executable CI-built Rust VoIP host artifact. Download the GitHub Actions "
+            "artifact for this exact commit before VoIP validation; do not build "
             "Rust binaries on the Pi."
         )
-        steps.append(
-            f"(test -x {voip_worker} && test -f {voip_shim}) || "
-            f"(echo {voip_message} >&2 && exit 1)"
-        )
+        steps.append(f"test -x {voip_worker} || (echo {voip_message} >&2 && exit 1)")
     if with_voip:
         steps.append(checkout_module_command(venv_relpath, "pi", "validate", "voip"))
     if with_voip_call_soak:

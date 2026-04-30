@@ -32,7 +32,7 @@ YoyoPodApp
   -> VoIPManager
      -> RustHostBackend
         -> yoyopod_rs/voip-host
-           -> yoyopod_rs/liblinphone-shim
+           -> internal Rust Liblinphone runtime
               -> Liblinphone
               -> ALSA: wm8960-soundcard
               -> same WM8960 codec / physical output path

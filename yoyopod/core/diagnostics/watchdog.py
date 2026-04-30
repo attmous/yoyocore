@@ -313,7 +313,7 @@ def _log_setup_failure_guidance(app_log: Any) -> None:
     app_log.error(
         "  - data/people/contacts.yaml can be created from config/people/contacts.seed.yaml"
     )
-    app_log.error("  - liblinphone is installed and the native shim is built")
+    app_log.error("  - liblinphone is installed and the Rust VoIP host artifact is present")
     app_log.error("  - mpv is installed and the configured music backend can start")
     app_log.error(
         "  - Whisplay production runs have a working LVGL shim and do not rely on PIL or simulation fallback"

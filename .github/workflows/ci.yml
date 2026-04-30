@@ -136,8 +136,13 @@ jobs:
         run: |
           git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git .cache/lvgl/lvgl-9.5.0
 
+      - name: Install native VoIP dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config liblinphone-dev
+
       - name: Run Bazel Rust host tests
-        run: bazel test //yoyopod_rs/ui-host/... //yoyopod_rs/media-host/... //yoyopod_rs/voip-host/... //yoyopod_rs/liblinphone-shim/...
+        run: bazel test //yoyopod_rs/ui-host/... //yoyopod_rs/media-host/... //yoyopod_rs/voip-host/...
 
       - name: Run Rust UI host tests
         working-directory: yoyopod_rs
@@ -177,7 +182,7 @@ jobs:
         working-directory: yoyopod_rs
         run: |
           set -euo pipefail
-          cargo build --release -p yoyopod-voip-host --locked
+          cargo build --release -p yoyopod-voip-host --features native-liblinphone --locked
           mkdir -p voip-host/build
           cp target/release/yoyopod-voip-host voip-host/build/yoyopod-voip-host
 
@@ -186,21 +191,6 @@ jobs:
         with:
           name: yoyopod-voip-host-${{ env.RUST_ARTIFACT_SHA }}
           path: yoyopod_rs/voip-host/build/yoyopod-voip-host
-          if-no-files-found: error
-
-      - name: Build Rust Liblinphone shim
-        working-directory: yoyopod_rs
-        run: |
-          set -euo pipefail
-          cargo build --release -p yoyopod-liblinphone-shim --locked
-          mkdir -p liblinphone-shim/build
-          cp target/release/libyoyopod_liblinphone_shim.so liblinphone-shim/build/libyoyopod_liblinphone_shim.so
-
-      - name: Upload Rust Liblinphone shim ARM64 artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: yoyopod-liblinphone-shim-${{ env.RUST_ARTIFACT_SHA }}
-          path: yoyopod_rs/liblinphone-shim/build/libyoyopod_liblinphone_shim.so
           if-no-files-found: error
 
   slot-arm64:
@@ -252,12 +242,6 @@ jobs:
         with:
           name: yoyopod-voip-host-${{ env.RUST_ARTIFACT_SHA }}
           path: yoyopod_rs/voip-host/build
-
-      - name: Download Rust Liblinphone shim artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: yoyopod-liblinphone-shim-${{ env.RUST_ARTIFACT_SHA }}
-          path: yoyopod_rs/liblinphone-shim/build
 
       - name: Build ARM64 slot artifact
         run: |

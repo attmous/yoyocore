@@ -15,7 +15,6 @@ APP_NATIVE_RUNTIME_ARTIFACTS: tuple[Path, ...] = (
     Path("yoyopod") / "ui" / "lvgl_binding" / "native" / "build" / "lvgl" / "lib" / "liblvgl.so.9",
     Path("yoyopod_rs") / "media-host" / "build" / "yoyopod-media-host",
     Path("yoyopod_rs") / "voip-host" / "build" / "yoyopod-voip-host",
-    Path("yoyopod_rs") / "liblinphone-shim" / "build" / "libyoyopod_liblinphone_shim.so",
 )
 
 SLOT_NATIVE_RUNTIME_ARTIFACTS: tuple[Path, ...] = tuple(
@@ -106,6 +105,6 @@ def detect_self_contained_python_version(slot_dir: Path) -> str | None:
 
 
 def is_self_contained_slot(slot_dir: Path, python_version: str = "3.12") -> bool:
-    """Return True when the slot contains its own runtime Python and native shims."""
+    """Return True when the slot contains its own runtime Python and native artifacts."""
 
     return not missing_self_contained_paths(slot_dir, python_version)

@@ -144,7 +144,7 @@ These should be typed models, not loose dicts.
   - receives resolved playback device
 - `OutputVolumeController`
   - becomes an implementation detail under the facade or is owned by it
-- Rust VoIP host / Rust liblinphone shim
+- Rust VoIP host / internal Rust Liblinphone runtime
   - receives resolved playback, ringer, capture, and media IDs
   - no longer owns startup `amixer` policy
 - `SubprocessAudioCaptureBackend`

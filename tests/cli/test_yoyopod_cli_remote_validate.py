@@ -92,7 +92,7 @@ def test_build_validate_with_voip_call_soak() -> None:
         voip_soak_seconds=30.0,
     )
 
-    assert "CI-built Rust VoIP artifacts" in shell
+    assert "CI-built Rust VoIP host artifact" in shell
     assert (
         ".venv/bin/python -m yoyopod_cli.main pi validate voip --soak call "
         "--soak-target sip:hagarmo@sip.linphone.org --soak-seconds 30.0"

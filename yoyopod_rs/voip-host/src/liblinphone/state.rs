@@ -1,5 +1,5 @@
-use crate::event::EventQueue;
-use crate::ffi::{
+use super::abi_event::EventQueue;
+use super::ffi::{
     LinphoneAccount, LinphoneAccountCbs, LinphoneApi, LinphoneCall, LinphoneChatMessageCbs,
     LinphoneChatRoom, LinphoneChatRoomCbs, LinphoneCore, LinphoneCoreCbs, LinphoneFactory,
     LinphoneRecorder,

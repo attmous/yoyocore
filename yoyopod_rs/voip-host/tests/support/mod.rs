@@ -2,7 +2,7 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use yoyopod_voip_host::config::VoipConfig;
-use yoyopod_voip_host::host::{BackendEvent, CallBackend};
+use yoyopod_voip_host::host::{BackendEvent, VoipRuntimeBackend};
 
 pub fn config() -> VoipConfig {
     VoipConfig::from_payload(&json!({
@@ -39,7 +39,7 @@ pub struct FakeBackend {
     pub stop_calls: usize,
 }
 
-impl CallBackend for FakeBackend {
+impl VoipRuntimeBackend for FakeBackend {
     fn start(&mut self, _config: &VoipConfig) -> Result<(), String> {
         if !self.start_results.is_empty() {
             return self.start_results.remove(0);

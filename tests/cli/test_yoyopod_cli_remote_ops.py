@@ -95,7 +95,7 @@ def test_build_restart_has_no_legacy_checkout_fallbacks() -> None:
     assert "legacy_service_checkout" not in shell
 
 
-def test_build_native_shim_refresh_rebuilds_lvgl_and_liblinphone_when_stale() -> None:
+def test_build_native_shim_refresh_runs_native_artifact_refresh() -> None:
     pi = PiPaths(venv="venv")
     shell = _build_native_shim_refresh(pi)
     assert "venv/bin/python -m yoyopod_cli.main build ensure-native" in shell

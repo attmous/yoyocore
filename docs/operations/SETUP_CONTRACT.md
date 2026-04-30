@@ -127,7 +127,7 @@ uv run yoyopod setup verify-pi
 This verifies presence and basic build state. It does not perform deeper
 artifact health checks for every native/runtime dependency. The current baseline
 checks the tracked config files, `python3`, the checkout venv Python, required
-apt packages, and the built native shim artifacts.
+apt packages, and the built native runtime artifacts.
 
 Use flags that match the actual target you are bringing up:
 
@@ -247,7 +247,7 @@ Checklist:
 - tracked config files are present under `config/`
 - required system packages are verified with `uv run yoyopod setup verify-pi`
 - target feature extras are verified with the matching `--with-pisugar`, `--with-voice`, and `--with-network` flags
-- native shims have been built when the feature requires them
+- native artifacts have been built when the feature requires them
 - `yoyopod pi validate smoke` passes for the requested hardware path
 - remote config values come from `deploy/pi-deploy.yaml` plus local overrides, not tribal knowledge
 

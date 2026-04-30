@@ -14,7 +14,7 @@
 | **Buildroot** | https://buildroot.org/ | Custom embedded Linux build system | Build fully custom image with only needed packages (mpv, python3, lvgl deps). Better for production than Raspbian. |
 | **Yocto Project** | https://www.yoctoproject.org/ | Industrial-grade embedded Linux builder | Overkill for YoYoPod but provides reproducible builds, layer for Pi Zero 2W exists (meta-raspberrypi). |
 | **DietPi** | https://dietpi.com/ | Lightweight optimized Debian for Pi | Pre-optimized for minimal resource use; could fork for YoYoPod base. Active community. |
-| **Alpine Linux** | https://alpinelinux.org/ | Musl-based, security-focused, small | ~130MB base. musl libc may cause Python C extension issues; test Liblinphone and native shims. |
+| **Alpine Linux** | https://alpinelinux.org/ | Musl-based, security-focused, small | ~130MB base. musl libc may cause Python C extension issues; test Liblinphone and native artifacts. |
 | **NixOS** | https://nixos.org/ | Reproducible declarative Linux | Nix expressions for reproducible YoYoPod builds; steep learning curve but atomic rollbacks complement slot-deploy. |
 | **postmarketOS** | https://postmarketos.org/ | Alpine-based mobile/embedded OS | Phone-oriented but has good ARM support, power management, modem integration patterns. |
 | **Mender Hub meta-mender** | https://hub.mender.io/t/raspberry-pi-3-and-4/ | OTA-enabled Yocto layer for Pi | If migrating to Yocto, Mender integration provides robust A/B OTA (alternative to custom slot-deploy). |
@@ -50,7 +50,7 @@
 
 | Project | URL | One-Line Relevance | Integration Note |
 |---------|-----|-------------------|------------------|
-| **Liblinphone** | https://gitlab.linphone.org/BC/public/linphone-sdk | YoYoPod's current VoIP/SIP backend | Already integrated via C shim. Evaluate SDK v5+ for improved ARM support. Consider Belledonne's Flexisip for server. |
+| **Liblinphone** | https://gitlab.linphone.org/BC/public/linphone-sdk | YoYoPod's current VoIP/SIP backend | Integrated inside the Rust VoIP host. Evaluate SDK v5+ for improved ARM support. Consider Belledonne's Flexisip for server. |
 | **PJSIP** | https://www.pjsip.org/ | Open source SIP stack (C) | Alternative to Liblinphone. Smaller footprint, excellent embedded support. pjsua Python bindings available. |
 | **Jami (GNU Ring)** | https://jami.net/ | Distributed SIP-compatible communicator | P2P architecture reduces server dependency. Qt-heavy but daemon (`dring`) can run headless. |
 | **baresip** | https://github.com/baresip/baresip | Modular portable SIP user-agent | Extremely lightweight, modular. Perfect for embedded. JSON/HTTP control interface. Active development. |

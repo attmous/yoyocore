@@ -14,7 +14,7 @@ use serde_json::json;
 pub use crate::lifecycle::LifecycleEvent;
 pub use crate::messages::MessageRecord;
 
-pub trait CallBackend {
+pub trait VoipRuntimeBackend {
     fn start(&mut self, config: &VoipConfig) -> Result<(), String>;
     fn stop(&mut self);
     fn iterate(&mut self) -> Result<Vec<BackendEvent>, String>;
@@ -172,7 +172,10 @@ impl VoipHost {
             .unwrap_or(20)
     }
 
-    pub fn register<B: CallBackend>(&mut self, backend: &mut B) -> Result<(), String> {
+    pub fn register<B: VoipRuntimeBackend + ?Sized>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<(), String> {
         let config = self
             .config
             .as_ref()
@@ -194,7 +197,7 @@ impl VoipHost {
         Ok(())
     }
 
-    pub fn unregister<B: CallBackend>(&mut self, backend: &mut B) {
+    pub fn unregister<B: VoipRuntimeBackend + ?Sized>(&mut self, backend: &mut B) {
         backend.stop();
         self.registered = false;
         self.registration_state = "none".to_string();
@@ -205,7 +208,7 @@ impl VoipHost {
         self.outbound_message_ids.clear();
     }
 
-    pub fn dial<B: CallBackend>(
+    pub fn dial<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
         sip_address: &str,
@@ -215,23 +218,32 @@ impl VoipHost {
         Ok(())
     }
 
-    pub fn answer<B: CallBackend>(&mut self, backend: &mut B) -> Result<(), String> {
+    pub fn answer<B: VoipRuntimeBackend + ?Sized>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<(), String> {
         backend.answer_call()
     }
 
-    pub fn reject<B: CallBackend>(&mut self, backend: &mut B) -> Result<(), String> {
+    pub fn reject<B: VoipRuntimeBackend + ?Sized>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<(), String> {
         backend.reject_call()?;
         self.call.clear_with_state_and_action("released", "reject");
         Ok(())
     }
 
-    pub fn hangup<B: CallBackend>(&mut self, backend: &mut B) -> Result<(), String> {
+    pub fn hangup<B: VoipRuntimeBackend + ?Sized>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<(), String> {
         backend.hangup()?;
         self.call.clear_with_state_and_action("released", "hangup");
         Ok(())
     }
 
-    pub fn set_muted<B: CallBackend>(
+    pub fn set_muted<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
         muted: bool,
@@ -241,7 +253,7 @@ impl VoipHost {
         Ok(())
     }
 
-    pub fn send_text_message<B: CallBackend>(
+    pub fn send_text_message<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
         sip_address: &str,
@@ -275,7 +287,7 @@ impl VoipHost {
         Ok(client_id.to_string())
     }
 
-    pub fn start_voice_recording<B: CallBackend>(
+    pub fn start_voice_recording<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
         file_path: &str,
@@ -285,13 +297,16 @@ impl VoipHost {
         Ok(())
     }
 
-    pub fn stop_voice_recording<B: CallBackend>(&mut self, backend: &mut B) -> Result<i32, String> {
+    pub fn stop_voice_recording<B: VoipRuntimeBackend + ?Sized>(
+        &mut self,
+        backend: &mut B,
+    ) -> Result<i32, String> {
         let duration_ms = backend.stop_voice_recording()?;
         self.voice_note.finish_recording(duration_ms);
         Ok(duration_ms)
     }
 
-    pub fn cancel_voice_recording<B: CallBackend>(
+    pub fn cancel_voice_recording<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
     ) -> Result<(), String> {
@@ -300,7 +315,7 @@ impl VoipHost {
         Ok(())
     }
 
-    pub fn send_voice_note<B: CallBackend>(
+    pub fn send_voice_note<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
         sip_address: &str,
@@ -354,7 +369,7 @@ impl VoipHost {
         self.voice_note_playback.stop();
     }
 
-    pub fn poll_backend_events<B: CallBackend>(
+    pub fn poll_backend_events<B: VoipRuntimeBackend + ?Sized>(
         &mut self,
         backend: &mut B,
     ) -> Result<Vec<BackendEvent>, String> {

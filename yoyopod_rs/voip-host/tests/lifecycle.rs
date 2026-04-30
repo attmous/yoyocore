@@ -10,7 +10,7 @@ fn lifecycle_state_records_recovery_and_drains_events() {
 
     lifecycle.record("configured", "configured", false);
     lifecycle.mark_recovery_pending();
-    lifecycle.record("failed", "shim missing", false);
+    lifecycle.record("failed", "backend missing", false);
     lifecycle.record("registered", "registered", true);
 
     assert_eq!(lifecycle.state(), "registered");
@@ -21,7 +21,7 @@ fn lifecycle_state_records_recovery_and_drains_events() {
     assert_eq!(events.len(), 3);
     assert_eq!(events[0].state, "configured");
     assert_eq!(events[1].previous_state, "configured");
-    assert_eq!(events[1].reason, "shim missing");
+    assert_eq!(events[1].reason, "backend missing");
     assert!(events[2].recovered);
     assert!(lifecycle.take_events().is_empty());
 }

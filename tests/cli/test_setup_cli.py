@@ -166,7 +166,7 @@ def test_collect_pi_setup_checks_require_packages_native_artifacts_and_service(
     )
     native_artifacts = (
         tmp_path / "build" / "libyoyopod_lvgl_shim.so",
-        tmp_path / "build" / "libyoyopod_liblinphone_shim.so",
+        tmp_path / "build" / "yoyopod-voip-host",
     )
     venv_python = tmp_path / ".venv" / "bin" / "python"
     for path in (*tracked_config, *native_artifacts, venv_python):

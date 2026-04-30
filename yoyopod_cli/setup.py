@@ -46,7 +46,6 @@ NATIVE_ARTIFACTS: tuple[Path, ...] = (
     REPO_ROOT / "yoyopod" / "ui" / "lvgl_binding" / "native" / "build" / "libyoyopod_lvgl_shim.so",
     REPO_ROOT / "yoyopod_rs" / "media-host" / "build" / "yoyopod-media-host",
     REPO_ROOT / "yoyopod_rs" / "voip-host" / "build" / "yoyopod-voip-host",
-    REPO_ROOT / "yoyopod_rs" / "liblinphone-shim" / "build" / "libyoyopod_liblinphone_shim.so",
 )
 PI_VENV_DIR = ".venv"
 
@@ -333,7 +332,7 @@ def pi(
         bool, typer.Option("--skip-uv-sync", help="Skip `uv sync --extra dev` after apt install.")
     ] = False,
     skip_builds: Annotated[
-        bool, typer.Option("--skip-builds", help="Skip the native shim build steps.")
+        bool, typer.Option("--skip-builds", help="Skip native artifact build steps.")
     ] = False,
     dry_run: Annotated[
         bool, typer.Option("--dry-run", help="Print the planned commands without executing them.")

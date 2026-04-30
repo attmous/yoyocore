@@ -70,8 +70,7 @@ For live help, use `yoyopod <cmd> --help`.
 | Command | What it does |
 |---|---|
 | `yoyopod build clean-native` | Remove mutable native CMake build dirs before a clean rebuild. |
-| `yoyopod build ensure-native` | Build missing or stale native shims required by the app. |
-| `yoyopod build liblinphone` | Build the Rust Liblinphone shim for the current platform. |
+| `yoyopod build ensure-native` | Build missing or stale native artifacts required by the app. |
 | `yoyopod build lvgl` | Build the pinned LVGL shim for the current platform. |
 | `yoyopod build rust-ui-host` | Build the Rust UI host binary. |
 | `yoyopod build rust-ui-poc` | Compatibility alias for `yoyopod build rust-ui-host`. |

@@ -67,8 +67,7 @@ No separate Mopidy process or music daemon is part of the stack anymore.
 
 ### Native VoIP bridge
 
-- `yoyopod_rs/liblinphone-shim/build/libyoyopod_liblinphone_shim.so` - Rust liblinphone shim, installed from GitHub Actions artifact.
-- `yoyopod_rs/voip-host/build/yoyopod-voip-host` - Rust VoIP Host worker, installed from GitHub Actions artifact.
+- `yoyopod_rs/voip-host/build/yoyopod-voip-host` - Rust VoIP Host worker with the Liblinphone runtime built in, installed from GitHub Actions artifact.
 
 ## Python-Level Dependencies Used By The App
 
@@ -129,9 +128,9 @@ The LVGL shim currently links against:
 - `liblvgl.so.9`
 - `libc`
 
-### Liblinphone shim
+### Liblinphone runtime
 
-The Rust Liblinphone shim dynamically loads the installed Liblinphone runtime.
+The Rust VoIP host owns the Liblinphone runtime internally.
 On the current Pi image that runtime resolves to:
 
 - `liblinphone.so.12`
@@ -207,7 +206,7 @@ This snapshot was built from:
 - `aplay -l`
 - `amixer`
 - `dpkg -l`
-- `ldd` on the two native shims
+- `ldd` on the LVGL native shim and Rust host binaries
 - repo config in:
   - `config/app/core.yaml`
   - `config/audio/music.yaml`

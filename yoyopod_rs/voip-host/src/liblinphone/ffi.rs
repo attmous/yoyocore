@@ -1,5 +1,4 @@
-use libloading::Library;
-use std::ffi::OsString;
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_float, c_int, c_void};
 use std::sync::Arc;
 
@@ -102,8 +101,16 @@ pub type ChatRoomMessagesReceivedCb =
 pub type ChatRoomEventLogReceivedCb =
     Option<unsafe extern "C" fn(*mut LinphoneChatRoom, *mut LinphoneEventLog)>;
 
+unsafe extern "C" {
+    #[cfg(unix)]
+    fn dlopen(filename: *const c_char, flags: c_int) -> *mut c_void;
+    #[cfg(unix)]
+    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+    #[cfg(unix)]
+    fn dlerror() -> *const c_char;
+}
+
 pub struct LinphoneApi {
-    _library: Library,
     pub factory_get: unsafe extern "C" fn() -> *mut LinphoneFactory,
     pub factory_create_core_3: unsafe extern "C" fn(
         *mut LinphoneFactory,
@@ -289,361 +296,410 @@ pub struct LinphoneApi {
 
 impl LinphoneApi {
     pub unsafe fn load() -> Result<Arc<Self>, String> {
-        let library = load_library()?;
-        unsafe fn symbol<T: Copy>(library: &Library, name: &[u8]) -> Result<T, String> {
-            let symbol = unsafe { library.get::<T>(name) }
-                .map_err(|error| format!("missing {}: {error}", symbol_name(name)))?;
-            Ok(*symbol)
-        }
-        unsafe fn optional_symbol<T: Copy>(library: &Library, name: &[u8]) -> Option<T> {
-            unsafe { library.get::<T>(name) }.ok().map(|symbol| *symbol)
-        }
-
+        let library = unsafe { open_liblinphone()? };
         Ok(Arc::new(Self {
-            factory_get: unsafe { symbol(&library, b"linphone_factory_get\0") }?,
+            factory_get: unsafe { required_symbol(library, c"linphone_factory_get")? },
             factory_create_core_3: unsafe {
-                symbol(&library, b"linphone_factory_create_core_3\0")
-            }?,
+                required_symbol(library, c"linphone_factory_create_core_3")?
+            },
             factory_create_core_cbs: unsafe {
-                symbol(&library, b"linphone_factory_create_core_cbs\0")
-            }?,
+                required_symbol(library, c"linphone_factory_create_core_cbs")?
+            },
             factory_create_chat_room_cbs: unsafe {
-                symbol(&library, b"linphone_factory_create_chat_room_cbs\0")
-            }?,
+                required_symbol(library, c"linphone_factory_create_chat_room_cbs")?
+            },
             factory_create_address: unsafe {
-                symbol(&library, b"linphone_factory_create_address\0")
-            }?,
+                required_symbol(library, c"linphone_factory_create_address")?
+            },
             factory_create_auth_info_2: unsafe {
-                symbol(&library, b"linphone_factory_create_auth_info_2\0")
-            }?,
+                required_symbol(library, c"linphone_factory_create_auth_info_2")?
+            },
             core_cbs_set_call_state_changed: unsafe {
-                symbol(&library, b"linphone_core_cbs_set_call_state_changed\0")
-            }?,
+                required_symbol(library, c"linphone_core_cbs_set_call_state_changed")?
+            },
             core_cbs_set_message_received: unsafe {
-                symbol(&library, b"linphone_core_cbs_set_message_received\0")
-            }?,
+                required_symbol(library, c"linphone_core_cbs_set_message_received")?
+            },
             core_cbs_set_message_received_unable_decrypt: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_core_cbs_set_message_received_unable_decrypt\0",
+                    library,
+                    c"linphone_core_cbs_set_message_received_unable_decrypt",
                 )
             },
-            core_add_callbacks: unsafe { symbol(&library, b"linphone_core_add_callbacks\0") }?,
-            core_start: unsafe { symbol(&library, b"linphone_core_start\0") }?,
-            core_stop: unsafe { symbol(&library, b"linphone_core_stop\0") }?,
-            core_unref: unsafe { symbol(&library, b"linphone_core_unref\0") }?,
-            core_iterate: unsafe { symbol(&library, b"linphone_core_iterate\0") }?,
-            core_enable_chat: unsafe { symbol(&library, b"linphone_core_enable_chat\0") }?,
+            core_add_callbacks: unsafe {
+                required_symbol(library, c"linphone_core_add_callbacks")?
+            },
+            core_start: unsafe { required_symbol(library, c"linphone_core_start")? },
+            core_stop: unsafe { required_symbol(library, c"linphone_core_stop")? },
+            core_unref: unsafe { required_symbol(library, c"linphone_core_unref")? },
+            core_iterate: unsafe { required_symbol(library, c"linphone_core_iterate")? },
+            core_enable_chat: unsafe { required_symbol(library, c"linphone_core_enable_chat")? },
             core_set_playback_device: unsafe {
-                symbol(&library, b"linphone_core_set_playback_device\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_playback_device")?
+            },
             core_set_ringer_device: unsafe {
-                symbol(&library, b"linphone_core_set_ringer_device\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_ringer_device")?
+            },
             core_set_capture_device: unsafe {
-                symbol(&library, b"linphone_core_set_capture_device\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_capture_device")?
+            },
             core_set_media_device: unsafe {
-                symbol(&library, b"linphone_core_set_media_device\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_media_device")?
+            },
             core_enable_echo_cancellation: unsafe {
-                symbol(&library, b"linphone_core_enable_echo_cancellation\0")
-            }?,
-            core_set_mic_gain_db: unsafe { symbol(&library, b"linphone_core_set_mic_gain_db\0") }?,
+                required_symbol(library, c"linphone_core_enable_echo_cancellation")?
+            },
+            core_set_mic_gain_db: unsafe {
+                required_symbol(library, c"linphone_core_set_mic_gain_db")?
+            },
             core_set_playback_gain_db: unsafe {
-                symbol(&library, b"linphone_core_set_playback_gain_db\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_playback_gain_db")?
+            },
             core_set_audio_port_range: unsafe {
-                symbol(&library, b"linphone_core_set_audio_port_range\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_audio_port_range")?
+            },
             core_set_video_port_range: unsafe {
-                symbol(&library, b"linphone_core_set_video_port_range\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_video_port_range")?
+            },
             core_create_nat_policy: unsafe {
-                symbol(&library, b"linphone_core_create_nat_policy\0")
-            }?,
-            core_set_nat_policy: unsafe { symbol(&library, b"linphone_core_set_nat_policy\0") }?,
-            core_set_stun_server: unsafe { symbol(&library, b"linphone_core_set_stun_server\0") }?,
+                required_symbol(library, c"linphone_core_create_nat_policy")?
+            },
+            core_set_nat_policy: unsafe {
+                required_symbol(library, c"linphone_core_set_nat_policy")?
+            },
+            core_set_stun_server: unsafe {
+                required_symbol(library, c"linphone_core_set_stun_server")?
+            },
             core_set_file_transfer_server: unsafe {
-                symbol(&library, b"linphone_core_set_file_transfer_server\0")
-            }?,
+                required_symbol(library, c"linphone_core_set_file_transfer_server")?
+            },
             core_enable_lime_x3dh: unsafe {
-                optional_symbol(&library, b"linphone_core_enable_lime_x3dh\0")
+                optional_symbol(library, c"linphone_core_enable_lime_x3dh")
             },
             core_get_im_notif_policy: unsafe {
-                optional_symbol(&library, b"linphone_core_get_im_notif_policy\0")
+                optional_symbol(library, c"linphone_core_get_im_notif_policy")
             },
             core_add_linphone_spec: unsafe {
-                optional_symbol(&library, b"linphone_core_add_linphone_spec\0")
+                optional_symbol(library, c"linphone_core_add_linphone_spec")
             },
             core_set_chat_messages_aggregation_enabled: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_core_set_chat_messages_aggregation_enabled\0",
+                    library,
+                    c"linphone_core_set_chat_messages_aggregation_enabled",
                 )
             },
             core_enable_auto_download_voice_recordings: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_core_enable_auto_download_voice_recordings\0",
+                    library,
+                    c"linphone_core_enable_auto_download_voice_recordings",
                 )
             },
             core_create_account_params: unsafe {
-                symbol(&library, b"linphone_core_create_account_params\0")
-            }?,
-            core_create_account: unsafe { symbol(&library, b"linphone_core_create_account\0") }?,
-            core_add_account: unsafe { symbol(&library, b"linphone_core_add_account\0") }?,
+                required_symbol(library, c"linphone_core_create_account_params")?
+            },
+            core_create_account: unsafe {
+                required_symbol(library, c"linphone_core_create_account")?
+            },
+            core_add_account: unsafe { required_symbol(library, c"linphone_core_add_account")? },
             core_set_default_account: unsafe {
-                symbol(&library, b"linphone_core_set_default_account\0")
-            }?,
-            core_add_auth_info: unsafe { symbol(&library, b"linphone_core_add_auth_info\0") }?,
+                required_symbol(library, c"linphone_core_set_default_account")?
+            },
+            core_add_auth_info: unsafe {
+                required_symbol(library, c"linphone_core_add_auth_info")?
+            },
             core_create_call_params: unsafe {
-                symbol(&library, b"linphone_core_create_call_params\0")
-            }?,
+                required_symbol(library, c"linphone_core_create_call_params")?
+            },
             core_invite_address_with_params: unsafe {
-                symbol(&library, b"linphone_core_invite_address_with_params\0")
-            }?,
+                required_symbol(library, c"linphone_core_invite_address_with_params")?
+            },
             core_get_chat_room_from_uri: unsafe {
-                symbol(&library, b"linphone_core_get_chat_room_from_uri\0")
-            }?,
+                required_symbol(library, c"linphone_core_get_chat_room_from_uri")?
+            },
             core_create_recorder_params: unsafe {
-                optional_symbol(&library, b"linphone_core_create_recorder_params\0")
+                optional_symbol(library, c"linphone_core_create_recorder_params")
             },
             core_create_recorder: unsafe {
-                optional_symbol(&library, b"linphone_core_create_recorder\0")
+                optional_symbol(library, c"linphone_core_create_recorder")
             },
             account_params_set_server_address: unsafe {
-                symbol(&library, b"linphone_account_params_set_server_address\0")
-            }?,
+                required_symbol(library, c"linphone_account_params_set_server_address")?
+            },
             account_params_set_identity_address: unsafe {
-                symbol(&library, b"linphone_account_params_set_identity_address\0")
-            }?,
+                required_symbol(library, c"linphone_account_params_set_identity_address")?
+            },
             account_params_enable_register: unsafe {
-                symbol(&library, b"linphone_account_params_enable_register\0")
-            }?,
+                required_symbol(library, c"linphone_account_params_enable_register")?
+            },
             account_params_enable_cpim_in_basic_chat_room: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_account_params_enable_cpim_in_basic_chat_room\0",
+                    library,
+                    c"linphone_account_params_enable_cpim_in_basic_chat_room",
                 )
             },
             account_params_set_conference_factory_address: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_account_params_set_conference_factory_address\0",
+                    library,
+                    c"linphone_account_params_set_conference_factory_address",
                 )
             },
             account_params_set_audio_video_conference_factory_address: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_account_params_set_audio_video_conference_factory_address\0",
+                    library,
+                    c"linphone_account_params_set_audio_video_conference_factory_address",
                 )
             },
             account_params_set_file_transfer_server: unsafe {
-                optional_symbol(
-                    &library,
-                    b"linphone_account_params_set_file_transfer_server\0",
-                )
+                optional_symbol(library, c"linphone_account_params_set_file_transfer_server")
             },
             account_params_set_lime_server_url: unsafe {
-                optional_symbol(&library, b"linphone_account_params_set_lime_server_url\0")
+                optional_symbol(library, c"linphone_account_params_set_lime_server_url")
             },
-            account_cbs_new: unsafe { symbol(&library, b"linphone_account_cbs_new\0") }?,
+            account_cbs_new: unsafe { required_symbol(library, c"linphone_account_cbs_new")? },
             account_cbs_set_registration_state_changed: unsafe {
-                symbol(
-                    &library,
-                    b"linphone_account_cbs_set_registration_state_changed\0",
-                )
-            }?,
+                required_symbol(
+                    library,
+                    c"linphone_account_cbs_set_registration_state_changed",
+                )?
+            },
             account_add_callbacks: unsafe {
-                symbol(&library, b"linphone_account_add_callbacks\0")
-            }?,
-            account_unref: unsafe { symbol(&library, b"linphone_account_unref\0") }?,
-            account_cbs_unref: unsafe { symbol(&library, b"linphone_account_cbs_unref\0") }?,
-            account_params_unref: unsafe { symbol(&library, b"linphone_account_params_unref\0") }?,
-            address_get_username: unsafe { symbol(&library, b"linphone_address_get_username\0") }?,
-            address_get_domain: unsafe { symbol(&library, b"linphone_address_get_domain\0") }?,
-            address_unref: unsafe { symbol(&library, b"linphone_address_unref\0") }?,
-            auth_info_unref: unsafe { symbol(&library, b"linphone_auth_info_unref\0") }?,
-            call_params_unref: unsafe { symbol(&library, b"linphone_call_params_unref\0") }?,
+                required_symbol(library, c"linphone_account_add_callbacks")?
+            },
+            account_unref: unsafe { required_symbol(library, c"linphone_account_unref")? },
+            account_cbs_unref: unsafe { required_symbol(library, c"linphone_account_cbs_unref")? },
+            account_params_unref: unsafe {
+                required_symbol(library, c"linphone_account_params_unref")?
+            },
+            address_get_username: unsafe {
+                required_symbol(library, c"linphone_address_get_username")?
+            },
+            address_get_domain: unsafe {
+                required_symbol(library, c"linphone_address_get_domain")?
+            },
+            address_unref: unsafe { required_symbol(library, c"linphone_address_unref")? },
+            auth_info_unref: unsafe { required_symbol(library, c"linphone_auth_info_unref")? },
+            call_params_unref: unsafe { required_symbol(library, c"linphone_call_params_unref")? },
             call_get_remote_address: unsafe {
-                symbol(&library, b"linphone_call_get_remote_address\0")
-            }?,
-            call_accept: unsafe { symbol(&library, b"linphone_call_accept\0") }?,
-            call_decline: unsafe { symbol(&library, b"linphone_call_decline\0") }?,
-            call_terminate: unsafe { symbol(&library, b"linphone_call_terminate\0") }?,
+                required_symbol(library, c"linphone_call_get_remote_address")?
+            },
+            call_accept: unsafe { required_symbol(library, c"linphone_call_accept")? },
+            call_decline: unsafe { required_symbol(library, c"linphone_call_decline")? },
+            call_terminate: unsafe { required_symbol(library, c"linphone_call_terminate")? },
             call_set_microphone_muted: unsafe {
-                symbol(&library, b"linphone_call_set_microphone_muted\0")
-            }?,
+                required_symbol(library, c"linphone_call_set_microphone_muted")?
+            },
             chat_room_add_callbacks: unsafe {
-                symbol(&library, b"linphone_chat_room_add_callbacks\0")
-            }?,
+                required_symbol(library, c"linphone_chat_room_add_callbacks")?
+            },
             chat_room_create_message_from_utf8: unsafe {
-                symbol(&library, b"linphone_chat_room_create_message_from_utf8\0")
-            }?,
+                required_symbol(library, c"linphone_chat_room_create_message_from_utf8")?
+            },
             chat_room_create_voice_recording_message: unsafe {
                 optional_symbol(
-                    &library,
-                    b"linphone_chat_room_create_voice_recording_message\0",
+                    library,
+                    c"linphone_chat_room_create_voice_recording_message",
                 )
             },
             chat_room_cbs_set_message_received: unsafe {
-                symbol(&library, b"linphone_chat_room_cbs_set_message_received\0")
-            }?,
+                required_symbol(library, c"linphone_chat_room_cbs_set_message_received")?
+            },
             chat_room_cbs_set_messages_received: unsafe {
-                optional_symbol(&library, b"linphone_chat_room_cbs_set_messages_received\0")
+                optional_symbol(library, c"linphone_chat_room_cbs_set_messages_received")
             },
             chat_room_cbs_set_chat_message_received: unsafe {
-                optional_symbol(
-                    &library,
-                    b"linphone_chat_room_cbs_set_chat_message_received\0",
-                )
+                optional_symbol(library, c"linphone_chat_room_cbs_set_chat_message_received")
             },
-            chat_message_cbs_new: unsafe { symbol(&library, b"linphone_chat_message_cbs_new\0") }?,
+            chat_message_cbs_new: unsafe {
+                required_symbol(library, c"linphone_chat_message_cbs_new")?
+            },
             chat_message_cbs_unref: unsafe {
-                symbol(&library, b"linphone_chat_message_cbs_unref\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_cbs_unref")?
+            },
             chat_message_cbs_set_msg_state_changed: unsafe {
-                symbol(
-                    &library,
-                    b"linphone_chat_message_cbs_set_msg_state_changed\0",
-                )
-            }?,
+                required_symbol(library, c"linphone_chat_message_cbs_set_msg_state_changed")?
+            },
             chat_message_add_callbacks: unsafe {
-                symbol(&library, b"linphone_chat_message_add_callbacks\0")
-            }?,
-            chat_message_send: unsafe { symbol(&library, b"linphone_chat_message_send\0") }?,
+                required_symbol(library, c"linphone_chat_message_add_callbacks")?
+            },
+            chat_message_send: unsafe { required_symbol(library, c"linphone_chat_message_send")? },
             chat_message_get_message_id: unsafe {
-                symbol(&library, b"linphone_chat_message_get_message_id\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_message_id")?
+            },
             chat_message_get_user_data: unsafe {
-                symbol(&library, b"linphone_chat_message_get_user_data\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_user_data")?
+            },
             chat_message_set_user_data: unsafe {
-                symbol(&library, b"linphone_chat_message_set_user_data\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_set_user_data")?
+            },
             chat_message_get_utf8_text: unsafe {
-                optional_symbol(&library, b"linphone_chat_message_get_utf8_text\0")
+                optional_symbol(library, c"linphone_chat_message_get_utf8_text")
             },
             chat_message_get_text: unsafe {
-                optional_symbol(&library, b"linphone_chat_message_get_text\0")
+                optional_symbol(library, c"linphone_chat_message_get_text")
             },
             chat_message_get_file_transfer_information: unsafe {
-                symbol(
-                    &library,
-                    b"linphone_chat_message_get_file_transfer_information\0",
-                )
-            }?,
+                required_symbol(
+                    library,
+                    c"linphone_chat_message_get_file_transfer_information",
+                )?
+            },
             chat_message_get_state: unsafe {
-                symbol(&library, b"linphone_chat_message_get_state\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_state")?
+            },
             chat_message_state_to_string: unsafe {
-                symbol(&library, b"linphone_chat_message_state_to_string\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_state_to_string")?
+            },
             chat_message_is_outgoing: unsafe {
-                symbol(&library, b"linphone_chat_message_is_outgoing\0")
-            }?,
-            chat_message_is_read: unsafe { symbol(&library, b"linphone_chat_message_is_read\0") }?,
+                required_symbol(library, c"linphone_chat_message_is_outgoing")?
+            },
+            chat_message_is_read: unsafe {
+                required_symbol(library, c"linphone_chat_message_is_read")?
+            },
             chat_message_get_peer_address: unsafe {
-                symbol(&library, b"linphone_chat_message_get_peer_address\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_peer_address")?
+            },
             chat_message_get_from_address: unsafe {
-                symbol(&library, b"linphone_chat_message_get_from_address\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_from_address")?
+            },
             chat_message_get_to_address: unsafe {
-                symbol(&library, b"linphone_chat_message_get_to_address\0")
-            }?,
+                required_symbol(library, c"linphone_chat_message_get_to_address")?
+            },
             chat_message_download_content: unsafe {
-                symbol(&library, b"linphone_chat_message_download_content\0")
-            }?,
-            content_get_type: unsafe { symbol(&library, b"linphone_content_get_type\0") }?,
-            content_get_subtype: unsafe { symbol(&library, b"linphone_content_get_subtype\0") }?,
+                required_symbol(library, c"linphone_chat_message_download_content")?
+            },
+            content_get_type: unsafe { required_symbol(library, c"linphone_content_get_type")? },
+            content_get_subtype: unsafe {
+                required_symbol(library, c"linphone_content_get_subtype")?
+            },
             content_get_file_path: unsafe {
-                symbol(&library, b"linphone_content_get_file_path\0")
-            }?,
+                required_symbol(library, c"linphone_content_get_file_path")?
+            },
             content_set_file_path: unsafe {
-                symbol(&library, b"linphone_content_set_file_path\0")
-            }?,
-            core_cbs_unref: unsafe { symbol(&library, b"linphone_core_cbs_unref\0") }?,
-            chat_room_cbs_unref: unsafe { symbol(&library, b"linphone_chat_room_cbs_unref\0") }?,
+                required_symbol(library, c"linphone_content_set_file_path")?
+            },
+            core_cbs_unref: unsafe { required_symbol(library, c"linphone_core_cbs_unref")? },
+            chat_room_cbs_unref: unsafe {
+                required_symbol(library, c"linphone_chat_room_cbs_unref")?
+            },
             event_log_get_chat_message: unsafe {
-                optional_symbol(&library, b"linphone_event_log_get_chat_message\0")
+                optional_symbol(library, c"linphone_event_log_get_chat_message")
             },
             im_notif_policy_enable_all: unsafe {
-                optional_symbol(&library, b"linphone_im_notif_policy_enable_all\0")
+                optional_symbol(library, c"linphone_im_notif_policy_enable_all")
             },
             nat_policy_enable_stun: unsafe {
-                symbol(&library, b"linphone_nat_policy_enable_stun\0")
-            }?,
+                required_symbol(library, c"linphone_nat_policy_enable_stun")?
+            },
             nat_policy_enable_ice: unsafe {
-                symbol(&library, b"linphone_nat_policy_enable_ice\0")
-            }?,
+                required_symbol(library, c"linphone_nat_policy_enable_ice")?
+            },
             nat_policy_set_stun_server: unsafe {
-                symbol(&library, b"linphone_nat_policy_set_stun_server\0")
-            }?,
-            nat_policy_unref: unsafe { symbol(&library, b"linphone_nat_policy_unref\0") }?,
+                required_symbol(library, c"linphone_nat_policy_set_stun_server")?
+            },
+            nat_policy_unref: unsafe { required_symbol(library, c"linphone_nat_policy_unref")? },
             recorder_params_set_file_format: unsafe {
-                optional_symbol(&library, b"linphone_recorder_params_set_file_format\0")
+                optional_symbol(library, c"linphone_recorder_params_set_file_format")
             },
             recorder_params_unref: unsafe {
-                optional_symbol(&library, b"linphone_recorder_params_unref\0")
+                optional_symbol(library, c"linphone_recorder_params_unref")
             },
-            recorder_open: unsafe { optional_symbol(&library, b"linphone_recorder_open\0") },
-            recorder_start: unsafe { optional_symbol(&library, b"linphone_recorder_start\0") },
-            recorder_pause: unsafe { optional_symbol(&library, b"linphone_recorder_pause\0") },
+            recorder_open: unsafe { optional_symbol(library, c"linphone_recorder_open") },
+            recorder_start: unsafe { optional_symbol(library, c"linphone_recorder_start") },
+            recorder_pause: unsafe { optional_symbol(library, c"linphone_recorder_pause") },
             recorder_get_duration: unsafe {
-                optional_symbol(&library, b"linphone_recorder_get_duration\0")
+                optional_symbol(library, c"linphone_recorder_get_duration")
             },
-            recorder_close: unsafe { optional_symbol(&library, b"linphone_recorder_close\0") },
-            recorder_unref: unsafe { optional_symbol(&library, b"linphone_recorder_unref\0") },
-            core_get_version: unsafe { symbol(&library, b"linphone_core_get_version\0") }?,
+            recorder_close: unsafe { optional_symbol(library, c"linphone_recorder_close") },
+            recorder_unref: unsafe { optional_symbol(library, c"linphone_recorder_unref") },
+            core_get_version: unsafe { required_symbol(library, c"linphone_core_get_version")? },
             registration_state_to_string: unsafe {
-                optional_symbol(&library, b"linphone_registration_state_to_string\0")
+                optional_symbol(library, c"linphone_registration_state_to_string")
             },
             call_state_to_string: unsafe {
-                optional_symbol(&library, b"linphone_call_state_to_string\0")
+                optional_symbol(library, c"linphone_call_state_to_string")
             },
-            _library: library,
         }))
     }
 }
 
-fn load_library() -> Result<Library, String> {
-    if let Some(path) =
-        std::env::var_os("YOYOPOD_LIBLINPHONE_LIBRARY_PATH").filter(|value| !value.is_empty())
-    {
-        return unsafe { Library::new(path) }
-            .map_err(|error| format!("failed to load liblinphone: {error}"));
-    }
+#[cfg(unix)]
+const RTLD_NOW: c_int = 2;
+#[cfg(unix)]
+const RTLD_GLOBAL: c_int = 0x100;
 
+#[cfg(unix)]
+unsafe fn open_liblinphone() -> Result<*mut c_void, String> {
+    let candidates = [
+        c"liblinphone.so",
+        c"liblinphone.so.12",
+        c"liblinphone.so.11",
+    ];
     let mut errors = Vec::new();
-    for candidate in library_candidates() {
-        match unsafe { Library::new(&candidate) } {
-            Ok(library) => return Ok(library),
-            Err(error) => errors.push(format!("{}: {error}", candidate.to_string_lossy())),
+    for candidate in candidates {
+        let handle = unsafe { dlopen(candidate.as_ptr(), RTLD_NOW | RTLD_GLOBAL) };
+        if !handle.is_null() {
+            return Ok(handle);
         }
+        errors.push(format!("{}: {}", candidate.to_string_lossy(), unsafe {
+            dlerror_message()
+        }));
     }
     Err(format!(
-        "failed to load liblinphone ({})",
+        "failed to load Liblinphone runtime: {}",
         errors.join("; ")
     ))
 }
 
-fn library_candidates() -> Vec<OsString> {
-    if cfg!(target_os = "windows") {
-        return vec!["linphone.dll".into(), "liblinphone.dll".into()];
-    }
-    if cfg!(target_os = "macos") {
-        return vec!["liblinphone.dylib".into()];
-    }
-    vec![
-        "liblinphone.so.12".into(),
-        "liblinphone.so.11".into(),
-        "liblinphone.so.10".into(),
-        "liblinphone.so".into(),
-    ]
+#[cfg(not(unix))]
+unsafe fn open_liblinphone() -> Result<*mut c_void, String> {
+    Err("native Liblinphone runtime loading is only supported on Unix targets".to_string())
 }
 
-fn symbol_name(name: &[u8]) -> String {
-    String::from_utf8_lossy(name.strip_suffix(&[0]).unwrap_or(name)).into_owned()
+#[cfg(unix)]
+unsafe fn required_symbol<T: Copy>(handle: *mut c_void, name: &CStr) -> Result<T, String> {
+    let symbol = unsafe { dlsym(handle, name.as_ptr()) };
+    if symbol.is_null() {
+        return Err(format!(
+            "required Liblinphone symbol {} was not found: {}",
+            name.to_string_lossy(),
+            unsafe { dlerror_message() }
+        ));
+    }
+    debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<*mut c_void>());
+    Ok(unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) })
+}
+
+#[cfg(not(unix))]
+unsafe fn required_symbol<T: Copy>(_handle: *mut c_void, name: &CStr) -> Result<T, String> {
+    Err(format!(
+        "required Liblinphone symbol {} cannot be loaded on this target",
+        name.to_string_lossy()
+    ))
+}
+
+#[cfg(unix)]
+unsafe fn optional_symbol<T: Copy>(handle: *mut c_void, name: &CStr) -> Option<T> {
+    let symbol = unsafe { dlsym(handle, name.as_ptr()) };
+    if symbol.is_null() {
+        return None;
+    }
+    debug_assert_eq!(std::mem::size_of::<T>(), std::mem::size_of::<*mut c_void>());
+    Some(unsafe { std::mem::transmute_copy::<*mut c_void, T>(&symbol) })
+}
+
+#[cfg(not(unix))]
+unsafe fn optional_symbol<T>(_handle: *mut c_void, _name: &CStr) -> Option<T> {
+    None
+}
+
+#[cfg(unix)]
+unsafe fn dlerror_message() -> String {
+    let message = unsafe { dlerror() };
+    if message.is_null() {
+        "unknown dynamic loader error".to_string()
+    } else {
+        unsafe { CStr::from_ptr(message) }
+            .to_string_lossy()
+            .into_owned()
+    }
 }

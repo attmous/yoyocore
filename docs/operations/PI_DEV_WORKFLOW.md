@@ -135,7 +135,7 @@ Use this when validating a feature branch or PR on target hardware.
    yoyopod remote validate --branch <branch> --sha <commit>
    ```
 
-If you are switching across branches that touch native LVGL or Liblinphone shim
+If you are switching across branches that touch native LVGL
 sources, clean mutable native CMake caches before the dev restart:
 
 ```bash

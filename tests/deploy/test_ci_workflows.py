@@ -43,12 +43,32 @@ def test_rust_ui_ci_builds_arm64_binary_artifact() -> None:
     assert "name: yoyopod-ui-host-${{ env.RUST_ARTIFACT_SHA }}" in workflow
     assert "name: yoyopod-media-host-${{ env.RUST_ARTIFACT_SHA }}" in workflow
     assert "name: yoyopod-voip-host-${{ env.RUST_ARTIFACT_SHA }}" in workflow
-    assert "name: yoyopod-liblinphone-shim-${{ env.RUST_ARTIFACT_SHA }}" in workflow
     assert "yoyopod_rs/ui-host/build/yoyopod-ui-host" in workflow
     assert "yoyopod_rs/media-host/build/yoyopod-media-host" in workflow
     assert "yoyopod_rs/voip-host/build/yoyopod-voip-host" in workflow
+    assert (
+        "cargo build --release -p yoyopod-voip-host --features native-liblinphone --locked"
+        in workflow
+    )
+    assert "yoyopod-liblinphone-shim" not in workflow
+    assert "liblinphone-shim/build" not in workflow
     assert "actions/download-artifact@v4" in workflow
     assert "path: yoyopod_rs/media-host/build" in workflow
+
+
+def test_voip_host_runtime_loads_liblinphone_without_ci_runner_soname() -> None:
+    build_rs = (REPO_ROOT / "yoyopod_rs" / "voip-host" / "build.rs").read_text(
+        encoding="utf-8"
+    )
+    ffi_rs = (
+        REPO_ROOT / "yoyopod_rs" / "voip-host" / "src" / "liblinphone" / "ffi.rs"
+    ).read_text(encoding="utf-8")
+
+    assert "cargo_metadata(false)" in build_rs
+    assert "cargo:rustc-link-lib=linphone" not in build_rs
+    assert "fn linphone_factory_get" not in ffi_rs
+    assert 'required_symbol(library, c"linphone_factory_get")' in ffi_rs
+    assert 'liblinphone.so.12' in ffi_rs
 
 
 def test_rust_bazel_feature_folder_layout_is_checked_in() -> None:

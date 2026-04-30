@@ -196,7 +196,7 @@ Handlers live in two places today:
 
 ### Incoming call flow
 
-1. Rust `yoyopod-voip-host` receives Liblinphone call events through the Rust liblinphone shim.
+1. Rust `yoyopod-voip-host` receives Liblinphone call events through its internal Rust Liblinphone runtime.
 2. The Rust host updates its owned runtime snapshot and emits it to Python.
 3. `RustHostBackend` forwards `VoIPRuntimeSnapshotChanged` to `VoIPManager`.
 4. `VoIPManager` publishes `VoIPRuntimeSnapshotChangedEvent` onto `Bus` from the main thread.

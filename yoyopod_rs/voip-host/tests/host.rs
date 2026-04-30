@@ -17,6 +17,12 @@ fn poll_one(host: &mut VoipHost, event: BackendEvent) {
 }
 
 #[test]
+fn host_exposes_voip_runtime_backend_trait_name() {
+    fn assert_backend<T: yoyopod_voip_host::host::VoipRuntimeBackend>() {}
+    assert_backend::<support::FakeBackend>();
+}
+
+#[test]
 fn health_reports_configured_registered_and_call_id() {
     let mut host = VoipHost::default();
     host.configure(config());
@@ -456,19 +462,19 @@ fn lifecycle_snapshot_tracks_register_failure_recovery_and_stop() {
     );
 
     let mut backend = FakeBackend {
-        start_results: vec![Err("shim missing".to_string()), Ok(())],
+        start_results: vec![Err("backend missing".to_string()), Ok(())],
         ..FakeBackend::default()
     };
     assert_eq!(
         host.register(&mut backend)
             .expect_err("register should fail"),
-        "shim missing"
+        "backend missing"
     );
     let snapshot = host.session_snapshot_payload();
     assert_eq!(snapshot["registered"], false);
     assert_eq!(snapshot["registration_state"], "failed");
     assert_eq!(snapshot["lifecycle"]["state"], "failed");
-    assert_eq!(snapshot["lifecycle"]["reason"], "shim missing");
+    assert_eq!(snapshot["lifecycle"]["reason"], "backend missing");
 
     host.register(&mut backend)
         .expect("register should recover");
