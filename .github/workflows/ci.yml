@@ -118,6 +118,9 @@ jobs:
 
   ui-rust:
     runs-on: ubuntu-24.04-arm
+    env:
+      RUST_ARTIFACT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      YOYOPOD_LVGL_SOURCE_DIR: ${{ github.workspace }}/.cache/lvgl/lvgl-9.5.0
 
     steps:
       - name: Check out repository
@@ -129,25 +132,29 @@ jobs:
       - name: Set up Bazelisk
         uses: bazelbuild/setup-bazelisk@v3
 
+      - name: Fetch pinned LVGL source
+        run: |
+          git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git .cache/lvgl/lvgl-9.5.0
+
       - name: Run Bazel Rust host tests
         run: bazel test //yoyopod_rs/ui-host/... //yoyopod_rs/voip-host/... //yoyopod_rs/liblinphone-shim/...
 
       - name: Run Rust UI host tests
         working-directory: yoyopod_rs
-        run: cargo test --workspace --locked --features whisplay-hardware
+        run: cargo test --workspace --locked --features whisplay-hardware,native-lvgl
 
       - name: Build Rust UI Whisplay host
         working-directory: yoyopod_rs
         run: |
           set -euo pipefail
-          cargo build --release -p yoyopod-ui-host --features whisplay-hardware --locked
+          cargo build --release -p yoyopod-ui-host --features whisplay-hardware,native-lvgl --locked
           mkdir -p ui-host/build
           cp target/release/yoyopod-ui-host ui-host/build/yoyopod-ui-host
 
       - name: Upload Rust UI ARM64 host
         uses: actions/upload-artifact@v4
         with:
-          name: yoyopod-ui-host-${{ github.sha }}
+          name: yoyopod-ui-host-${{ env.RUST_ARTIFACT_SHA }}
           path: yoyopod_rs/ui-host/build/yoyopod-ui-host
           if-no-files-found: error
 
@@ -162,7 +169,7 @@ jobs:
       - name: Upload Rust VoIP ARM64 host
         uses: actions/upload-artifact@v4
         with:
-          name: yoyopod-voip-host-${{ github.sha }}
+          name: yoyopod-voip-host-${{ env.RUST_ARTIFACT_SHA }}
           path: yoyopod_rs/voip-host/build/yoyopod-voip-host
           if-no-files-found: error
 

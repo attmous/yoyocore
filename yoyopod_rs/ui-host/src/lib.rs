@@ -2,7 +2,7 @@ pub mod framebuffer;
 pub mod hardware;
 pub mod hub;
 pub mod input;
-pub mod lvgl_bridge;
+pub mod lvgl;
 pub mod protocol;
 pub mod render;
 pub mod runtime;

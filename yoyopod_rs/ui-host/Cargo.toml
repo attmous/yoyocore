@@ -3,6 +3,7 @@ name = "yoyopod-ui-host"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.82"
+build = "build.rs"
 
 [[bin]]
 name = "yoyopod-ui-host"
@@ -22,4 +23,8 @@ rppal = { version = "0.22.1", optional = true }
 
 [features]
 default = []
+native-lvgl = []
 whisplay-hardware = ["dep:rppal"]
+
+[build-dependencies]
+cmake = "0.1"

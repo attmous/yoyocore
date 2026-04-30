@@ -25,7 +25,7 @@ UI_HOST_TESTS = [
     "hardware_whisplay",
     "hub",
     "input",
-    "lvgl_bridge",
+    "lvgl_runtime",
     "protocol",
     "render_framebuffer",
     "render_lvgl",

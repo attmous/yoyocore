@@ -3,6 +3,7 @@ use serde_json::json;
 
 use crate::input::InputAction;
 use crate::screens;
+use crate::screens::ScreenModel;
 
 use super::{ListItemSnapshot, RuntimeSnapshot, UiIntent};
 
@@ -135,6 +136,10 @@ impl UiRuntime {
         Self::view_for_screen(self.active_screen, &self.snapshot, self.focus_index)
     }
 
+    pub fn active_screen_model(&self) -> ScreenModel {
+        Self::screen_model_for_screen(self.active_screen, &self.snapshot, self.focus_index)
+    }
+
     pub fn view_for_screen(
         screen: UiScreen,
         snapshot: &RuntimeSnapshot,
@@ -157,6 +162,45 @@ impl UiRuntime {
             UiScreen::Power => screens::power::view(snapshot, focus_index),
             UiScreen::Loading => screens::overlay::loading_view(snapshot),
             UiScreen::Error => screens::overlay::error_view(snapshot),
+        }
+    }
+
+    pub fn screen_model_for_screen(
+        screen: UiScreen,
+        snapshot: &RuntimeSnapshot,
+        focus_index: usize,
+    ) -> ScreenModel {
+        match screen {
+            UiScreen::Hub => ScreenModel::Hub(screens::hub::model(snapshot, focus_index)),
+            UiScreen::Listen => ScreenModel::Listen(screens::listen::model(snapshot, focus_index)),
+            UiScreen::Playlists => {
+                ScreenModel::Playlists(screens::music::playlists_model(snapshot, focus_index))
+            }
+            UiScreen::RecentTracks => ScreenModel::RecentTracks(
+                screens::music::recent_tracks_model(snapshot, focus_index),
+            ),
+            UiScreen::NowPlaying => {
+                ScreenModel::NowPlaying(screens::music::now_playing_model(snapshot))
+            }
+            UiScreen::Ask => ScreenModel::Ask(screens::ask::ask_model(snapshot)),
+            UiScreen::Talk => ScreenModel::Talk(screens::talk::model(snapshot, focus_index)),
+            UiScreen::Contacts => {
+                ScreenModel::Contacts(screens::call::contacts_model(snapshot, focus_index))
+            }
+            UiScreen::CallHistory => {
+                ScreenModel::CallHistory(screens::call::call_history_model(snapshot, focus_index))
+            }
+            UiScreen::VoiceNote => ScreenModel::VoiceNote(screens::ask::voice_note_model(snapshot)),
+            UiScreen::IncomingCall => {
+                ScreenModel::IncomingCall(screens::call::incoming_model(snapshot))
+            }
+            UiScreen::OutgoingCall => {
+                ScreenModel::OutgoingCall(screens::call::outgoing_model(snapshot))
+            }
+            UiScreen::InCall => ScreenModel::InCall(screens::call::in_call_model(snapshot)),
+            UiScreen::Power => ScreenModel::Power(screens::power::model(snapshot, focus_index)),
+            UiScreen::Loading => ScreenModel::Loading(screens::overlay::loading_model(snapshot)),
+            UiScreen::Error => ScreenModel::Error(screens::overlay::error_model(snapshot)),
         }
     }
 

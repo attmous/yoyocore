@@ -16,8 +16,12 @@ For host-only protocol tests:
 yoyopod build rust-ui-host --no-hardware-feature
 ```
 
-CI builds the Whisplay host on a native Linux ARM64 runner and uploads it as the
-`yoyopod-ui-host-${{ github.sha }}` artifact.
+Direct native-LVGL builds require `YOYOPOD_LVGL_SOURCE_DIR` to point at an
+LVGL 9.5 checkout.
+
+CI builds the Whisplay host on a native Linux ARM64 runner with
+`whisplay-hardware,native-lvgl` enabled and uploads it as the
+`yoyopod-ui-host-<exact-commit-sha>` artifact.
 
 For Raspberry Pi Zero 2W hardware validation, the deploy path is always:
 
@@ -67,7 +71,7 @@ yoyopod pi rust-ui-host --worker yoyopod_rs/ui-host/build/yoyopod-ui-host --fram
 
 Expected result:
 
-- the Whisplay display shows changing test frames or the requested hub screen
+- the Whisplay display shows changing test frames or the Rust-owned hub route
 - the command prints a `ui.ready` payload
 - the command prints a `ui.health` payload
 
@@ -81,14 +85,17 @@ For one-button validation, run both checks:
 The Rust host accepts these UI-owner commands over line-delimited JSON:
 
 - `ui.runtime_snapshot` - Python sends the latest app/runtime snapshot. Rust
-  applies call/loading/error preemption, owns the active screen, renders the
-  screen, and emits `ui.screen_changed` when the Rust route changes.
+  sends generic runtime state only through this payload. Rust applies
+  call/loading/error preemption, owns the active screen, renders the screen,
+  and emits `ui.screen_changed` when the Rust route changes.
 - `ui.input_action` - Python or tests inject one semantic action
   (`advance`, `select`, `back`, `ptt_press`, `ptt_release`). Rust applies it to
   the active screen and emits `ui.intent` when Python runtime work is needed.
 - `ui.tick` - Rust polls the Whisplay button, runs the one-button gesture
   machine, applies generated actions, emits intents, and renders dirty screens.
 
-The compatibility Python bridge currently lives in `yoyopod/ui/rust_sidecar/`.
-The production-facing package name is being promoted to `yoyopod/ui/rust_host/`
-as part of the UI ownership migration.
+Python sends generic `ui.runtime_snapshot` payloads only. The Rust host no
+longer accepts `ui.show_hub`.
+
+Legacy compatibility code still exists under `yoyopod/ui/rust_sidecar/`, while
+the active CLI/test integration imports `yoyopod/ui/rust_host/`.

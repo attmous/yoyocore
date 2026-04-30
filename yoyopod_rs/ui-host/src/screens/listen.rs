@@ -1,4 +1,14 @@
 use crate::runtime::{ListItemSnapshot, RuntimeSnapshot, UiScreen, UiView};
+use crate::screens::{chrome, ListScreenModel};
+
+pub fn model(snapshot: &RuntimeSnapshot, focus_index: usize) -> ListScreenModel {
+    ListScreenModel {
+        chrome: chrome::chrome(snapshot, "Tap = Next | 2x Tap = Open | Hold = Back"),
+        title: "Listen".to_string(),
+        subtitle: "Music".to_string(),
+        rows: chrome::list_rows(&items(snapshot), focus_index),
+    }
+}
 
 pub fn view(snapshot: &RuntimeSnapshot, focus_index: usize) -> UiView {
     UiView {

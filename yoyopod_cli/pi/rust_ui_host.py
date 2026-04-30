@@ -7,14 +7,14 @@ from typing import Annotated, Literal, cast
 
 import typer
 
-from yoyopod.ui.rust_host.hub import HubRenderer, RustHubSnapshot
 from yoyopod.ui.rust_host.protocol import UiEnvelope
+from yoyopod.ui.rust_host.snapshot import RustUiRuntimeSnapshot
 from yoyopod.ui.rust_host.supervisor import RustUiHostSupervisor
 
 
 def _default_worker_path() -> Path:
     suffix = ".exe" if __import__("os").name == "nt" else ""
-    return Path("src") / "ui-host" / "build" / f"yoyopod-ui-host{suffix}"
+    return Path("yoyopod_rs") / "ui-host" / "build" / f"yoyopod-ui-host{suffix}"
 
 
 def rust_ui_host(
@@ -34,18 +34,10 @@ def rust_ui_host(
         str,
         typer.Option("--screen", help="Screen to render: test-scene or hub."),
     ] = "test-scene",
-    hub_renderer: Annotated[
-        str,
-        typer.Option(
-            "--hub-renderer",
-            help="Hub renderer: auto, lvgl, or framebuffer.",
-        ),
-    ] = "auto",
 ) -> None:
     """Run the Rust UI host against Whisplay hardware."""
 
     selected_screen = _screen_name(screen)
-    selected_hub_renderer = _hub_renderer(hub_renderer)
     argv = [str(worker), "--hardware", hardware]
     supervisor = RustUiHostSupervisor(argv=argv)
     ready = supervisor.start()
@@ -56,8 +48,8 @@ def rust_ui_host(
             if selected_screen == "hub":
                 supervisor.send(
                     UiEnvelope.command(
-                        "ui.show_hub",
-                        RustHubSnapshot.static().to_payload(renderer=selected_hub_renderer),
+                        "ui.runtime_snapshot",
+                        RustUiRuntimeSnapshot().to_payload(),
                         request_id=f"hub-frame-{counter}",
                     )
                 )
@@ -70,12 +62,16 @@ def rust_ui_host(
                     )
                 )
         supervisor.send(UiEnvelope.command("ui.health", request_id="health"))
-        health = supervisor.read_event()
+        while True:
+            health = supervisor.read_event()
+            if health.type == "ui.health":
+                break
         typer.echo(
             "Rust UI host health: "
             f"frames={health.payload.get('frames')} "
             f"button_events={health.payload.get('button_events')} "
-            f"last_hub_renderer={health.payload.get('last_hub_renderer', '')}"
+            f"active_screen={health.payload.get('active_screen', '')} "
+            f"last_ui_renderer={health.payload.get('last_ui_renderer', '')}"
         )
     finally:
         supervisor.stop()
@@ -88,9 +84,3 @@ def _screen_name(value: str) -> ScreenName:
     if value in {"test-scene", "hub"}:
         return cast(ScreenName, value)
     raise typer.BadParameter("screen must be test-scene or hub")
-
-
-def _hub_renderer(value: str) -> HubRenderer:
-    if value in {"auto", "lvgl", "framebuffer"}:
-        return cast(HubRenderer, value)
-    raise typer.BadParameter("hub-renderer must be auto, lvgl, or framebuffer")

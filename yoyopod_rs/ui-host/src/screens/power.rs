@@ -1,4 +1,14 @@
 use crate::runtime::{ListItemSnapshot, RuntimeSnapshot, UiScreen, UiView};
+use crate::screens::{chrome, PowerViewModel};
+
+pub fn model(snapshot: &RuntimeSnapshot, focus_index: usize) -> PowerViewModel {
+    PowerViewModel {
+        chrome: chrome::chrome(snapshot, "Tap = Next | Hold = Back"),
+        title: "Status".to_string(),
+        subtitle: format!("Battery {}%", snapshot.power.battery_percent),
+        rows: chrome::list_rows(&items(snapshot), focus_index),
+    }
+}
 
 pub fn view(snapshot: &RuntimeSnapshot, focus_index: usize) -> UiView {
     UiView {

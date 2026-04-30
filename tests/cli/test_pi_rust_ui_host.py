@@ -5,6 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from yoyopod.ui.rust_host.protocol import UiEnvelope
+from yoyopod.ui.rust_host.snapshot import RustUiRuntimeSnapshot
 from yoyopod_cli.pi import app
 import yoyopod_cli.pi.rust_ui_host as rust_ui_host
 
@@ -16,6 +17,7 @@ class _FakeSupervisor:
         self.argv = argv
         self.cwd = cwd
         self.sent: list[UiEnvelope] = []
+        self._events: list[UiEnvelope] = []
         self.instances.append(self)
 
     def start(self) -> UiEnvelope:
@@ -27,13 +29,30 @@ class _FakeSupervisor:
 
     def send(self, envelope: UiEnvelope) -> None:
         self.sent.append(envelope)
+        if envelope.type == "ui.runtime_snapshot":
+            self._events.append(
+                UiEnvelope(
+                    kind="event",
+                    type="ui.screen_changed",
+                    payload={"screen": "hub", "title": "Listen"},
+                )
+            )
+        elif envelope.type == "ui.health":
+            self._events.append(
+                UiEnvelope(
+                    kind="event",
+                    type="ui.health",
+                    payload={
+                        "frames": 1,
+                        "button_events": 0,
+                        "active_screen": "hub",
+                        "last_ui_renderer": "framebuffer",
+                    },
+                )
+            )
 
     def read_event(self) -> UiEnvelope:
-        return UiEnvelope(
-            kind="event",
-            type="ui.health",
-            payload={"frames": 1, "button_events": 0},
-        )
+        return self._events.pop(0)
 
     def stop(self) -> None:
         return None
@@ -61,7 +80,9 @@ def test_rust_ui_host_runs_supervisor(monkeypatch, tmp_path: Path) -> None:
     assert "frames=1" in result.output
 
 
-def test_rust_ui_host_can_request_static_hub(monkeypatch, tmp_path: Path) -> None:
+def test_rust_ui_host_sends_runtime_snapshot_for_hub_screen(
+    monkeypatch, tmp_path: Path
+) -> None:
     worker = tmp_path / "yoyopod-ui-host"
     worker.write_text("fake", encoding="utf-8")
     _FakeSupervisor.instances.clear()
@@ -78,13 +99,19 @@ def test_rust_ui_host_can_request_static_hub(monkeypatch, tmp_path: Path) -> Non
             "1",
             "--screen",
             "hub",
-            "--hub-renderer",
-            "lvgl",
         ],
     )
 
     assert result.exit_code == 0
     sent = _FakeSupervisor.instances[-1].sent[0]
-    assert sent.type == "ui.show_hub"
-    assert sent.payload["renderer"] == "lvgl"
-    assert sent.payload["title"] == "Listen"
+    assert sent.type == "ui.runtime_snapshot"
+    assert sent.request_id == "hub-frame-1"
+    assert sent.payload == RustUiRuntimeSnapshot().to_payload()
+    assert [card["title"] for card in sent.payload["hub"]["cards"]] == [
+        "Listen",
+        "Talk",
+        "Ask",
+        "Setup",
+    ]
+    assert "active_screen=hub" in result.output
+    assert "last_ui_renderer=framebuffer" in result.output

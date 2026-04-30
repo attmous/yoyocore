@@ -1,4 +1,23 @@
 use crate::runtime::{ListItemSnapshot, RuntimeSnapshot, UiScreen, UiView};
+use crate::screens::{chrome, HubCardModel, HubViewModel};
+
+pub fn model(snapshot: &RuntimeSnapshot, focus_index: usize) -> HubViewModel {
+    HubViewModel {
+        chrome: chrome::chrome(snapshot, "Tap = Next | 2x Tap = Open"),
+        cards: snapshot
+            .hub
+            .cards
+            .iter()
+            .map(|card| HubCardModel {
+                key: card.key.clone(),
+                title: card.title.clone(),
+                subtitle: card.subtitle.clone(),
+                accent: card.accent,
+            })
+            .collect(),
+        selected_index: focus_index,
+    }
+}
 
 pub fn view(snapshot: &RuntimeSnapshot, focus_index: usize) -> UiView {
     let cards = snapshot.hub.cards.clone();

@@ -1,12 +1,13 @@
 use crate::framebuffer::{rgb565, Framebuffer};
 use crate::hub::HubSnapshot;
-use crate::runtime::{RuntimeSnapshot, UiScreen, UiView};
+use crate::runtime::UiScreen;
+use crate::screens::{ChromeModel, ListRowModel, ScreenModel, StatusBarModel};
 
 pub struct FramebufferRenderer;
 
 impl FramebufferRenderer {
-    pub fn render_view(framebuffer: &mut Framebuffer, view: &UiView, snapshot: &RuntimeSnapshot) {
-        render_ui_view_fallback(framebuffer, view, snapshot);
+    pub fn render_screen_model(framebuffer: &mut Framebuffer, model: &ScreenModel) {
+        render_screen_model_fallback(framebuffer, model);
     }
 }
 
@@ -73,36 +74,43 @@ pub fn render_hub_fallback(framebuffer: &mut Framebuffer, snapshot: &HubSnapshot
     framebuffer.fill_rect(34, 261, 172, 5, rgb565(122, 125, 132));
 }
 
-pub fn render_ui_view_fallback(
-    framebuffer: &mut Framebuffer,
-    view: &UiView,
-    snapshot: &RuntimeSnapshot,
-) {
-    framebuffer.clear(background_color(view.screen));
-    render_status_bar(framebuffer, snapshot);
-    render_screen_body(framebuffer, view);
-    render_footer(framebuffer, view);
+pub fn render_screen_model_fallback(framebuffer: &mut Framebuffer, model: &ScreenModel) {
+    framebuffer.clear(background_color(model.screen()));
+    render_status_bar(framebuffer, &chrome(model).status);
+    render_screen_body(framebuffer, model);
+    render_footer(framebuffer, &chrome(model).footer);
 }
 
-fn render_status_bar(framebuffer: &mut Framebuffer, snapshot: &RuntimeSnapshot) {
+fn render_status_bar(framebuffer: &mut Framebuffer, status: &StatusBarModel) {
     framebuffer.fill_rect(0, 0, 240, 28, rgb565(25, 28, 34));
-    let status = if snapshot.network.connected {
+    let network = if status.network_connected {
         rgb565(61, 221, 83)
-    } else if snapshot.network.enabled {
+    } else if status.network_enabled {
         rgb565(255, 213, 73)
     } else {
         rgb565(122, 125, 132)
     };
-    framebuffer.fill_rect(14, 10, 34, 7, status);
+    framebuffer.fill_rect(14, 10, 34, 7, network);
 
-    let battery_width = ((snapshot.power.battery_percent.clamp(0, 100) as usize) * 28) / 100;
+    let battery_width = ((status.battery_percent.clamp(0, 100) as usize) * 28) / 100;
     framebuffer.fill_rect(188, 9, 32, 10, rgb565(122, 125, 132));
     framebuffer.fill_rect(
         190,
         11,
         battery_width,
         6,
-        if snapshot.power.charging {
+        if status.charging {
+            rgb565(61, 221, 83)
+        } else {
+            rgb565(246, 173, 85)
+        },
+    );
+    framebuffer.fill_rect(
+        52,
+        10,
+        14,
+        7,
+        if status.signal_strength > 0 {
             rgb565(61, 221, 83)
         } else {
             rgb565(246, 173, 85)
@@ -110,39 +118,58 @@ fn render_status_bar(framebuffer: &mut Framebuffer, snapshot: &RuntimeSnapshot) 
     );
 }
 
-fn render_screen_body(framebuffer: &mut Framebuffer, view: &UiView) {
-    match view.screen {
-        UiScreen::Hub => {
-            let accent = hub_focus_color(view.focus_index);
+fn render_screen_body(framebuffer: &mut Framebuffer, model: &ScreenModel) {
+    match model {
+        ScreenModel::Hub(hub) => {
+            let accent = hub_focus_color(hub.selected_index);
             framebuffer.fill_rect(52, 48, 136, 118, rgb565(45, 50, 60));
             framebuffer.fill_rect(70, 64, 100, 86, accent);
-            render_focus_dots(framebuffer, view.items.len().max(1), view.focus_index, 214);
+            render_focus_dots(framebuffer, hub.cards.len().max(1), hub.selected_index, 214);
         }
-        UiScreen::IncomingCall | UiScreen::OutgoingCall | UiScreen::InCall => {
+        ScreenModel::IncomingCall(call)
+        | ScreenModel::OutgoingCall(call)
+        | ScreenModel::InCall(call) => {
             framebuffer.fill_rect(48, 52, 144, 144, rgb565(38, 45, 54));
             framebuffer.fill_rect(78, 80, 84, 84, rgb565(0, 212, 255));
             framebuffer.fill_rect(58, 214, 124, 10, rgb565(255, 255, 255));
+            if call.muted {
+                framebuffer.fill_rect(166, 70, 28, 12, rgb565(246, 173, 85));
+            }
         }
-        UiScreen::NowPlaying => {
+        ScreenModel::NowPlaying(now_playing) => {
             framebuffer.fill_rect(42, 48, 156, 112, rgb565(34, 48, 70));
             framebuffer.fill_rect(60, 178, 120, 8, rgb565(122, 125, 132));
-            framebuffer.fill_rect(60, 178, 64, 8, rgb565(0, 255, 136));
+            let progress_width =
+                ((now_playing.progress_permille.clamp(0, 1000) as usize) * 120) / 1000;
+            framebuffer.fill_rect(60, 178, progress_width, 8, rgb565(0, 255, 136));
         }
-        UiScreen::Ask | UiScreen::VoiceNote => {
+        ScreenModel::Ask(_) | ScreenModel::VoiceNote(_) => {
             framebuffer.fill_rect(62, 52, 116, 116, rgb565(99, 102, 241));
             framebuffer.fill_rect(94, 78, 52, 68, rgb565(255, 255, 255));
         }
-        UiScreen::Power => {
+        ScreenModel::Power(power) => {
             framebuffer.fill_rect(30, 54, 180, 118, rgb565(34, 48, 70));
             framebuffer.fill_rect(54, 92, 132, 28, rgb565(61, 221, 83));
-            render_list(framebuffer, view, 188);
+            render_list_rows(framebuffer, &power.rows, 188);
         }
-        _ => render_list(framebuffer, view, 54),
+        ScreenModel::Loading(overlay) | ScreenModel::Error(overlay) => {
+            framebuffer.fill_rect(36, 68, 168, 92, rgb565(34, 48, 70));
+            framebuffer.fill_rect(54, 92, 132, 16, rgb565(240, 242, 245));
+            if !overlay.subtitle.trim().is_empty() {
+                framebuffer.fill_rect(62, 126, 116, 10, rgb565(122, 125, 132));
+            }
+        }
+        ScreenModel::Listen(list)
+        | ScreenModel::Playlists(list)
+        | ScreenModel::RecentTracks(list)
+        | ScreenModel::Talk(list)
+        | ScreenModel::Contacts(list)
+        | ScreenModel::CallHistory(list) => render_list_rows(framebuffer, &list.rows, 54),
     }
 }
 
-fn render_list(framebuffer: &mut Framebuffer, view: &UiView, start_y: usize) {
-    let count = view.items.len().min(4);
+fn render_list_rows(framebuffer: &mut Framebuffer, rows: &[ListRowModel], start_y: usize) {
+    let count = rows.len().min(4);
     if count == 0 {
         framebuffer.fill_rect(56, 112, 128, 18, rgb565(122, 125, 132));
         return;
@@ -150,7 +177,7 @@ fn render_list(framebuffer: &mut Framebuffer, view: &UiView, start_y: usize) {
 
     for index in 0..count {
         let y = start_y + index * 38;
-        let selected = index == view.focus_index.min(count - 1);
+        let selected = rows[index].selected;
         framebuffer.fill_rect(
             18,
             y,
@@ -176,9 +203,10 @@ fn render_list(framebuffer: &mut Framebuffer, view: &UiView, start_y: usize) {
     }
 }
 
-fn render_footer(framebuffer: &mut Framebuffer, _view: &UiView) {
+fn render_footer(framebuffer: &mut Framebuffer, footer: &str) {
     framebuffer.fill_rect(0, 248, 240, 32, rgb565(25, 28, 34));
-    framebuffer.fill_rect(34, 261, 172, 5, rgb565(122, 125, 132));
+    let footer_width = if footer.trim().is_empty() { 96 } else { 172 };
+    framebuffer.fill_rect(34, 261, footer_width, 5, rgb565(122, 125, 132));
 }
 
 fn render_focus_dots(framebuffer: &mut Framebuffer, total: usize, selected_index: usize, y: usize) {
@@ -207,6 +235,25 @@ fn background_color(screen: UiScreen) -> u16 {
         UiScreen::Error => rgb565(70, 20, 28),
         UiScreen::Loading => rgb565(25, 28, 34),
         _ => rgb565(42, 45, 53),
+    }
+}
+
+fn chrome(model: &ScreenModel) -> &ChromeModel {
+    match model {
+        ScreenModel::Hub(hub) => &hub.chrome,
+        ScreenModel::Listen(list)
+        | ScreenModel::Playlists(list)
+        | ScreenModel::RecentTracks(list)
+        | ScreenModel::Talk(list)
+        | ScreenModel::Contacts(list)
+        | ScreenModel::CallHistory(list) => &list.chrome,
+        ScreenModel::NowPlaying(now_playing) => &now_playing.chrome,
+        ScreenModel::Ask(ask) | ScreenModel::VoiceNote(ask) => &ask.chrome,
+        ScreenModel::IncomingCall(call)
+        | ScreenModel::OutgoingCall(call)
+        | ScreenModel::InCall(call) => &call.chrome,
+        ScreenModel::Power(power) => &power.chrome,
+        ScreenModel::Loading(overlay) | ScreenModel::Error(overlay) => &overlay.chrome,
     }
 }
 

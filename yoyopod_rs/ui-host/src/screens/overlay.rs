@@ -1,4 +1,21 @@
 use crate::runtime::{RuntimeSnapshot, UiScreen, UiView};
+use crate::screens::{chrome, OverlayViewModel};
+
+pub fn loading_model(snapshot: &RuntimeSnapshot) -> OverlayViewModel {
+    OverlayViewModel {
+        chrome: chrome::chrome(snapshot, ""),
+        title: "Loading".to_string(),
+        subtitle: snapshot.overlay.message.clone(),
+    }
+}
+
+pub fn error_model(snapshot: &RuntimeSnapshot) -> OverlayViewModel {
+    OverlayViewModel {
+        chrome: chrome::chrome(snapshot, "Hold = Back"),
+        title: "Error".to_string(),
+        subtitle: snapshot.overlay.error.clone(),
+    }
+}
 
 pub fn loading_view(snapshot: &RuntimeSnapshot) -> UiView {
     UiView {

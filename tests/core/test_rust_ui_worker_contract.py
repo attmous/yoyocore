@@ -58,18 +58,31 @@ def test_rust_ui_worker_mock_contract() -> None:
     assert envelopes[0]["type"] == "ui.ready"
 
 
-def test_rust_ui_worker_accepts_static_hub_command() -> None:
+def test_rust_ui_worker_accepts_runtime_snapshot_for_hub_screen() -> None:
     if shutil.which("cargo") is None:
         pytest.skip("cargo toolchain not available")
 
     command = {
         "schema_version": 1,
         "kind": "command",
-        "type": "ui.show_hub",
+        "type": "ui.runtime_snapshot",
         "request_id": "hub-contract",
         "timestamp_ms": 1,
         "deadline_ms": 1000,
-        "payload": {"renderer": "framebuffer", "title": "Listen"},
+        "payload": {
+            "renderer": "framebuffer",
+            "app_state": "hub",
+            "hub": {
+                "cards": [
+                    {
+                        "key": "listen",
+                        "title": "Listen",
+                        "subtitle": "Music",
+                        "accent": 0x00FF88,
+                    }
+                ]
+            },
+        },
     }
     health = {
         "schema_version": 1,
@@ -115,4 +128,5 @@ def test_rust_ui_worker_accepts_static_hub_command() -> None:
     assert envelopes[0]["type"] == "ui.ready"
     assert envelopes[-1]["type"] == "ui.health"
     assert envelopes[-1]["payload"]["frames"] == 1
-    assert envelopes[-1]["payload"]["last_hub_renderer"] == "framebuffer"
+    assert envelopes[-1]["payload"]["active_screen"] == "hub"
+    assert envelopes[-1]["payload"]["last_ui_renderer"] == "framebuffer"
