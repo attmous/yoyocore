@@ -1,4 +1,5 @@
-use std::time::{Duration, Instant};
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde_json::json;
 use yoyopod_runtime::protocol::{EnvelopeKind, WorkerEnvelope, SUPPORTED_SCHEMA_VERSION};
@@ -83,6 +84,58 @@ fn worker_supervisor_drains_malformed_stdout_as_protocol_error() {
 }
 
 #[test]
+fn worker_supervisor_drains_invalid_utf8_stdout_as_protocol_error() {
+    let mut supervisor = WorkerSupervisor::default();
+    assert!(supervisor.start(invalid_utf8_stdout_worker_spec(WorkerDomain::Network)));
+
+    let errors = wait_for_protocol_error(&mut supervisor, WorkerDomain::Network);
+
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].raw_line, "<invalid utf8>");
+    assert!(errors[0].message.contains("invalid UTF-8 worker stdout"));
+    supervisor.stop_all(Duration::from_millis(100));
+}
+
+#[test]
+fn stop_all_sends_generic_worker_stop_to_managed_worker() {
+    let output_path = temp_file_path("worker-stop");
+    let mut supervisor = WorkerSupervisor::default();
+    assert!(supervisor.start(stdin_capture_worker_spec(WorkerDomain::Media, &output_path)));
+
+    supervisor.stop_all(Duration::from_secs(1));
+
+    let written = std::fs::read_to_string(&output_path).expect("captured worker stdin");
+    assert!(written.contains(r#""type":"worker.stop""#));
+    assert!(!written.contains(r#""type":"media.stop""#));
+    let _ = std::fs::remove_file(output_path);
+}
+
+#[test]
+fn send_envelope_rejects_non_command_without_writing_to_stdin() {
+    let output_path = temp_file_path("non-command");
+    let mut supervisor = WorkerSupervisor::default();
+    assert!(supervisor.start(stdin_capture_worker_spec(WorkerDomain::Media, &output_path)));
+
+    assert!(!supervisor.send_envelope(
+        WorkerDomain::Media,
+        WorkerEnvelope {
+            schema_version: SUPPORTED_SCHEMA_VERSION,
+            kind: EnvelopeKind::Event,
+            message_type: "media.snapshot".to_string(),
+            request_id: None,
+            timestamp_ms: 0,
+            deadline_ms: 0,
+            payload: json!({}),
+        }
+    ));
+    std::thread::sleep(Duration::from_millis(100));
+
+    assert!(!output_path.exists());
+    supervisor.stop_all(Duration::from_millis(100));
+    let _ = std::fs::remove_file(output_path);
+}
+
+#[test]
 fn rejects_empty_or_duplicate_worker_start() {
     let mut supervisor = WorkerSupervisor::default();
     assert!(!supervisor.start(WorkerSpec {
@@ -162,4 +215,70 @@ fn stdout_worker_spec(domain: WorkerDomain, line: &str) -> WorkerSpec {
             ],
         )
     }
+}
+
+fn invalid_utf8_stdout_worker_spec(domain: WorkerDomain) -> WorkerSpec {
+    if cfg!(windows) {
+        WorkerSpec::new(
+            domain,
+            "powershell",
+            [
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "[Console]::OpenStandardOutput().Write([byte[]](255,10),0,2); Start-Sleep -Seconds 5"
+                    .to_string(),
+            ],
+        )
+    } else {
+        WorkerSpec::new(
+            domain,
+            "sh",
+            ["-c".to_string(), "printf '\\377\\n'; sleep 5".to_string()],
+        )
+    }
+}
+
+fn stdin_capture_worker_spec(domain: WorkerDomain, output_path: &Path) -> WorkerSpec {
+    if cfg!(windows) {
+        WorkerSpec::new(
+            domain,
+            "powershell",
+            [
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                format!(
+                    "$line = [Console]::In.ReadLine(); Set-Content -LiteralPath '{}' -Value $line",
+                    powershell_single_quote(output_path)
+                ),
+            ],
+        )
+    } else {
+        WorkerSpec::new(
+            domain,
+            "sh",
+            [
+                "-c".to_string(),
+                format!(
+                    "IFS= read -r line; printf '%s' \"$line\" > '{}'",
+                    shell_single_quote(output_path)
+                ),
+            ],
+        )
+    }
+}
+
+fn temp_file_path(test_name: &str) -> PathBuf {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("time")
+        .as_nanos();
+    std::env::temp_dir().join(format!("yoyopod-runtime-worker-{test_name}-{unique}.txt"))
+}
+
+fn shell_single_quote(path: &Path) -> String {
+    path.to_string_lossy().replace('\'', "'\\''")
+}
+
+fn powershell_single_quote(path: &Path) -> String {
+    path.to_string_lossy().replace('\'', "''")
 }

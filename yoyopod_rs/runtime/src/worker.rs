@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
-use crate::protocol::{WorkerEnvelope, SUPPORTED_SCHEMA_VERSION};
+use crate::protocol::{EnvelopeKind, WorkerEnvelope, SUPPORTED_SCHEMA_VERSION};
 use crate::state::WorkerDomain;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +90,9 @@ impl WorkerSupervisor {
     }
 
     pub fn send_envelope(&mut self, domain: WorkerDomain, envelope: WorkerEnvelope) -> bool {
+        if envelope.kind != EnvelopeKind::Command {
+            return false;
+        }
         let Some(worker) = self.workers.get_mut(&domain) else {
             return false;
         };
@@ -129,8 +132,7 @@ impl WorkerSupervisor {
 
     pub fn stop_all(&mut self, grace: Duration) {
         for domain in all_worker_domains() {
-            let message_type = format!("{}.stop", domain.as_str());
-            let _ = self.send_command(domain, &message_type, json!({}));
+            let _ = self.send_command(domain, "worker.stop", json!({}));
         }
 
         let deadline = Instant::now() + grace;
@@ -193,26 +195,64 @@ fn read_worker_stdout(
     messages: Sender<WorkerEnvelope>,
     protocol_errors: Sender<WorkerProtocolError>,
 ) {
-    for line in BufReader::new(stdout).lines() {
-        let Ok(line) = line else {
-            break;
-        };
-        if line.trim().is_empty() {
-            continue;
-        }
+    let mut reader = BufReader::new(stdout);
+    let mut line = Vec::new();
 
-        match WorkerEnvelope::decode(line.as_bytes()) {
-            Ok(envelope) => {
-                let _ = messages.send(envelope);
-            }
+    loop {
+        line.clear();
+        match reader.read_until(b'\n', &mut line) {
+            Ok(0) => break,
+            Ok(_) => record_worker_stdout_bytes(&line, &messages, &protocol_errors),
             Err(error) => {
                 let _ = protocol_errors.send(WorkerProtocolError {
-                    raw_line: line,
-                    message: error.to_string(),
+                    raw_line: "<read error>".to_string(),
+                    message: format!("failed to read worker stdout: {error}"),
                 });
+                break;
             }
         }
     }
+}
+
+fn record_worker_stdout_bytes(
+    line: &[u8],
+    messages: &Sender<WorkerEnvelope>,
+    protocol_errors: &Sender<WorkerProtocolError>,
+) {
+    let trimmed = trim_line_end(line);
+    if trimmed.is_empty() {
+        return;
+    }
+
+    let raw_line = match std::str::from_utf8(trimmed) {
+        Ok(raw_line) => raw_line.to_string(),
+        Err(error) => {
+            let _ = protocol_errors.send(WorkerProtocolError {
+                raw_line: "<invalid utf8>".to_string(),
+                message: format!("invalid UTF-8 worker stdout: {error}"),
+            });
+            return;
+        }
+    };
+
+    match WorkerEnvelope::decode(trimmed) {
+        Ok(envelope) => {
+            let _ = messages.send(envelope);
+        }
+        Err(error) => {
+            let _ = protocol_errors.send(WorkerProtocolError {
+                raw_line,
+                message: error.to_string(),
+            });
+        }
+    }
+}
+
+fn trim_line_end(mut line: &[u8]) -> &[u8] {
+    while matches!(line.last(), Some(b'\r' | b'\n')) {
+        line = &line[..line.len() - 1];
+    }
+    line
 }
 
 fn drain_receiver<T>(receiver: &Receiver<T>, limit: usize) -> Vec<T> {
