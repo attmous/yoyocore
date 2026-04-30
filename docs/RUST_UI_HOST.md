@@ -16,11 +16,12 @@ For host-only protocol tests:
 yoyopod build rust-ui-host --no-hardware-feature
 ```
 
-Direct LVGL builds require `YOYOPOD_LVGL_SOURCE_DIR` to point at an LVGL 9.5
-checkout.
+Direct native-LVGL builds require `YOYOPOD_LVGL_SOURCE_DIR` to point at an
+LVGL 9.5 checkout.
 
-CI builds the Whisplay host on a native Linux ARM64 runner and uploads it as the
-`yoyopod-ui-host-${{ github.sha }}` artifact.
+CI builds the Whisplay host on a native Linux ARM64 runner with
+`whisplay-hardware,native-lvgl` enabled and uploads it as the
+`yoyopod-ui-host-<exact-commit-sha>` artifact.
 
 For Raspberry Pi Zero 2W hardware validation, the deploy path is always:
 

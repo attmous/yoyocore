@@ -42,6 +42,10 @@ It contains the ARM64 Linux binary that should be installed at:
 /opt/yoyopod-dev/checkout/yoyopod_rs/ui-host/build/yoyopod-ui-host
 ```
 
+The uploaded binary must come from the CI build with
+`whisplay-hardware,native-lvgl` enabled. The artifact suffix must match the
+exact commit under test, not a pull-request merge SHA.
+
 Do not build `yoyopod-ui-host` on the Raspberry Pi Zero 2W.
 
 ## Rust VoIP Host Artifact
@@ -57,6 +61,8 @@ Install it at:
 ```bash
 /opt/yoyopod-dev/checkout/yoyopod_rs/voip-host/build/yoyopod-voip-host
 ```
+
+Its artifact suffix must also match the exact commit under test.
 
 Do not build `yoyopod-voip-host` on the Raspberry Pi Zero 2W.
 
