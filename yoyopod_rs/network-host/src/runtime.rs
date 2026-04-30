@@ -166,7 +166,7 @@ where
     pub fn tick_at(&mut self, now_ms: u64) -> &NetworkRuntimeSnapshot {
         if self.snapshot.state == NetworkLifecycleState::Online {
             let _ = self.poll_ppp_health(now_ms, false);
-            self.refresh_live_facts_if_due(now_ms, false);
+            let _ = self.refresh_live_facts_if_due(now_ms, false);
         }
 
         if self.snapshot.retryable
@@ -192,10 +192,7 @@ where
         let now_ms = now_ms();
         match self.poll_ppp_health(now_ms, true) {
             Some(error) => Err(error),
-            None => {
-                self.refresh_live_facts_if_due(now_ms, true);
-                Ok(&self.snapshot)
-            }
+            None => self.refresh_live_facts_if_due(now_ms, true).map(|_| &self.snapshot),
         }
     }
 
@@ -438,25 +435,41 @@ where
         Ok(())
     }
 
-    fn refresh_live_facts_if_due(&mut self, now_ms: u64, force: bool) {
+    fn refresh_live_facts_if_due(
+        &mut self,
+        now_ms: u64,
+        explicit_command: bool,
+    ) -> Result<(), RuntimeCommandError> {
         if !matches!(
             self.snapshot.state,
             NetworkLifecycleState::Online | NetworkLifecycleState::Registered
         ) {
-            return;
+            return Ok(());
         }
 
-        if !force
+        if !explicit_command
             && self
                 .last_live_fact_poll_at_ms
                 .is_some_and(|last| now_ms.saturating_sub(last) < self.live_fact_poll_interval_ms)
         {
-            return;
+            return Ok(());
         }
 
         self.last_live_fact_poll_at_ms = Some(now_ms);
-        if let Ok(facts) = self.controller.refresh_facts() {
-            self.apply_live_facts(now_ms, facts);
+        match self.controller.refresh_facts() {
+            Ok(facts) => {
+                self.apply_live_facts(now_ms, facts);
+                Ok(())
+            }
+            Err(error) => {
+                let event_error = RuntimeCommandError::from_modem_error(error.clone());
+                self.schedule_retry(now_ms, error, NetworkLifecycleState::Degraded);
+                if explicit_command {
+                    Err(event_error)
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 

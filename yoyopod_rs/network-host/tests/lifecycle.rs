@@ -277,3 +277,61 @@ fn tick_refreshes_registration_loss_without_restart() {
     assert_eq!(snapshot.carrier, "Vodafone");
     assert_eq!(snapshot.signal.csq, Some(9));
 }
+
+#[test]
+fn health_command_surfaces_live_fact_refresh_failure_and_marks_runtime_retryable() {
+    let modem = FakeModemController::new();
+    modem.set_live_fact_results([Err(retryable_error(
+        "signal_read_failed",
+        "AT+CSQ timed out",
+    ))]);
+    let mut runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem,
+        RecoveryPolicy::new(100, 400),
+    );
+
+    runtime.start_at(1_000);
+    runtime.drain_snapshot_events();
+
+    let error = runtime
+        .health_command()
+        .expect_err("health command should report live fact refresh failure");
+
+    assert_eq!(error.code, "signal_read_failed");
+    assert_eq!(error.message, "AT+CSQ timed out");
+    assert_eq!(runtime.snapshot().state, NetworkLifecycleState::Degraded);
+    assert!(runtime.snapshot().retryable);
+    assert_eq!(runtime.snapshot().error_code, "signal_read_failed");
+    assert!(runtime.snapshot().next_retry_at_ms.is_some());
+}
+
+#[test]
+fn autonomous_live_fact_refresh_failure_transitions_runtime_into_retryable_fault() {
+    let modem = FakeModemController::new();
+    modem.set_live_fact_results([Err(retryable_error(
+        "signal_read_failed",
+        "AT+CSQ timed out",
+    ))]);
+    let mut runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem.clone(),
+        RecoveryPolicy::new(100, 400),
+    );
+
+    runtime.start_at(1_000);
+    runtime.drain_snapshot_events();
+
+    runtime.tick_at(6_000);
+    let snapshots = runtime.drain_snapshot_events();
+    let snapshot = snapshots.last().expect("autonomous fact fault snapshot");
+
+    assert_eq!(snapshot.state, NetworkLifecycleState::Degraded);
+    assert_eq!(snapshot.error_code, "signal_read_failed");
+    assert_eq!(snapshot.error_message, "AT+CSQ timed out");
+    assert!(snapshot.retryable);
+    assert_eq!(snapshot.next_retry_at_ms, Some(6_100));
+    assert_eq!(modem.state().refresh_facts_calls, 1);
+}
