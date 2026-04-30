@@ -1,17 +1,47 @@
 mod support;
 
 use std::fs;
+use std::io::{self, Cursor};
+use std::time::Duration;
 
 use serde_json::json;
 
-use yoyopod_network_host::runtime::NetworkRuntime;
+use yoyopod_network_host::runtime::{NetworkRuntime, RecoveryPolicy};
 use yoyopod_network_host::snapshot::NetworkLifecycleState;
-use yoyopod_network_host::worker::{run_with_io, run_with_runtime_io};
+use yoyopod_network_host::worker::{
+    run_with_io, run_with_runtime_io, run_with_runtime_io_and_poll_interval,
+};
 
 use crate::support::{
-    berlin_fix, command, decode_output, enabled_config, encode_commands, ppp_link,
-    registered_modem, retryable_error, FakeModemController,
+    berlin_fix, command, controlled_input, decode_output, enabled_config, encode_commands,
+    ppp_link, registered_modem, retryable_error, FakeModemController,
 };
+
+#[test]
+fn worker_emits_startup_transition_snapshots_in_order() {
+    let modem = FakeModemController::new();
+    let runtime = NetworkRuntime::new("config", enabled_config(), modem);
+    let mut output = Vec::new();
+
+    run_with_runtime_io(runtime, io::empty(), &mut output).expect("worker exits cleanly");
+
+    let envelopes = decode_output(&output);
+    assert_eq!(envelopes[0].message_type, "network.ready");
+    assert_eq!(
+        envelopes[1..]
+            .iter()
+            .map(|envelope| envelope.payload["state"].as_str().unwrap_or_default())
+            .collect::<Vec<_>>(),
+        vec![
+            "probing",
+            "ready",
+            "registering",
+            "registered",
+            "ppp_starting",
+            "online",
+        ]
+    );
+}
 
 #[test]
 fn worker_keeps_runtime_snapshot_across_query_gps_and_health_commands() {
@@ -25,52 +55,103 @@ fn worker_keeps_runtime_snapshot_across_query_gps_and_health_commands() {
     ]);
     let mut output = Vec::new();
 
-    run_with_runtime_io(runtime, input.as_slice(), &mut output).expect("worker exits cleanly");
+    run_with_runtime_io(runtime, Cursor::new(input), &mut output).expect("worker exits cleanly");
 
     let envelopes = decode_output(&output);
     assert_eq!(envelopes[0].message_type, "network.ready");
-    assert_eq!(envelopes[1].message_type, "network.snapshot");
-    assert_eq!(envelopes[1].payload["state"], "online");
-
-    assert_eq!(
-        envelopes[2].kind,
-        yoyopod_network_host::protocol::EnvelopeKind::Result
-    );
-    assert_eq!(envelopes[2].message_type, "network.query_gps");
-    assert_eq!(envelopes[2].request_id.as_deref(), Some("gps-1"));
-    assert_eq!(
-        envelopes[2].payload["snapshot"]["gps"]["last_query_result"],
-        "fix"
-    );
-
-    assert_eq!(envelopes[3].message_type, "network.snapshot");
-    assert_eq!(envelopes[3].payload["gps"]["lat"], 52.52);
-
-    assert_eq!(
-        envelopes[4].kind,
-        yoyopod_network_host::protocol::EnvelopeKind::Result
-    );
-    assert_eq!(envelopes[4].message_type, "network.health");
-    assert_eq!(envelopes[4].request_id.as_deref(), Some("health-1"));
-    assert_eq!(
-        envelopes[4].payload["snapshot"]["gps"]["last_query_result"],
-        "fix"
-    );
-    assert_eq!(envelopes[4].payload["snapshot"]["gps"]["lat"], 52.52);
-
-    assert_eq!(
-        envelopes[5].kind,
-        yoyopod_network_host::protocol::EnvelopeKind::Result
-    );
-    assert_eq!(envelopes[5].message_type, "worker.stop");
-    assert_eq!(envelopes[5].payload["shutdown"], true);
     assert_eq!(envelopes[6].message_type, "network.snapshot");
-    assert_eq!(envelopes[6].payload["state"], "off");
-    assert_eq!(envelopes[7].message_type, "network.stopped");
+    assert_eq!(envelopes[6].payload["state"], "online");
+
+    assert_eq!(
+        envelopes[7].kind,
+        yoyopod_network_host::protocol::EnvelopeKind::Result
+    );
+    assert_eq!(envelopes[7].message_type, "network.query_gps");
+    assert_eq!(envelopes[7].request_id.as_deref(), Some("gps-1"));
+    assert_eq!(
+        envelopes[7].payload["snapshot"]["gps"]["last_query_result"],
+        "fix"
+    );
+
+    assert_eq!(envelopes[8].message_type, "network.snapshot");
+    assert_eq!(envelopes[8].payload["gps"]["lat"], 52.52);
+
+    assert_eq!(
+        envelopes[9].kind,
+        yoyopod_network_host::protocol::EnvelopeKind::Result
+    );
+    assert_eq!(envelopes[9].message_type, "network.health");
+    assert_eq!(envelopes[9].request_id.as_deref(), Some("health-1"));
+    assert_eq!(
+        envelopes[9].payload["snapshot"]["gps"]["last_query_result"],
+        "fix"
+    );
+    assert_eq!(envelopes[9].payload["snapshot"]["gps"]["lat"], 52.52);
+
+    assert_eq!(
+        envelopes[10].kind,
+        yoyopod_network_host::protocol::EnvelopeKind::Result
+    );
+    assert_eq!(envelopes[10].message_type, "worker.stop");
+    assert_eq!(envelopes[10].payload["shutdown"], true);
+    assert_eq!(envelopes[11].message_type, "network.snapshot");
+    assert_eq!(envelopes[11].payload["state"], "ppp_stopping");
+    assert_eq!(envelopes[12].message_type, "network.snapshot");
+    assert_eq!(envelopes[12].payload["state"], "off");
+    assert_eq!(envelopes[13].message_type, "network.stopped");
 }
 
 #[test]
-fn worker_health_reconciles_stale_online_state_when_ppp_link_dies() {
+fn worker_polls_runtime_for_autonomous_recovery_without_stdin_commands() {
+    let modem = FakeModemController::new();
+    modem.set_probe_results([Ok(true), Ok(true)]);
+    modem.set_init_results([Ok(registered_modem()), Ok(registered_modem())]);
+    modem.set_ppp_results([
+        Err(retryable_error("ppp_start_failed", "PPP failed to start")),
+        Ok(ppp_link()),
+    ]);
+    let runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem,
+        RecoveryPolicy::new(5, 20),
+    );
+    let (input, handle) = controlled_input();
+    let worker = std::thread::spawn(move || {
+        let mut output = Vec::new();
+        run_with_runtime_io_and_poll_interval(
+            runtime,
+            input,
+            &mut output,
+            Duration::from_millis(1),
+        )
+        .expect("worker exits cleanly");
+        output
+    });
+
+    handle.sleep(Duration::from_millis(30));
+    handle.send(&command("worker.stop", "stop-1", json!({})));
+    handle.close();
+
+    let output = worker.join().expect("join worker");
+    let envelopes = decode_output(&output);
+    let states: Vec<_> = envelopes
+        .iter()
+        .filter(|envelope| envelope.message_type == "network.snapshot")
+        .map(|envelope| {
+            envelope.payload["state"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string()
+        })
+        .collect();
+    assert!(states.iter().any(|state| state == "degraded"));
+    assert!(states.iter().any(|state| state == "recovering"));
+    assert!(states.iter().any(|state| state == "online"));
+}
+
+#[test]
+fn worker_emits_network_error_for_command_triggered_health_fault() {
     let modem = FakeModemController::new();
     modem.set_ppp_health_results([yoyopod_network_host::modem::PppHealth::ProcessExited]);
     let runtime = NetworkRuntime::new("config", enabled_config(), modem);
@@ -80,20 +161,31 @@ fn worker_health_reconciles_stale_online_state_when_ppp_link_dies() {
     ]);
     let mut output = Vec::new();
 
-    run_with_runtime_io(runtime, input.as_slice(), &mut output).expect("worker exits cleanly");
+    run_with_runtime_io(runtime, Cursor::new(input), &mut output).expect("worker exits cleanly");
 
     let envelopes = decode_output(&output);
-    assert_eq!(envelopes[2].message_type, "network.health");
+    let error = envelopes
+        .iter()
+        .find(|envelope| envelope.kind == yoyopod_network_host::protocol::EnvelopeKind::Error)
+        .expect("health should emit network.error");
+    assert_eq!(error.message_type, "network.error");
+    assert_eq!(error.request_id.as_deref(), Some("health-1"));
+    assert_eq!(error.payload["code"], "ppp_process_exited");
+
+    let snapshot = envelopes
+        .iter()
+        .find(|envelope| {
+            envelope.message_type == "network.snapshot"
+                && envelope.payload["state"] == "registered"
+                && envelope.payload["error_code"] == "ppp_process_exited"
+        })
+        .expect("registered snapshot expected");
     assert_eq!(
-        envelopes[2].payload["snapshot"]["state"],
+        snapshot.payload["state"],
         json!(NetworkLifecycleState::Registered)
     );
-    assert_eq!(
-        envelopes[2].payload["snapshot"]["error_code"],
-        "ppp_process_exited"
-    );
-    assert_eq!(envelopes[3].message_type, "network.snapshot");
-    assert_eq!(envelopes[3].payload["state"], "registered");
+    assert_eq!(snapshot.payload["error_code"], "ppp_process_exited");
+    assert!(snapshot.payload["next_retry_at_ms"].as_u64().is_some());
 }
 
 #[test]
@@ -112,19 +204,28 @@ fn worker_reset_modem_returns_recovered_snapshot_and_shutdown_stops_runtime() {
     ]);
     let mut output = Vec::new();
 
-    run_with_runtime_io(runtime, input.as_slice(), &mut output).expect("worker exits cleanly");
+    run_with_runtime_io(runtime, Cursor::new(input), &mut output).expect("worker exits cleanly");
 
     let envelopes = decode_output(&output);
-    assert_eq!(envelopes[1].payload["state"], "degraded");
-    assert_eq!(envelopes[2].message_type, "network.reset_modem");
-    assert_eq!(envelopes[2].payload["snapshot"]["state"], "online");
-    assert_eq!(envelopes[2].payload["snapshot"]["reconnect_attempts"], 1);
-    assert_eq!(envelopes[3].message_type, "network.snapshot");
-    assert_eq!(envelopes[3].payload["state"], "online");
-    assert_eq!(envelopes[4].message_type, "network.shutdown");
-    assert_eq!(envelopes[4].payload["shutdown"], true);
-    assert_eq!(envelopes[5].message_type, "network.snapshot");
-    assert_eq!(envelopes[5].payload["state"], "off");
+    assert_eq!(
+        envelopes
+            .iter()
+            .find(|envelope| {
+                envelope.message_type == "network.snapshot"
+                    && envelope.payload["state"] == "degraded"
+            })
+            .expect("degraded startup snapshot")
+            .payload["state"],
+        "degraded"
+    );
+    assert_eq!(
+        envelopes
+            .iter()
+            .find(|envelope| envelope.message_type == "network.reset_modem")
+            .expect("reset result")
+            .payload["snapshot"]["state"],
+        "online"
+    );
     assert_eq!(modem.state().reset_calls, 1);
 }
 
@@ -140,7 +241,7 @@ fn worker_preserves_degraded_snapshot_when_config_load_fails() {
 
     run_with_io(
         config_dir.to_str().expect("config dir"),
-        input.as_slice(),
+        Cursor::new(input),
         &mut output,
     )
     .expect("worker should degrade instead of aborting");
@@ -150,4 +251,67 @@ fn worker_preserves_degraded_snapshot_when_config_load_fails() {
     assert_eq!(envelopes[1].message_type, "network.snapshot");
     assert_eq!(envelopes[1].payload["state"], "degraded");
     assert_eq!(envelopes[1].payload["error_code"], "config_load_failed");
+}
+
+#[test]
+fn worker_emits_network_error_for_gps_query_failure() {
+    let modem = FakeModemController::new();
+    modem.set_gps_results([Err(retryable_error(
+        "gps_query_failed",
+        "GPS query timed out",
+    ))]);
+    let runtime = NetworkRuntime::new("config", enabled_config(), modem);
+    let input = encode_commands(&[
+        command("network.query_gps", "gps-1", json!({})),
+        command("worker.stop", "stop-1", json!({})),
+    ]);
+    let mut output = Vec::new();
+
+    run_with_runtime_io(runtime, Cursor::new(input), &mut output).expect("worker exits cleanly");
+
+    let envelopes = decode_output(&output);
+    let error = envelopes
+        .iter()
+        .find(|envelope| {
+            envelope.kind == yoyopod_network_host::protocol::EnvelopeKind::Error
+                && envelope.request_id.as_deref() == Some("gps-1")
+        })
+        .expect("gps failure should emit network.error");
+    assert_eq!(error.message_type, "network.error");
+    assert_eq!(error.payload["code"], "gps_query_failed");
+    assert!(envelopes
+        .iter()
+        .all(|envelope| envelope.message_type != "network.query_gps"));
+    assert!(envelopes.iter().any(|envelope| {
+        envelope.message_type == "network.snapshot"
+            && envelope.payload["gps"]["last_query_result"] == "error"
+    }));
+}
+
+#[test]
+fn worker_emits_network_error_for_reset_failure() {
+    let modem = FakeModemController::new();
+    modem.set_reset_results([Err(retryable_error("reset_failed", "radio reset failed"))]);
+    let runtime = NetworkRuntime::new("config", enabled_config(), modem);
+    let input = encode_commands(&[
+        command("network.reset_modem", "reset-1", json!({})),
+        command("worker.stop", "stop-1", json!({})),
+    ]);
+    let mut output = Vec::new();
+
+    run_with_runtime_io(runtime, Cursor::new(input), &mut output).expect("worker exits cleanly");
+
+    let envelopes = decode_output(&output);
+    let error = envelopes
+        .iter()
+        .find(|envelope| {
+            envelope.kind == yoyopod_network_host::protocol::EnvelopeKind::Error
+                && envelope.request_id.as_deref() == Some("reset-1")
+        })
+        .expect("reset failure should emit network.error");
+    assert_eq!(error.message_type, "network.error");
+    assert_eq!(error.payload["code"], "reset_failed");
+    assert!(envelopes.iter().any(|envelope| {
+        envelope.message_type == "network.snapshot" && envelope.payload["state"] == "degraded"
+    }));
 }

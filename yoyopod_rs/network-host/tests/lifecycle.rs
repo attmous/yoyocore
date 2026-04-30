@@ -1,6 +1,6 @@
 mod support;
 
-use yoyopod_network_host::runtime::NetworkRuntime;
+use yoyopod_network_host::runtime::{NetworkRuntime, RecoveryPolicy};
 use yoyopod_network_host::snapshot::NetworkLifecycleState;
 
 use crate::support::{
@@ -46,34 +46,73 @@ fn start_skips_blank_apn_reconfiguration() {
 }
 
 #[test]
-fn start_degrades_snapshot_with_meaningful_error_when_probe_fails() {
+fn start_emits_canonical_startup_states_and_schedules_retry_after_ppp_failure() {
     let modem = FakeModemController::new();
-    modem.set_probe_results([Err(retryable_error("probe_failed", "AT ping timed out"))]);
-    let mut runtime = NetworkRuntime::new("config", enabled_config(), modem);
+    modem.set_ppp_results([Err(retryable_error(
+        "ppp_start_failed",
+        "PPP failed to start",
+    ))]);
+    let mut runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem,
+        RecoveryPolicy::new(100, 400),
+    );
 
-    let snapshot = runtime.start().clone();
+    runtime.start_at(1_000);
+    let snapshots = runtime.drain_snapshot_events();
+    let states: Vec<_> = snapshots.iter().map(|snapshot| snapshot.state).collect();
+    let snapshot = snapshots.last().expect("final startup snapshot");
 
-    assert_eq!(snapshot.state, NetworkLifecycleState::Degraded);
-    assert_eq!(snapshot.error_code, "probe_failed");
-    assert_eq!(snapshot.error_message, "AT ping timed out");
+    assert_eq!(
+        states,
+        vec![
+            NetworkLifecycleState::Probing,
+            NetworkLifecycleState::Ready,
+            NetworkLifecycleState::Registering,
+            NetworkLifecycleState::Registered,
+            NetworkLifecycleState::PppStarting,
+            NetworkLifecycleState::Degraded,
+        ]
+    );
+    assert_eq!(snapshot.error_code, "ppp_start_failed");
+    assert_eq!(snapshot.error_message, "PPP failed to start");
     assert!(snapshot.retryable);
-    assert!(!snapshot.ppp.up);
+    assert_eq!(snapshot.reconnect_attempts, 1);
+    assert_eq!(snapshot.next_retry_at_ms, Some(1_100));
 }
 
 #[test]
-fn health_reconciles_stale_online_state_when_ppp_disappears() {
+fn tick_retries_failed_bringup_with_bounded_backoff_until_cap() {
     let modem = FakeModemController::new();
-    modem.set_ppp_health_results([yoyopod_network_host::modem::PppHealth::InterfaceDown]);
-    let mut runtime = NetworkRuntime::new("config", enabled_config(), modem);
-    runtime.start();
+    modem.set_ppp_results([
+        Err(retryable_error("ppp_start_failed", "first")),
+        Err(retryable_error("ppp_start_failed", "second")),
+        Err(retryable_error("ppp_start_failed", "third")),
+    ]);
+    let mut runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem,
+        RecoveryPolicy::new(100, 250),
+    );
 
-    let snapshot = runtime.health().clone();
+    runtime.start_at(0);
+    runtime.drain_snapshot_events();
+    assert_eq!(runtime.snapshot().next_retry_at_ms, Some(100));
+    assert_eq!(runtime.snapshot().reconnect_attempts, 1);
 
-    assert_eq!(snapshot.state, NetworkLifecycleState::Registered);
-    assert!(!snapshot.ppp.up);
-    assert_eq!(snapshot.error_code, "ppp_interface_down");
-    assert_eq!(snapshot.error_message, "PPP interface down");
-    assert!(snapshot.retryable);
+    runtime.tick_at(100);
+    runtime.drain_snapshot_events();
+    assert_eq!(runtime.snapshot().state, NetworkLifecycleState::Degraded);
+    assert_eq!(runtime.snapshot().reconnect_attempts, 2);
+    assert_eq!(runtime.snapshot().next_retry_at_ms, Some(300));
+
+    runtime.tick_at(300);
+    runtime.drain_snapshot_events();
+    assert_eq!(runtime.snapshot().state, NetworkLifecycleState::Degraded);
+    assert_eq!(runtime.snapshot().reconnect_attempts, 3);
+    assert_eq!(runtime.snapshot().next_retry_at_ms, Some(550));
 }
 
 #[test]
@@ -94,6 +133,58 @@ fn query_gps_updates_snapshot_with_fix_without_dropping_online_state() {
 }
 
 #[test]
+fn tick_reconciles_ppp_loss_and_recovers_automatically() {
+    let modem = FakeModemController::new();
+    modem.set_probe_results([Ok(true), Ok(true)]);
+    modem.set_init_results([Ok(registered_modem()), Ok(registered_modem())]);
+    modem.set_ppp_results([Ok(ppp_link()), Ok(ppp_link())]);
+    modem.set_ppp_health_results([yoyopod_network_host::modem::PppHealth::ProcessExited]);
+    let mut runtime = NetworkRuntime::new_with_policy(
+        "config",
+        enabled_config(),
+        modem.clone(),
+        RecoveryPolicy::new(100, 400),
+    );
+
+    runtime.start_at(1_000);
+    runtime.drain_snapshot_events();
+
+    runtime.tick_at(2_000);
+    let dropped = runtime.drain_snapshot_events();
+    assert_eq!(
+        dropped
+            .iter()
+            .map(|snapshot| snapshot.state)
+            .collect::<Vec<_>>(),
+        vec![NetworkLifecycleState::Registered]
+    );
+    let snapshot = runtime.snapshot().clone();
+    assert_eq!(snapshot.error_code, "ppp_process_exited");
+    assert_eq!(snapshot.reconnect_attempts, 1);
+    assert_eq!(snapshot.next_retry_at_ms, Some(2_100));
+
+    runtime.tick_at(2_100);
+    let recovered = runtime.drain_snapshot_events();
+    assert_eq!(
+        recovered
+            .iter()
+            .map(|snapshot| snapshot.state)
+            .collect::<Vec<_>>(),
+        vec![
+            NetworkLifecycleState::Recovering,
+            NetworkLifecycleState::Probing,
+            NetworkLifecycleState::Ready,
+            NetworkLifecycleState::Registering,
+            NetworkLifecycleState::Registered,
+            NetworkLifecycleState::PppStarting,
+            NetworkLifecycleState::Online,
+        ]
+    );
+    assert_eq!(runtime.snapshot().state, NetworkLifecycleState::Online);
+    assert_eq!(modem.state().reset_calls, 1);
+}
+
+#[test]
 fn reset_modem_retries_bringup_and_tracks_reconnect_attempts() {
     let modem = FakeModemController::new();
     modem.set_probe_results([Ok(true), Ok(true)]);
@@ -106,6 +197,7 @@ fn reset_modem_retries_bringup_and_tracks_reconnect_attempts() {
 
     let degraded = runtime.start().clone();
     assert_eq!(degraded.state, NetworkLifecycleState::Degraded);
+    runtime.drain_snapshot_events();
 
     let recovered = runtime.reset_modem().clone();
 
@@ -114,6 +206,22 @@ fn reset_modem_retries_bringup_and_tracks_reconnect_attempts() {
     assert!(!recovered.recovering);
     assert!(!recovered.retryable);
     assert_eq!(recovered.error_code, "");
+    assert_eq!(
+        runtime
+            .drain_snapshot_events()
+            .iter()
+            .map(|snapshot| snapshot.state)
+            .collect::<Vec<_>>(),
+        vec![
+            NetworkLifecycleState::Recovering,
+            NetworkLifecycleState::Probing,
+            NetworkLifecycleState::Ready,
+            NetworkLifecycleState::Registering,
+            NetworkLifecycleState::Registered,
+            NetworkLifecycleState::PppStarting,
+            NetworkLifecycleState::Online,
+        ]
+    );
     let state = modem.state();
     assert_eq!(state.reset_calls, 1);
     assert_eq!(state.open_calls, 2);

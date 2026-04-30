@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::io::{self, Read};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -261,4 +263,78 @@ pub fn decode_output(output: &[u8]) -> Vec<WorkerEnvelope> {
         .lines()
         .map(|line| WorkerEnvelope::decode(line.as_bytes()).expect("decode worker output"))
         .collect()
+}
+
+#[derive(Clone)]
+pub struct ControlledInputHandle {
+    shared: Arc<(Mutex<ControlledInputState>, Condvar)>,
+}
+
+pub struct ControlledInput {
+    shared: Arc<(Mutex<ControlledInputState>, Condvar)>,
+}
+
+#[derive(Default)]
+struct ControlledInputState {
+    buffer: VecDeque<u8>,
+    closed: bool,
+}
+
+pub fn controlled_input() -> (ControlledInput, ControlledInputHandle) {
+    let shared = Arc::new((Mutex::new(ControlledInputState::default()), Condvar::new()));
+    (
+        ControlledInput {
+            shared: Arc::clone(&shared),
+        },
+        ControlledInputHandle { shared },
+    )
+}
+
+impl ControlledInputHandle {
+    pub fn send(&self, envelope: &WorkerEnvelope) {
+        let (lock, condvar) = &*self.shared;
+        let mut state = lock.lock().expect("controlled input lock");
+        state.buffer.extend(
+            envelope
+                .encode()
+                .expect("command should encode")
+                .into_iter(),
+        );
+        condvar.notify_all();
+    }
+
+    pub fn close(&self) {
+        let (lock, condvar) = &*self.shared;
+        let mut state = lock.lock().expect("controlled input lock");
+        state.closed = true;
+        condvar.notify_all();
+    }
+
+    pub fn sleep(&self, duration: Duration) {
+        std::thread::sleep(duration);
+    }
+}
+
+impl Read for ControlledInput {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let (lock, condvar) = &*self.shared;
+        let mut state = lock.lock().expect("controlled input lock");
+        loop {
+            if !state.buffer.is_empty() {
+                let mut count = 0;
+                while count < buf.len() {
+                    let Some(byte) = state.buffer.pop_front() else {
+                        break;
+                    };
+                    buf[count] = byte;
+                    count += 1;
+                }
+                return Ok(count);
+            }
+            if state.closed {
+                return Ok(0);
+            }
+            state = condvar.wait(state).expect("controlled input condvar");
+        }
+    }
 }
