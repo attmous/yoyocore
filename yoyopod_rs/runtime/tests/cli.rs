@@ -205,6 +205,28 @@ fn yaml_path(path: &Path) -> String {
 }
 
 fn write_ui_worker_script(dir: &Path, stdin_path: &Path) -> PathBuf {
+    if !cfg!(windows) {
+        let script_path = dir.join("ui-worker.sh");
+        write(
+            &script_path,
+            &format!(
+                r#"#!/bin/sh
+printf '%s\n' '{{"schema_version":1,"kind":"event","type":"ui.ready","payload":{{}}}}'
+printf '%s\n' '{{"schema_version":1,"kind":"event","type":"ui.intent","payload":{{"domain":"runtime","action":"shutdown","payload":{{}}}}}}'
+while IFS= read -r line; do
+  printf '%s\n' "$line" >> {}
+  case "$line" in
+    *'"type":"ui.tick"'*) break ;;
+  esac
+done
+"#,
+                shell_single_quote(stdin_path)
+            ),
+        );
+        make_executable(&script_path);
+        return script_path;
+    }
+
     let script_path = dir.join("ui-worker.ps1");
     write(
         &script_path,
@@ -236,6 +258,18 @@ Set-Content -LiteralPath '{}' -Value $lines
 }
 
 fn write_silent_worker_script(dir: &Path, name: &str) -> PathBuf {
+    if !cfg!(windows) {
+        let script_path = dir.join(format!("{name}.sh"));
+        write(
+            &script_path,
+            r#"#!/bin/sh
+sleep 10
+"#,
+        );
+        make_executable(&script_path);
+        return script_path;
+    }
+
     let script_path = dir.join(format!("{name}.ps1"));
     write(
         &script_path,
@@ -253,6 +287,22 @@ Start-Sleep -Seconds 10
     );
     command_path
 }
+
+fn shell_single_quote(path: &Path) -> String {
+    format!("'{}'", path.to_string_lossy().replace('\'', "'\\''"))
+}
+
+#[cfg(unix)]
+fn make_executable(path: &Path) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let mut permissions = fs::metadata(path).expect("script metadata").permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions).expect("chmod script");
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) {}
 
 fn wait_for_file(path: &Path) -> String {
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
