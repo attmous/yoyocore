@@ -1,4 +1,5 @@
-use std::time::Duration;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Result};
 use serde_json::{json, Map, Value};
@@ -385,9 +386,80 @@ impl MediaHost {
     }
 }
 
+pub trait MpvProcessController: Send {
+    fn spawn(&mut self) -> std::io::Result<()>;
+    fn stop(&mut self) -> std::io::Result<()>;
+    fn is_alive(&self) -> bool;
+}
+
+impl MpvProcessController for MpvProcess {
+    fn spawn(&mut self) -> std::io::Result<()> {
+        MpvProcess::spawn(self)
+    }
+
+    fn stop(&mut self) -> std::io::Result<()> {
+        MpvProcess::stop(self)
+    }
+
+    fn is_alive(&self) -> bool {
+        MpvProcess::is_alive(self)
+    }
+}
+
+pub trait MpvIpcTransport: Send {
+    fn connect(&mut self) -> Result<()>;
+    fn connected(&self) -> bool;
+    fn disconnect(&mut self);
+    fn send_command(&mut self, args: &[Value], timeout: Duration) -> Result<Value>;
+    fn observe_property(&mut self, name: &str, observe_id: i64) -> Result<()>;
+    fn drain_events(&mut self) -> Result<Vec<Value>>;
+}
+
+impl MpvIpcTransport for MpvIpcClient {
+    fn connect(&mut self) -> Result<()> {
+        MpvIpcClient::connect(self)
+    }
+
+    fn connected(&self) -> bool {
+        MpvIpcClient::connected(self)
+    }
+
+    fn disconnect(&mut self) {
+        MpvIpcClient::disconnect(self)
+    }
+
+    fn send_command(&mut self, args: &[Value], timeout: Duration) -> Result<Value> {
+        MpvIpcClient::send_command(self, args, timeout)
+    }
+
+    fn observe_property(&mut self, name: &str, observe_id: i64) -> Result<()> {
+        MpvIpcClient::observe_property(self, name, observe_id)
+    }
+
+    fn drain_events(&mut self) -> Result<Vec<Value>> {
+        MpvIpcClient::drain_events(self)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MpvRuntimeStartupPolicy {
+    pub connect_timeout: Duration,
+    pub connect_delay: Duration,
+}
+
+impl Default for MpvRuntimeStartupPolicy {
+    fn default() -> Self {
+        Self {
+            connect_timeout: Duration::from_secs(10),
+            connect_delay: Duration::from_millis(100),
+        }
+    }
+}
+
 pub struct MpvRuntime {
-    process: MpvProcess,
-    ipc: MpvIpcClient,
+    process: Box<dyn MpvProcessController>,
+    ipc: Box<dyn MpvIpcTransport>,
+    startup: MpvRuntimeStartupPolicy,
     connected: bool,
     current_track: Option<Track>,
     playback_state: PlaybackState,
@@ -401,9 +473,22 @@ pub struct MpvRuntime {
 impl MpvRuntime {
     pub fn new(config: MediaConfig) -> Self {
         let socket_path = config.mpv_socket.clone();
+        Self::with_clients(
+            Box::new(MpvProcess::new(config)),
+            Box::new(MpvIpcClient::new(socket_path)),
+            MpvRuntimeStartupPolicy::default(),
+        )
+    }
+
+    pub fn with_clients(
+        process: Box<dyn MpvProcessController>,
+        ipc: Box<dyn MpvIpcTransport>,
+        startup: MpvRuntimeStartupPolicy,
+    ) -> Self {
         Self {
-            process: MpvProcess::new(config),
-            ipc: MpvIpcClient::new(socket_path),
+            process,
+            ipc,
+            startup,
             connected: false,
             current_track: None,
             playback_state: PlaybackState::Stopped,
@@ -621,7 +706,21 @@ impl MediaRuntime for MpvRuntime {
             return Ok(());
         }
         self.process.spawn()?;
-        self.ipc.connect()?;
+        let deadline = Instant::now() + self.startup.connect_timeout;
+        let mut last_error = anyhow!("mpv IPC connect failed before the first attempt");
+        loop {
+            match self.ipc.connect() {
+                Ok(()) => break,
+                Err(error) => {
+                    last_error = error;
+                    if !self.process.is_alive() || Instant::now() >= deadline {
+                        let _ = self.process.stop();
+                        return Err(last_error);
+                    }
+                    thread::sleep(self.startup.connect_delay);
+                }
+            }
+        }
         self.observe_core_properties()?;
         self.prime_track_cache()?;
         self.connected = true;

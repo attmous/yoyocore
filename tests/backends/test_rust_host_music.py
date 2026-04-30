@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 from yoyopod.backends.music.models import MusicConfig, Playlist, Track
 from yoyopod.backends.music.rust_host import RustHostBackend
+from yoyopod.core.scheduler import MainThreadScheduler
 from yoyopod.integrations.music.history import RecentTrackEntry
 from yoyopod.integrations.music.library import LocalLibraryItem
 
@@ -63,6 +66,22 @@ class _StrictSupervisor(_FakeSupervisor):
         if not any(registered_domain == domain for registered_domain, _config in self.registered):
             raise KeyError(domain)
         super().stop(domain, grace_seconds=grace_seconds)
+
+
+class _ThreadCheckingSupervisor(_FakeSupervisor):
+    def __init__(self, *, main_thread_id: int) -> None:
+        super().__init__()
+        self.main_thread_id = main_thread_id
+        self.register_thread_ids: list[int] = []
+        self.start_thread_ids: list[int] = []
+
+    def register(self, domain: str, config: Any) -> None:
+        self.register_thread_ids.append(threading.get_ident())
+        super().register(domain, config)
+
+    def start(self, domain: str) -> bool:
+        self.start_thread_ids.append(threading.get_ident())
+        return super().start(domain)
 
 
 def _config() -> MusicConfig:
@@ -379,3 +398,34 @@ def test_import_remote_media_asset_waits_for_worker_result() -> None:
     thread.join(timeout=1.0)
 
     assert result["path"] == "/music/dashboard_uploads/Track-Two-track-2.mp3"
+
+
+def test_warm_start_posts_worker_start_back_to_main_thread() -> None:
+    scheduler = MainThreadScheduler()
+    supervisor = _ThreadCheckingSupervisor(main_thread_id=scheduler.main_thread_id)
+    backend = RustHostBackend(
+        _config(),
+        worker_supervisor=supervisor,
+        worker_path="/bin/media",
+        scheduler=scheduler,
+    )
+
+    backend.warm_start()
+
+    deadline = time.monotonic() + 1.0
+    while scheduler.pending_count() == 0 and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert scheduler.pending_count() == 1
+    assert supervisor.start_thread_ids == []
+    assert backend.startup_in_progress is True
+
+    assert scheduler.drain() == 1
+
+    deadline = time.monotonic() + 1.0
+    while backend.startup_in_progress and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert supervisor.register_thread_ids == [scheduler.main_thread_id]
+    assert supervisor.start_thread_ids == [scheduler.main_thread_id]
+    assert backend.running is True

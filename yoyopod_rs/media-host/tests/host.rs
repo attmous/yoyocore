@@ -2,12 +2,16 @@ use std::collections::VecDeque;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use anyhow::{anyhow, Result};
+use serde_json::{json, Value};
 use yoyopod_media_host::config::MediaConfig;
 use yoyopod_media_host::events::MediaRuntimeEvent;
 use yoyopod_media_host::host::{
-    MediaHost, MediaRuntime, MediaRuntimeFactory, PlaybackState, Track,
+    MediaHost, MediaRuntime, MediaRuntimeFactory, MpvIpcTransport, MpvProcessController,
+    MpvRuntime, MpvRuntimeStartupPolicy, PlaybackState, Track,
 };
 
 #[derive(Debug, Default, Clone)]
@@ -158,6 +162,112 @@ impl MediaRuntimeFactory for FakeRuntimeFactory {
         Ok(Box::new(FakeRuntime {
             shared: Arc::clone(&self.shared),
         }))
+    }
+}
+
+#[derive(Debug, Default)]
+struct FakeMpvProcessState {
+    spawn_calls: usize,
+    stop_calls: usize,
+    alive: bool,
+}
+
+#[derive(Debug, Default)]
+struct FakeMpvProcess {
+    shared: Arc<Mutex<FakeMpvProcessState>>,
+}
+
+impl MpvProcessController for FakeMpvProcess {
+    fn spawn(&mut self) -> std::io::Result<()> {
+        let mut shared = self.shared.lock().expect("process state");
+        shared.spawn_calls += 1;
+        shared.alive = true;
+        Ok(())
+    }
+
+    fn stop(&mut self) -> std::io::Result<()> {
+        let mut shared = self.shared.lock().expect("process state");
+        shared.stop_calls += 1;
+        shared.alive = false;
+        Ok(())
+    }
+
+    fn is_alive(&self) -> bool {
+        self.shared.lock().expect("process state").alive
+    }
+}
+
+#[derive(Debug)]
+struct FakeMpvIpcState {
+    connect_calls: usize,
+    disconnect_calls: usize,
+    observe_calls: Vec<(String, i64)>,
+    connected: bool,
+}
+
+#[derive(Debug)]
+struct FakeMpvIpc {
+    connect_results: VecDeque<Result<()>>,
+    shared: Arc<Mutex<FakeMpvIpcState>>,
+}
+
+impl FakeMpvIpc {
+    fn new(connect_results: Vec<Result<()>>) -> Self {
+        Self {
+            connect_results: connect_results.into(),
+            shared: Arc::new(Mutex::new(FakeMpvIpcState {
+                connect_calls: 0,
+                disconnect_calls: 0,
+                observe_calls: Vec::new(),
+                connected: false,
+            })),
+        }
+    }
+}
+
+impl MpvIpcTransport for FakeMpvIpc {
+    fn connect(&mut self) -> Result<()> {
+        let mut shared = self.shared.lock().expect("ipc state");
+        shared.connect_calls += 1;
+        let result = self.connect_results.pop_front().unwrap_or_else(|| Ok(()));
+        shared.connected = result.is_ok();
+        result
+    }
+
+    fn connected(&self) -> bool {
+        self.shared.lock().expect("ipc state").connected
+    }
+
+    fn disconnect(&mut self) {
+        let mut shared = self.shared.lock().expect("ipc state");
+        shared.disconnect_calls += 1;
+        shared.connected = false;
+    }
+
+    fn send_command(&mut self, args: &[Value], _timeout: Duration) -> Result<Value> {
+        let command = args.first().and_then(Value::as_str).unwrap_or_default();
+        let property = args.get(1).and_then(Value::as_str).unwrap_or_default();
+        match (command, property) {
+            ("get_property", "path") => Ok(json!({"error": "success", "data": Value::Null})),
+            ("get_property", "metadata") => Ok(json!({"error": "success", "data": {}})),
+            ("get_property", "duration") => Ok(json!({"error": "success", "data": Value::Null})),
+            ("get_property", "media-title") => Ok(json!({"error": "success", "data": Value::Null})),
+            ("get_property", "time-pos") => Ok(json!({"error": "success", "data": Value::Null})),
+            _ => Ok(json!({"error": "success"})),
+        }
+    }
+
+    fn observe_property(&mut self, name: &str, observe_id: i64) -> Result<()> {
+        self.shared
+            .lock()
+            .expect("ipc state")
+            .observe_calls
+            .push((name.to_string(), observe_id));
+        Ok(())
+    }
+
+    fn drain_events(&mut self) -> Result<Vec<Value>> {
+        Ok(Vec::new())
     }
 }
 
@@ -321,4 +431,34 @@ fn runtime_track_change_records_recent_local_track() {
 
     assert_eq!(recents.len(), 1);
     assert_eq!(recents[0].title, "Alpha");
+}
+
+#[test]
+fn mpv_runtime_retries_connect_until_ipc_socket_is_ready() {
+    let process = FakeMpvProcess::default();
+    let ipc = FakeMpvIpc::new(vec![
+        Err(anyhow!("No such file or directory (os error 2)")),
+        Err(anyhow!("No such file or directory (os error 2)")),
+        Ok(()),
+    ]);
+    let process_state = Arc::clone(&process.shared);
+    let ipc_state = Arc::clone(&ipc.shared);
+    let mut runtime = MpvRuntime::with_clients(
+        Box::new(process),
+        Box::new(ipc),
+        MpvRuntimeStartupPolicy {
+            connect_timeout: Duration::from_millis(50),
+            connect_delay: Duration::from_millis(1),
+        },
+    );
+
+    runtime.start().expect("start");
+
+    assert!(runtime.is_connected());
+    let process = process_state.lock().expect("process state");
+    assert_eq!(process.spawn_calls, 1);
+    assert_eq!(process.stop_calls, 0);
+    let ipc = ipc_state.lock().expect("ipc state");
+    assert_eq!(ipc.connect_calls, 3);
+    assert_eq!(ipc.observe_calls.len(), 7);
 }

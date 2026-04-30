@@ -61,6 +61,7 @@ class RustHostBackend:
         self._starting = False
         self._start_lock = threading.Lock()
         self._warm_start_thread: threading.Thread | None = None
+        self._warm_start_pending = False
         self._registered_with_supervisor = False
         self._request_counter = 0
         self._pending_commands: dict[str, str] = {}
@@ -129,6 +130,16 @@ class RustHostBackend:
         if self.running or self.startup_in_progress:
             return
 
+        scheduler = self.scheduler
+        post = getattr(scheduler, "post", None)
+        if callable(post):
+            with self._start_lock:
+                if self.running or self._starting or self._warm_start_pending:
+                    return
+                self._warm_start_pending = True
+            post(self._run_warm_start_on_main)
+            return
+
         existing = self._warm_start_thread
         if existing is not None and existing.is_alive():
             return
@@ -161,6 +172,7 @@ class RustHostBackend:
             self._reconfigure_on_ready = False
             self._starting = False
             self.running = False
+            self._warm_start_pending = False
             self._stopping = False
             self._mark_connection(False, "stopped")
             self._current_track = None
@@ -174,7 +186,9 @@ class RustHostBackend:
     @property
     def startup_in_progress(self) -> bool:
         thread = self._warm_start_thread
-        return self._starting or (thread is not None and thread.is_alive())
+        return self._starting or self._warm_start_pending or (
+            thread is not None and thread.is_alive()
+        )
 
     def play(self) -> bool:
         return self._send("media.play", {})
@@ -504,6 +518,7 @@ class RustHostBackend:
         self._ready_seen = False
         self._reconfigure_on_ready = False
         self._starting = False
+        self._warm_start_pending = False
         self.running = False
         for pending in pending_requests:
             self._complete_pending_request_once(
@@ -603,6 +618,14 @@ class RustHostBackend:
         pending.result = result
         pending.error = error
         pending.event.set()
+
+    def _run_warm_start_on_main(self) -> None:
+        try:
+            if not self._warm_start_pending:
+                return
+            self.start()
+        finally:
+            self._warm_start_pending = False
 
 
 def _track_from_payload(value: object) -> Track | None:
