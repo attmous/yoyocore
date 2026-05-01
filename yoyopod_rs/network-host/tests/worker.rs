@@ -35,8 +35,10 @@ fn worker_emits_startup_transition_snapshots_in_order() {
 
     let envelopes = decode_output(&output);
     assert_eq!(envelopes[0].message_type, "network.ready");
+    assert_eq!(envelopes[1].message_type, "network.snapshot");
+    assert_eq!(envelopes[1].payload["state"], "off");
     assert_eq!(
-        envelopes[1..7]
+        envelopes[2..8]
             .iter()
             .map(|envelope| envelope.payload["state"].as_str().unwrap_or_default())
             .collect::<Vec<_>>(),
@@ -74,46 +76,59 @@ fn worker_keeps_runtime_snapshot_across_query_gps_and_health_commands() {
 
     let envelopes = decode_output(&output);
     assert_eq!(envelopes[0].message_type, "network.ready");
-    assert_eq!(envelopes[6].message_type, "network.snapshot");
-    assert_eq!(envelopes[6].payload["state"], "online");
+    let online_index = envelopes
+        .iter()
+        .position(|envelope| {
+            envelope.message_type == "network.snapshot" && envelope.payload["state"] == "online"
+        })
+        .expect("online startup snapshot");
 
     assert_eq!(
-        envelopes[7].kind,
+        envelopes[online_index + 1].kind,
         yoyopod_network_host::protocol::EnvelopeKind::Result
     );
-    assert_eq!(envelopes[7].message_type, "network.snapshot");
-    assert_eq!(envelopes[7].request_id.as_deref(), Some("gps-1"));
+    assert_eq!(envelopes[online_index + 1].message_type, "network.snapshot");
     assert_eq!(
-        envelopes[7].payload["snapshot"]["gps"]["last_query_result"],
+        envelopes[online_index + 1].request_id.as_deref(),
+        Some("gps-1")
+    );
+    assert_eq!(
+        envelopes[online_index + 1].payload["snapshot"]["gps"]["last_query_result"],
         "fix"
     );
 
-    assert_eq!(envelopes[8].message_type, "network.snapshot");
-    assert_eq!(envelopes[8].payload["gps"]["lat"], 52.52);
+    assert_eq!(envelopes[online_index + 2].message_type, "network.snapshot");
+    assert_eq!(envelopes[online_index + 2].payload["gps"]["lat"], 52.52);
 
     assert_eq!(
-        envelopes[9].kind,
+        envelopes[online_index + 3].kind,
         yoyopod_network_host::protocol::EnvelopeKind::Result
     );
-    assert_eq!(envelopes[9].message_type, "network.health");
-    assert_eq!(envelopes[9].request_id.as_deref(), Some("health-1"));
+    assert_eq!(envelopes[online_index + 3].message_type, "network.health");
     assert_eq!(
-        envelopes[9].payload["snapshot"]["gps"]["last_query_result"],
+        envelopes[online_index + 3].request_id.as_deref(),
+        Some("health-1")
+    );
+    assert_eq!(
+        envelopes[online_index + 3].payload["snapshot"]["gps"]["last_query_result"],
         "fix"
     );
-    assert_eq!(envelopes[9].payload["snapshot"]["gps"]["lat"], 52.52);
+    assert_eq!(
+        envelopes[online_index + 3].payload["snapshot"]["gps"]["lat"],
+        52.52
+    );
 
     assert_eq!(
-        envelopes[10].kind,
+        envelopes[online_index + 4].kind,
         yoyopod_network_host::protocol::EnvelopeKind::Result
     );
-    assert_eq!(envelopes[10].message_type, "network.stopped");
-    assert_eq!(envelopes[10].payload["shutdown"], true);
-    assert_eq!(envelopes[11].message_type, "network.snapshot");
-    assert_eq!(envelopes[11].payload["state"], "ppp_stopping");
-    assert_eq!(envelopes[12].message_type, "network.snapshot");
-    assert_eq!(envelopes[12].payload["state"], "off");
-    assert_eq!(envelopes[13].message_type, "network.stopped");
+    assert_eq!(envelopes[online_index + 4].message_type, "network.stopped");
+    assert_eq!(envelopes[online_index + 4].payload["shutdown"], true);
+    assert_eq!(envelopes[online_index + 5].message_type, "network.snapshot");
+    assert_eq!(envelopes[online_index + 5].payload["state"], "ppp_stopping");
+    assert_eq!(envelopes[online_index + 6].message_type, "network.snapshot");
+    assert_eq!(envelopes[online_index + 6].payload["state"], "off");
+    assert_eq!(envelopes[online_index + 7].message_type, "network.stopped");
     assert!(envelopes.iter().all(|envelope| {
         !matches!(
             envelope.message_type.as_str(),

@@ -201,6 +201,59 @@ logging:
     assert!(!captured.contains(r#""state":"starting""#));
 }
 
+#[test]
+fn boot_starts_network_worker_and_projects_status_and_setup_pages() {
+    let _guard = env_lock();
+    let dir = temp_dir("network-worker");
+    let config_dir = dir.join("config");
+    let ui_stdin = dir.join("ui-stdin.ndjson");
+    let network_args = dir.join("network-args.txt");
+    let network_stdin = dir.join("network-stdin.ndjson");
+    let ui_worker = write_ui_worker_script(&dir, &ui_stdin);
+    let network_worker = write_network_worker_script(&dir, &network_args, &network_stdin);
+    write(
+        &config_dir.join("app/core.yaml"),
+        &format!(
+            r#"
+logging:
+  pid_file: "{}"
+  file: "{}"
+"#,
+            yaml_path(&dir.join("run/yoyopod.pid")),
+            yaml_path(&dir.join("logs/yoyopod.log"))
+        ),
+    );
+    std::env::set_var("YOYOPOD_RUST_UI_HOST_WORKER", &ui_worker);
+    std::env::set_var("YOYOPOD_RUST_NETWORK_HOST_WORKER", &network_worker);
+
+    let result = run(Args {
+        config_dir: config_dir.clone(),
+        dry_run: false,
+        hardware: "whisplay".to_string(),
+    });
+    std::env::remove_var("YOYOPOD_RUST_UI_HOST_WORKER");
+    std::env::remove_var("YOYOPOD_RUST_NETWORK_HOST_WORKER");
+    result.expect("runtime exits after UI shutdown intent");
+
+    let captured_ui = wait_for_file(&ui_stdin);
+    let captured_network_args = wait_for_file(&network_args);
+    let captured_network_stdin = wait_for_file(&network_stdin);
+    let normalized_network_args = captured_network_args.replace('\\', "/");
+
+    assert!(captured_network_args.contains("--config-dir"));
+    assert!(normalized_network_args.contains(&yaml_path(&config_dir)));
+    assert!(captured_network_stdin.contains(r#""type":"network.health""#));
+    assert!(captured_network_stdin.contains(r#""type":"network.query_gps""#));
+    assert!(captured_ui.contains(r#""network":{"connected":true"#));
+    assert!(captured_ui.contains(r#""enabled":true"#));
+    assert!(captured_ui.contains(r#""signal_strength":3"#));
+    assert!(captured_ui.contains(r#""gps_has_fix":true"#));
+    assert!(captured_ui.contains(r#""title":"Network""#));
+    assert!(captured_ui.contains(r#""title":"GPS""#));
+    assert!(captured_ui.contains(r#"Carrier: Telekom.de"#));
+    assert!(captured_ui.contains(r#"Fix: Yes"#));
+}
+
 fn temp_dir(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -302,6 +355,70 @@ Start-Sleep -Seconds 10
         &command_path,
         &format!(
             "@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File \"{}\"\r\n",
+            script_path.to_string_lossy()
+        ),
+    );
+    command_path
+}
+
+fn write_network_worker_script(dir: &Path, args_path: &Path, stdin_path: &Path) -> PathBuf {
+    let ready = r#"{"schema_version":1,"kind":"event","type":"network.ready","payload":{"capabilities":["cellular","gps"]}}"#;
+    let snapshot = r#"{"schema_version":1,"kind":"event","type":"network.snapshot","payload":{"enabled":true,"connected":true,"connection_type":"4g","signal":{"bars":3},"gps_has_fix":true,"app_state":{"network_enabled":true,"signal_bars":3,"connection_type":"4g","connected":true,"gps_has_fix":true},"views":{"setup":{"network_enabled":true,"network_rows":[["Status","Online"],["Carrier","Telekom.de"],["Type","4G"],["Signal","3/4"],["PPP","Up"]],"gps_rows":[["Fix","Yes"],["Lat","52.520000"],["Lng","13.405000"],["Alt","35.0m"],["Speed","0.0km/h"]]}}}}"#;
+
+    if !cfg!(windows) {
+        let script_path = dir.join("network-worker.sh");
+        write(
+            &script_path,
+            &format!(
+                r#"#!/bin/sh
+printf '%s\n' "$@" > {}
+printf '%s\n' '{}'
+printf '%s\n' '{}'
+while IFS= read -r line; do
+  printf '%s\n' "$line" >> {}
+  case "$line" in
+    *'"type":"worker.stop"'*) break ;;
+  esac
+done
+"#,
+                shell_single_quote(args_path),
+                ready,
+                snapshot,
+                shell_single_quote(stdin_path)
+            ),
+        );
+        make_executable(&script_path);
+        return script_path;
+    }
+
+    let script_path = dir.join("network-worker.ps1");
+    write(
+        &script_path,
+        &format!(
+            r#"
+Set-Content -LiteralPath '{}' -Value ($args -join "`n")
+Write-Output '{}'
+Write-Output '{}'
+$lines = @()
+while (($line = [Console]::In.ReadLine()) -ne $null) {{
+  $lines += $line
+  if ($line -match '"type":"worker.stop"') {{
+    break
+  }}
+}}
+Set-Content -LiteralPath '{}' -Value $lines
+"#,
+            args_path.to_string_lossy().replace('\'', "''"),
+            ready.replace('\'', "''"),
+            snapshot.replace('\'', "''"),
+            stdin_path.to_string_lossy().replace('\'', "''")
+        ),
+    );
+    let command_path = dir.join("network-worker.cmd");
+    write(
+        &command_path,
+        &format!(
+            "@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File \"{}\" %*\r\n",
             script_path.to_string_lossy()
         ),
     );

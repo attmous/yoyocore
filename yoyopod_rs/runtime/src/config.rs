@@ -13,6 +13,7 @@ const LINPHONE_HOSTED_FILE_TRANSFER_SERVER_URL: &str = "https://files.linphone.o
 const LINPHONE_HOSTED_LIME_SERVER_URL: &str =
     "https://lime.linphone.org/lime-server/lime-server.php";
 const RUST_UI_HOST_DEFAULT_WORKER: &str = "yoyopod_rs/ui-host/build/yoyopod-ui-host";
+const RUST_NETWORK_HOST_DEFAULT_WORKER: &str = "yoyopod_rs/network-host/build/yoyopod-network-host";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuntimeConfig {
@@ -88,6 +89,7 @@ pub struct WorkerPaths {
     pub ui: String,
     pub media: String,
     pub voip: String,
+    pub network: String,
 }
 
 #[derive(Debug, Error)]
@@ -323,6 +325,10 @@ impl RuntimeConfig {
                 voip: env_or_default(
                     "YOYOPOD_RUST_VOIP_HOST_WORKER",
                     "yoyopod_rs/voip-host/build/yoyopod-voip-host",
+                ),
+                network: env_or_default(
+                    "YOYOPOD_RUST_NETWORK_HOST_WORKER",
+                    RUST_NETWORK_HOST_DEFAULT_WORKER,
                 ),
             },
             pid_file: resolve_runtime_path(
