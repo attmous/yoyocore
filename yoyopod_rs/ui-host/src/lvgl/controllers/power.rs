@@ -85,7 +85,7 @@ impl ScreenController for PowerController {
             facade.set_accent(icon_halo, accent)?;
         }
         if let Some(icon) = self.icon {
-            facade.set_icon(icon, "battery")?;
+            facade.set_icon(icon, &power.icon_key)?;
             facade.set_accent(icon, 0xFFFFFF)?;
         }
 
@@ -102,13 +102,8 @@ impl ScreenController for PowerController {
             }
         }
 
-        let total_pages = power.rows.len().clamp(1, 8);
-        let selected_index = power
-            .rows
-            .iter()
-            .position(|row| row.selected)
-            .unwrap_or(0)
-            .min(total_pages - 1);
+        let total_pages = power.total_pages.clamp(1, 8);
+        let selected_index = power.current_page_index.min(total_pages - 1);
         let first_x = 118 - (((total_pages as i32 - 1) * 10) / 2);
         for (index, dot) in self.dots.iter().copied().enumerate() {
             if index >= total_pages {

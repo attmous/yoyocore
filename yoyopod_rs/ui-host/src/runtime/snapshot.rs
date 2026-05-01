@@ -192,6 +192,8 @@ pub struct PowerRuntimeSnapshot {
     pub power_available: bool,
     #[serde(default)]
     pub rows: Vec<String>,
+    #[serde(default)]
+    pub pages: Vec<PowerPageSnapshot>,
 }
 
 impl Default for PowerRuntimeSnapshot {
@@ -201,8 +203,18 @@ impl Default for PowerRuntimeSnapshot {
             charging: false,
             power_available: true,
             rows: Vec::new(),
+            pages: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PowerPageSnapshot {
+    pub title: String,
+    #[serde(default = "default_power_icon")]
+    pub icon_key: String,
+    #[serde(default)]
+    pub rows: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -293,6 +305,10 @@ fn default_music_title() -> String {
 
 fn default_battery_percent() -> i32 {
     100
+}
+
+fn default_power_icon() -> String {
+    "battery".to_string()
 }
 
 fn default_connection_type() -> String {

@@ -917,7 +917,7 @@ mod shim {
         let rows = first_rows(&model.rows, 5);
         let items = fixed_cstrings(rows.iter().map(|row| row.title.as_str()), 5)?;
         let title = cstring(&model.title)?;
-        let icon = cstring("battery")?;
+        let icon = cstring(&model.icon_key)?;
         let footer = cstring(&model.chrome.footer)?;
 
         check(
@@ -932,9 +932,11 @@ mod shim {
                     items[2].as_ptr(),
                     items[3].as_ptr(),
                     items[4].as_ptr(),
-                    model.rows.len() as i32,
-                    selected_visible_index(&model.rows, 5) as i32,
-                    model.rows.len().max(1) as i32,
+                    rows.len() as i32,
+                    model
+                        .current_page_index
+                        .min(model.total_pages.saturating_sub(1)) as i32,
+                    model.total_pages.max(1) as i32,
                     model.chrome.status.voip_state,
                     model.chrome.status.battery_percent,
                     bool_i32(model.chrome.status.charging),

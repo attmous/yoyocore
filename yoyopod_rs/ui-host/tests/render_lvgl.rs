@@ -973,6 +973,58 @@ fn power_scene_reuses_rows_and_hides_stale_entries_without_rebuild() -> Result<(
 }
 
 #[test]
+fn power_scene_uses_active_setup_page_icon_title_and_page_dots() -> Result<()> {
+    let mut facade = FakeFacade::default();
+    let mut controller = PowerController::default();
+    let model = ScreenModel::Power(PowerViewModel {
+        chrome: ChromeModel {
+            footer: "Tap page / Hold back".to_string(),
+            ..chrome_model()
+        },
+        title: "Voice".to_string(),
+        subtitle: String::new(),
+        icon_key: "voice_note".to_string(),
+        rows: vec![ListRowModel {
+            id: "voice-cmds".to_string(),
+            title: "Voice Cmds: Unknown".to_string(),
+            subtitle: String::new(),
+            icon_key: "voice_note".to_string(),
+            selected: false,
+        }],
+        current_page_index: 3,
+        total_pages: 4,
+    });
+
+    controller.sync(&mut facade, &model)?;
+
+    let events = facade.events();
+    let icon_id = created_label_id(events, "power_icon");
+    let title_id = created_label_id(events, "power_title");
+    let dots = created_container_ids(events, "power_dot");
+
+    assert!(events.contains(&FacadeEvent::SetIcon {
+        id: icon_id,
+        icon_key: "voice_note".to_string(),
+    }));
+    assert!(has_text(events, title_id, "Voice"));
+    assert_eq!(dots.len(), 8);
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[0],
+        visible: true,
+    }));
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[3],
+        visible: true,
+    }));
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[4],
+        visible: false,
+    }));
+
+    Ok(())
+}
+
+#[test]
 fn overlay_scene_reuses_widgets_and_toggles_footer_visibility() -> Result<()> {
     let facade = FakeFacade::default();
     let mut renderer = LvglRenderer::new(facade);
@@ -1229,11 +1281,12 @@ fn in_call_screen_model() -> ScreenModel {
 fn power_screen_model(subtitle: &str, rows: &[(&str, &str, &str, bool)]) -> ScreenModel {
     ScreenModel::Power(PowerViewModel {
         chrome: ChromeModel {
-            footer: "Tap = Next | Hold = Back".to_string(),
+            footer: "Tap page / Hold back".to_string(),
             ..chrome_model()
         },
-        title: "Status".to_string(),
+        title: "Power".to_string(),
         subtitle: subtitle.to_string(),
+        icon_key: "battery".to_string(),
         rows: rows
             .iter()
             .map(|(id, title, row_subtitle, selected)| ListRowModel {
@@ -1244,6 +1297,8 @@ fn power_screen_model(subtitle: &str, rows: &[(&str, &str, &str, bool)]) -> Scre
                 selected: *selected,
             })
             .collect(),
+        current_page_index: 0,
+        total_pages: 4,
     })
 }
 

@@ -289,6 +289,8 @@ pub struct NetworkRuntimeState {
     pub connection_type: String,
     pub signal_strength: i32,
     pub gps_has_fix: bool,
+    pub setup_network_rows: Vec<SetupRow>,
+    pub setup_gps_rows: Vec<SetupRow>,
 }
 
 impl Default for NetworkRuntimeState {
@@ -299,7 +301,28 @@ impl Default for NetworkRuntimeState {
             connection_type: "none".to_string(),
             signal_strength: 0,
             gps_has_fix: false,
+            setup_network_rows: Vec::new(),
+            setup_gps_rows: Vec::new(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetupRow {
+    pub label: String,
+    pub value: String,
+}
+
+impl SetupRow {
+    fn new(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            value: value.into(),
+        }
+    }
+
+    fn formatted(&self) -> String {
+        format!("{}: {}", self.label, self.value)
     }
 }
 
@@ -614,6 +637,21 @@ impl RuntimeState {
         {
             self.network.gps_has_fix = gps_has_fix;
         }
+        if let Some(setup) = snapshot
+            .get("views")
+            .and_then(|views| views.get("setup"))
+            .filter(|setup| setup.is_object())
+        {
+            if let Some(enabled) = setup.get("network_enabled").and_then(Value::as_bool) {
+                self.network.enabled = enabled;
+            }
+            if let Some(rows) = setup_rows(setup.get("network_rows")) {
+                self.network.setup_network_rows = rows;
+            }
+            if let Some(rows) = setup_rows(setup.get("gps_rows")) {
+                self.network.setup_gps_rows = rows;
+            }
+        }
     }
 
     pub fn ui_snapshot_payload(&self) -> Value {
@@ -654,6 +692,7 @@ impl RuntimeState {
                 "charging": false,
                 "power_available": true,
                 "rows": self.power_rows(),
+                "pages": self.setup_pages(),
             },
             "network": {
                 "enabled": self.network.enabled,
@@ -727,6 +766,126 @@ impl RuntimeState {
             "Network searching".to_string()
         } else {
             "Network offline".to_string()
+        }
+    }
+
+    fn setup_pages(&self) -> Vec<Value> {
+        let mut pages = vec![setup_page(
+            "Power",
+            "battery",
+            vec![
+                SetupRow::new("Battery", "100%"),
+                SetupRow::new("Charging", "On battery"),
+                SetupRow::new("External", "Available"),
+            ],
+        )];
+
+        if self.network.enabled {
+            pages.push(setup_page(
+                "Network",
+                "signal",
+                if self.network.setup_network_rows.is_empty() {
+                    vec![
+                        SetupRow::new("Status", self.network_setup_status()),
+                        SetupRow::new("Type", self.network.connection_type.to_uppercase()),
+                        SetupRow::new("Signal", format!("{}/4", self.network.signal_strength)),
+                        SetupRow::new("PPP", if self.network.connected { "Up" } else { "Down" }),
+                    ]
+                } else {
+                    self.network.setup_network_rows.clone()
+                },
+            ));
+            pages.push(setup_page(
+                "GPS",
+                "care",
+                if self.network.setup_gps_rows.is_empty() {
+                    vec![
+                        SetupRow::new(
+                            "Fix",
+                            if self.network.gps_has_fix {
+                                "Yes"
+                            } else {
+                                "Searching"
+                            },
+                        ),
+                        SetupRow::new("Lat", "--"),
+                        SetupRow::new("Lng", "--"),
+                        SetupRow::new("Alt", "--"),
+                        SetupRow::new("Speed", "--"),
+                    ]
+                } else {
+                    self.network.setup_gps_rows.clone()
+                },
+            ));
+        }
+
+        pages.extend([
+            setup_page(
+                "Time",
+                "clock",
+                vec![
+                    SetupRow::new("RTC", "Unknown"),
+                    SetupRow::new("Alarm", "Unknown"),
+                    SetupRow::new("Uptime", "--"),
+                    SetupRow::new("Screen", "Awake"),
+                ],
+            ),
+            setup_page(
+                "Care",
+                "care",
+                vec![
+                    SetupRow::new("Network", self.network_status_value()),
+                    SetupRow::new(
+                        "VoIP",
+                        if self.call.registered {
+                            "Ready"
+                        } else {
+                            "Offline"
+                        },
+                    ),
+                    SetupRow::new(
+                        "Media",
+                        if self.media.connected {
+                            "Connected"
+                        } else {
+                            "Offline"
+                        },
+                    ),
+                    SetupRow::new("Watchdog", "Off"),
+                ],
+            ),
+            setup_page(
+                "Voice",
+                "voice_note",
+                vec![
+                    SetupRow::new("Voice Cmds", "Unknown"),
+                    SetupRow::new("AI Requests", "Unknown"),
+                    SetupRow::new("Screen Read", "Unknown"),
+                    SetupRow::new("Mic", "Unknown"),
+                    SetupRow::new("Volume", "--"),
+                ],
+            ),
+        ]);
+        pages
+    }
+
+    fn network_setup_status(&self) -> &'static str {
+        if self.network.connected {
+            "Online"
+        } else if self.network.enabled {
+            "Registered"
+        } else {
+            "Disabled"
+        }
+    }
+
+    fn network_status_value(&self) -> &'static str {
+        if self.network.connected {
+            "Connected"
+        } else if self.network.enabled {
+            "Searching"
+        } else {
+            "Offline"
         }
     }
 
@@ -878,6 +1037,32 @@ fn format_duration_text(total_seconds: u64) -> String {
 
 fn list_payload(items: &[ListItem]) -> Vec<Value> {
     items.iter().map(ListItem::to_payload).collect()
+}
+
+fn setup_page(title: &str, icon_key: &str, rows: Vec<SetupRow>) -> Value {
+    json!({
+        "title": title,
+        "icon_key": icon_key,
+        "rows": rows.into_iter().map(|row| row.formatted()).collect::<Vec<_>>(),
+    })
+}
+
+fn setup_rows(value: Option<&Value>) -> Option<Vec<SetupRow>> {
+    let rows = value?.as_array()?;
+    let parsed = rows
+        .iter()
+        .filter_map(|row| {
+            let values = row.as_array()?;
+            if values.len() != 2 {
+                return None;
+            }
+            Some(SetupRow::new(
+                values[0].as_str().unwrap_or_default(),
+                values[1].as_str().unwrap_or_default(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    Some(parsed)
 }
 
 fn voice_note_summary_from_value(value: &Value) -> Option<VoiceNoteSummary> {

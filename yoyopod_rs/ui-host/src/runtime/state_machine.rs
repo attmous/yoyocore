@@ -386,6 +386,7 @@ impl UiRuntime {
             }
             UiScreen::IncomingCall => self.intents.push(UiIntent::new("call", "answer")),
             UiScreen::InCall => self.intents.push(UiIntent::new("call", "toggle_mute")),
+            UiScreen::Power => self.advance_focus(),
             _ => {}
         }
     }
@@ -616,7 +617,7 @@ impl UiRuntime {
                     .len()
             }
             UiScreen::VoiceNote => screens::ask::voice_note_action_count(&self.snapshot),
-            UiScreen::Power => screens::power::items(&self.snapshot).len().max(1),
+            UiScreen::Power => screens::power::page_count(&self.snapshot),
             _ => 0,
         }
     }

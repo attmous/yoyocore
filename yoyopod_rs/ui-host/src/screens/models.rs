@@ -184,7 +184,10 @@ pub struct PowerViewModel {
     pub chrome: ChromeModel,
     pub title: String,
     pub subtitle: String,
+    pub icon_key: String,
     pub rows: Vec<ListRowModel>,
+    pub current_page_index: usize,
+    pub total_pages: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

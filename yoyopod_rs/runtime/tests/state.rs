@@ -295,6 +295,54 @@ fn network_snapshot_updates_status_bar_payload_and_power_row() {
 }
 
 #[test]
+fn network_setup_projection_feeds_setup_pages() {
+    let mut state = RuntimeState::default();
+
+    state.apply_network_snapshot(&json!({
+        "app_state": {
+            "network_enabled": true,
+            "signal_bars": 3,
+            "connection_type": "4g",
+            "connected": false,
+            "gps_has_fix": false
+        },
+        "views": {
+            "setup": {
+                "network_enabled": true,
+                "network_rows": [
+                    ["Status", "Registered"],
+                    ["Carrier", "Telekom.de"],
+                    ["Type", "4G"],
+                    ["Signal", "3/4"],
+                    ["PPP", "Down"]
+                ],
+                "gps_rows": [
+                    ["Fix", "Searching"],
+                    ["Lat", "--"],
+                    ["Lng", "--"],
+                    ["Alt", "--"],
+                    ["Speed", "--"]
+                ]
+            }
+        }
+    }));
+
+    let ui = state.ui_snapshot_payload();
+    let pages = ui["power"]["pages"].as_array().expect("setup pages");
+
+    assert_eq!(pages.len(), 6);
+    assert_eq!(pages[0]["title"], "Power");
+    assert_eq!(pages[1]["title"], "Network");
+    assert_eq!(pages[1]["icon_key"], "signal");
+    assert_eq!(pages[1]["rows"][0], "Status: Registered");
+    assert_eq!(pages[1]["rows"][1], "Carrier: Telekom.de");
+    assert_eq!(pages[2]["title"], "GPS");
+    assert_eq!(pages[2]["rows"][0], "Fix: Searching");
+    assert_eq!(pages[5]["title"], "Voice");
+    assert_eq!(pages[5]["icon_key"], "voice_note");
+}
+
+#[test]
 fn ui_snapshot_uses_available_state_for_power_rows() {
     let mut state = RuntimeState::default();
 
