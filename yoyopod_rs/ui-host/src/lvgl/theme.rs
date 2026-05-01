@@ -81,6 +81,28 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
     match role {
         "root" => WidgetStyle::root(),
         "status_bar" => WidgetStyle::plain(),
+        "status_signal_bar_0"
+        | "status_signal_bar_1"
+        | "status_signal_bar_2"
+        | "status_signal_bar_3"
+        | "status_gps_center"
+        | "status_gps_tail"
+        | "status_voip_dot_left"
+        | "status_voip_dot_after_gps"
+        | "status_battery_fill"
+        | "status_battery_tip" => WidgetStyle::panel(MUTED_RGB, None, 1),
+        "status_gps_ring" => WidgetStyle {
+            border_color: Some(MUTED_RGB),
+            border_width: 1,
+            radius: 4,
+            ..WidgetStyle::plain()
+        },
+        "status_battery_outline" => WidgetStyle {
+            border_color: Some(MUTED_RGB),
+            border_width: 1,
+            radius: 2,
+            ..WidgetStyle::plain()
+        },
         "footer_bar" => WidgetStyle::panel(FOOTER_RGB, None, 0),
         "hub_icon_glow" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 24),
         "talk_card_glow" | "call_icon_halo" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 22),
@@ -93,12 +115,24 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
             radius: 2,
             ..WidgetStyle::plain()
         },
+        "talk_dot" => WidgetStyle {
+            bg_color: Some(ACCENT_CYAN_RGB),
+            bg_opa: 102,
+            radius: 4,
+            ..WidgetStyle::plain()
+        },
+        "power_dot" => WidgetStyle {
+            bg_color: Some(MUTED_RGB),
+            bg_opa: OPA_COVER,
+            radius: 2,
+            ..WidgetStyle::plain()
+        },
         "ask_icon_glow" | "ask_icon_halo" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 60),
         "power_icon_halo" => WidgetStyle::panel(0x494D59, None, 28),
         "now_playing_panel" | "listen_panel" | "playlist_panel" => WidgetStyle::plain(),
         "now_playing_icon_halo" => WidgetStyle::panel(SURFACE_RAISED_RGB, Some(BORDER_RGB), 20),
         "now_playing_state_chip" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 12),
-        "now_playing_progress_track" => WidgetStyle::panel(0x2D313A, None, 4),
+        "now_playing_progress_track" => WidgetStyle::panel(0x2C2F37, None, 4),
         "now_playing_progress_fill" => WidgetStyle::panel(ACCENT_GREEN_RGB, None, 4),
         "listen_row" | "playlist_row" | "list_row" => {
             WidgetStyle::panel(SURFACE_RAISED_RGB, Some(BORDER_RGB), 16)
@@ -108,6 +142,7 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
         "playlist_underline" => WidgetStyle::panel(ACCENT_GREEN_RGB, None, 3),
         "talk_actions_header_box" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 12),
         "call_state_chip" => WidgetStyle::panel(SURFACE_RAISED_RGB, None, 12),
+        "call_mute_badge" => WidgetStyle::panel(0x49353B, None, 12),
         "talk_actions_primary_button" => {
             WidgetStyle::panel(SURFACE_RAISED_RGB, Some(ACCENT_CYAN_RGB), 44)
         }
@@ -121,6 +156,7 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
         | "overlay_title"
         | "now_playing_title"
         | "talk_title"
+        | "talk_actions_title_label"
         | "listen_empty_title"
         | "playlist_empty_title" => WidgetStyle::label(INK_RGB),
         "hub_subtitle"
@@ -139,7 +175,10 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
         | "talk_actions_header_name"
         | "listen_empty_subtitle"
         | "playlist_empty_subtitle" => WidgetStyle::label(MUTED_RGB),
-        "status_network"
+        "status_wifi"
+        | "status_time"
+        | "status_battery_label"
+        | "status_network"
         | "status_signal"
         | "status_battery"
         | "list_footer"
@@ -173,7 +212,6 @@ pub fn style_for_role(role: &str) -> WidgetStyle {
             WidgetStyle::label(INK_RGB)
         }
         "now_playing_progress" => WidgetStyle::label(ACCENT_GREEN_RGB),
-        "call_mute_badge" => WidgetStyle::panel(0x49353B, None, 12),
         "call_mute_label" => WidgetStyle::label(ERROR_RGB),
         _ => WidgetStyle::label(INK_RGB),
     }
@@ -188,7 +226,7 @@ pub fn style_for_selected_role(role: &str, selected: bool) -> WidgetStyle {
         "listen_row" | "playlist_row" | "list_row" => {
             WidgetStyle::panel(SELECTED_ROW_RGB, Some(SELECTED_ROW_RGB), 16)
         }
-        "hub_dot" => WidgetStyle {
+        "hub_dot" | "talk_dot" | "power_dot" => WidgetStyle {
             bg_color: Some(INK_RGB),
             bg_opa: OPA_COVER,
             radius: 2,

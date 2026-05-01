@@ -37,6 +37,7 @@ pub enum SceneKey {
     List,
     NowPlaying,
     Ask,
+    TalkActions,
     Call,
     Power,
     Overlay,
@@ -53,7 +54,8 @@ impl SceneKey {
             | UiScreen::Contacts
             | UiScreen::CallHistory => Self::List,
             UiScreen::NowPlaying => Self::NowPlaying,
-            UiScreen::Ask | UiScreen::VoiceNote => Self::Ask,
+            UiScreen::Ask => Self::Ask,
+            UiScreen::TalkContact | UiScreen::VoiceNote => Self::TalkActions,
             UiScreen::IncomingCall | UiScreen::OutgoingCall | UiScreen::InCall => Self::Call,
             UiScreen::Power => Self::Power,
             UiScreen::Loading | UiScreen::Error => Self::Overlay,
@@ -66,6 +68,7 @@ impl SceneKey {
             Self::List => "list",
             Self::NowPlaying => "now_playing",
             Self::Ask => "ask",
+            Self::TalkActions => "talk_actions",
             Self::Call => "call",
             Self::Power => "power",
             Self::Overlay => "overlay",
@@ -100,7 +103,7 @@ impl NativeSceneKey {
             | UiScreen::CallHistory => Self::Playlist,
             UiScreen::NowPlaying => Self::NowPlaying,
             UiScreen::Talk => Self::Talk,
-            UiScreen::VoiceNote => Self::TalkActions,
+            UiScreen::TalkContact | UiScreen::VoiceNote => Self::TalkActions,
             UiScreen::IncomingCall => Self::IncomingCall,
             UiScreen::OutgoingCall => Self::OutgoingCall,
             UiScreen::InCall => Self::InCall,
@@ -145,6 +148,33 @@ pub trait LvglFacade {
 
     fn set_visible(&mut self, widget: WidgetId, visible: bool) -> Result<()>;
 
+    fn set_y(&mut self, widget: WidgetId, y: i32) -> Result<()> {
+        let _ = (widget, y);
+        Ok(())
+    }
+
+    fn set_geometry(
+        &mut self,
+        widget: WidgetId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        let _ = (widget, x, y, width, height);
+        Ok(())
+    }
+
+    fn set_variant(
+        &mut self,
+        widget: WidgetId,
+        variant: &'static str,
+        accent_rgb: u32,
+    ) -> Result<()> {
+        let _ = (widget, variant, accent_rgb);
+        Ok(())
+    }
+
     fn set_accent(&mut self, widget: WidgetId, rgb: u32) -> Result<()> {
         let _ = (widget, rgb);
         Ok(())
@@ -187,6 +217,30 @@ where
 
     fn set_visible(&mut self, widget: WidgetId, visible: bool) -> Result<()> {
         (**self).set_visible(widget, visible)
+    }
+
+    fn set_y(&mut self, widget: WidgetId, y: i32) -> Result<()> {
+        (**self).set_y(widget, y)
+    }
+
+    fn set_geometry(
+        &mut self,
+        widget: WidgetId,
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    ) -> Result<()> {
+        (**self).set_geometry(widget, x, y, width, height)
+    }
+
+    fn set_variant(
+        &mut self,
+        widget: WidgetId,
+        variant: &'static str,
+        accent_rgb: u32,
+    ) -> Result<()> {
+        (**self).set_variant(widget, variant, accent_rgb)
     }
 
     fn set_accent(&mut self, widget: WidgetId, rgb: u32) -> Result<()> {
@@ -270,6 +324,7 @@ fn controller_for_scene(scene: SceneKey, _screen: UiScreen) -> Result<Box<dyn Sc
         SceneKey::Hub => Ok(Box::new(HubController::default())),
         SceneKey::List => Ok(Box::new(ListController::default())),
         SceneKey::Ask => Ok(Box::new(AskController::default())),
+        SceneKey::TalkActions => Ok(Box::new(TalkActionsController::default())),
         SceneKey::NowPlaying => Ok(Box::new(NowPlayingController::default())),
         SceneKey::Call => Ok(Box::new(CallController::default())),
         SceneKey::Power => Ok(Box::new(PowerController::default())),

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -36,11 +36,11 @@ pub fn run(args: Args) -> Result<String> {
         return Ok(serde_json::to_string_pretty(&config)?);
     }
 
-    run_runtime(config, &args.hardware)?;
+    run_runtime(config, &args.hardware, &args.config_dir)?;
     Ok(String::new())
 }
 
-fn run_runtime(config: RuntimeConfig, hardware: &str) -> Result<()> {
+fn run_runtime(config: RuntimeConfig, hardware: &str, config_dir: &Path) -> Result<()> {
     let pid = std::process::id();
     write_pid_file(&config.pid_file, pid)?;
     if let Err(error) = log_marker(
@@ -52,7 +52,7 @@ fn run_runtime(config: RuntimeConfig, hardware: &str) -> Result<()> {
             .with_context(|| format!("failed to write startup log marker to {}", config.log_file));
     }
 
-    let result = run_runtime_inner(&config, hardware);
+    let result = run_runtime_inner(&config, hardware, config_dir);
 
     let mut shutdown_result =
         log_marker(&config.log_file, shutdown_marker(pid)).map_err(Into::into);
@@ -63,11 +63,11 @@ fn run_runtime(config: RuntimeConfig, hardware: &str) -> Result<()> {
     result.and(shutdown_result)
 }
 
-fn run_runtime_inner(config: &RuntimeConfig, hardware: &str) -> Result<()> {
+fn run_runtime_inner(config: &RuntimeConfig, hardware: &str, config_dir: &Path) -> Result<()> {
     let shutdown = install_ctrlc_handler()?;
 
     let mut workers = WorkerSupervisor::default();
-    let state = match start_workers(&mut workers, config, hardware) {
+    let state = match start_workers(&mut workers, config, hardware, config_dir) {
         Ok(state) => state,
         Err(error) => {
             workers.stop_all(Duration::from_secs(1));
@@ -91,8 +91,11 @@ fn start_workers(
     workers: &mut WorkerSupervisor,
     config: &RuntimeConfig,
     hardware: &str,
+    config_dir: &Path,
 ) -> Result<RuntimeState> {
     let mut state = RuntimeState::default();
+    state.seed_contacts(config.people.to_contact_items());
+    state.configure_voice_note_store_dir(config.voip.voice_note_store_dir.clone());
     state.mark_worker(WorkerDomain::Ui, WorkerState::Starting, "starting");
 
     if !workers.start(WorkerSpec::new(
@@ -149,6 +152,36 @@ fn start_workers(
         state.mark_worker(WorkerDomain::Voip, WorkerState::Degraded, "failed to start");
     }
 
+    state.mark_worker(WorkerDomain::Network, WorkerState::Starting, "starting");
+    if workers.start(WorkerSpec::new(
+        WorkerDomain::Network,
+        config.worker_paths.network.clone(),
+        [
+            "--config-dir".to_string(),
+            config_dir.to_string_lossy().to_string(),
+        ],
+    )) {
+        if workers.wait_for_ready(
+            WorkerDomain::Network,
+            "network.ready",
+            Duration::from_secs(3),
+        ) {
+            state.mark_worker(WorkerDomain::Network, WorkerState::Running, "ready");
+        } else {
+            state.mark_worker(
+                WorkerDomain::Network,
+                WorkerState::Degraded,
+                "timed out waiting for network.ready",
+            );
+        }
+    } else {
+        state.mark_worker(
+            WorkerDomain::Network,
+            WorkerState::Degraded,
+            "failed to start",
+        );
+    }
+
     Ok(state)
 }
 
@@ -176,6 +209,8 @@ fn send_startup_commands(workers: &mut WorkerSupervisor, config: &RuntimeConfig)
         "ui.set_backlight",
         json!({"brightness": config.ui.brightness}),
     );
+    workers.send_command(WorkerDomain::Network, "network.health", json!({}));
+    workers.send_command(WorkerDomain::Network, "network.query_gps", json!({}));
     workers.send_command(
         WorkerDomain::Media,
         "media.configure",

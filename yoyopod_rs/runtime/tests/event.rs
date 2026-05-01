@@ -24,6 +24,67 @@ fn media_snapshot_event_updates_state() {
 }
 
 #[test]
+fn network_snapshot_event_updates_status_snapshot() {
+    let event = runtime_event_from_worker(
+        WorkerDomain::Network,
+        event_envelope(
+            "network.snapshot",
+            json!({
+                "app_state": {
+                    "network_enabled": true,
+                    "signal_bars": 3,
+                    "connection_type": "4g",
+                    "connected": true,
+                    "gps_has_fix": true
+                }
+            }),
+        ),
+    )
+    .expect("event");
+    let mut state = RuntimeState::default();
+
+    event.apply(&mut state);
+
+    let network = &state.ui_snapshot_payload()["network"];
+    assert_eq!(network["enabled"], true);
+    assert_eq!(network["connected"], true);
+    assert_eq!(network["connection_type"], "4g");
+    assert_eq!(network["signal_strength"], 3);
+    assert_eq!(network["gps_has_fix"], true);
+}
+
+#[test]
+fn network_snapshot_result_updates_status_snapshot() {
+    let event = runtime_event_from_worker(
+        WorkerDomain::Network,
+        envelope(
+            EnvelopeKind::Result,
+            "network.health",
+            json!({
+                "snapshot": {
+                    "enabled": true,
+                    "connected": false,
+                    "connection_type": "4g",
+                    "signal": {"bars": 2},
+                    "gps_has_fix": false
+                }
+            }),
+        ),
+    )
+    .expect("event");
+    let mut state = RuntimeState::default();
+
+    event.apply(&mut state);
+
+    let network = &state.ui_snapshot_payload()["network"];
+    assert_eq!(network["enabled"], true);
+    assert_eq!(network["connected"], false);
+    assert_eq!(network["connection_type"], "4g");
+    assert_eq!(network["signal_strength"], 2);
+    assert_eq!(network["gps_has_fix"], false);
+}
+
+#[test]
 fn worker_ready_event_marks_worker_running() {
     let event = runtime_event_from_worker(
         WorkerDomain::Media,
@@ -532,6 +593,115 @@ fn ui_call_toggle_mute_routes_inverse_mute_state() {
             json!({"muted": false})
         )]
     );
+}
+
+#[test]
+fn ui_voice_capture_start_routes_to_voip_recording() {
+    let event = runtime_event_from_worker(
+        WorkerDomain::Ui,
+        ui_intent("voice", "capture_start", json!({})),
+    )
+    .expect("event");
+    let mut state = RuntimeState::default();
+    state.configure_voice_note_store_dir("/tmp/yoyopod-notes");
+
+    let commands = commands_for_event(&state, &event);
+    let [RuntimeCommand::WorkerCommand { domain, envelope }] = commands.as_slice() else {
+        panic!("expected one worker command");
+    };
+
+    assert_eq!(*domain, WorkerDomain::Voip);
+    assert_eq!(envelope.message_type, "voip.start_voice_note_recording");
+    let file_path = envelope.payload["file_path"].as_str().expect("file path");
+    assert!(file_path.contains("yoyopod-notes"));
+    assert!(file_path.ends_with(".wav"));
+}
+
+#[test]
+fn ui_voice_send_routes_recorded_note_to_voip() {
+    let event = runtime_event_from_worker(
+        WorkerDomain::Ui,
+        ui_intent(
+            "voice",
+            "send",
+            json!({"id": "sip:mama@example.test", "recipient_name": "Mama"}),
+        ),
+    )
+    .expect("event");
+    let mut state = RuntimeState::default();
+    state.apply_voip_snapshot(&json!({
+        "voice_note": {
+            "state": "recorded",
+            "file_path": "/tmp/note.wav",
+            "duration_ms": 1250,
+            "mime_type": "audio/wav"
+        }
+    }));
+
+    let commands = commands_for_event(&state, &event);
+    let [RuntimeCommand::WorkerCommand { domain, envelope }] = commands.as_slice() else {
+        panic!("expected one worker command");
+    };
+
+    assert_eq!(*domain, WorkerDomain::Voip);
+    assert_eq!(envelope.message_type, "voip.send_voice_note");
+    assert_eq!(envelope.payload["uri"], "sip:mama@example.test");
+    assert_eq!(envelope.payload["file_path"], "/tmp/note.wav");
+    assert_eq!(envelope.payload["duration_ms"], 1250);
+    assert_eq!(envelope.payload["mime_type"], "audio/wav");
+    assert!(envelope.payload["client_id"]
+        .as_str()
+        .is_some_and(|value| value.starts_with("runtime-vn-")));
+}
+
+#[test]
+fn ui_voice_play_latest_routes_play_and_mark_seen() {
+    let event = runtime_event_from_worker(
+        WorkerDomain::Ui,
+        ui_intent(
+            "voice",
+            "play_latest",
+            json!({"id": "sip:mama@example.test", "file_path": "/tmp/mama-note.wav"}),
+        ),
+    )
+    .expect("event");
+
+    let commands = commands_for_event(&RuntimeState::default(), &event);
+
+    assert_eq!(
+        commands,
+        vec![
+            worker_command(
+                WorkerDomain::Voip,
+                "voip.play_voice_note",
+                json!({"file_path": "/tmp/mama-note.wav"})
+            ),
+            worker_command(
+                WorkerDomain::Voip,
+                "voip.mark_voice_notes_seen",
+                json!({"uri": "sip:mama@example.test"})
+            ),
+        ]
+    );
+}
+
+#[test]
+fn ui_voice_discard_resets_local_voice_note_state() {
+    let event =
+        runtime_event_from_worker(WorkerDomain::Ui, ui_intent("voice", "discard", json!({})))
+            .expect("event");
+    let mut state = RuntimeState::default();
+    state.apply_voip_snapshot(&json!({
+        "voice_note": {
+            "state": "recorded",
+            "file_path": "/tmp/note.wav"
+        }
+    }));
+
+    event.apply(&mut state);
+
+    assert_eq!(state.ui_snapshot_payload()["voice"]["phase"], "idle");
+    assert_eq!(state.voice.file_path, "");
 }
 
 #[test]

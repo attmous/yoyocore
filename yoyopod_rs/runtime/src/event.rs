@@ -1,3 +1,5 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use serde_json::{json, Value};
 
 use crate::protocol::{EnvelopeKind, WorkerEnvelope};
@@ -10,6 +12,7 @@ pub enum RuntimeEvent {
     },
     MediaSnapshot(Value),
     VoipSnapshot(Value),
+    NetworkSnapshot(Value),
     UiInput(Value),
     UiIntent {
         domain: String,
@@ -48,6 +51,7 @@ impl RuntimeEvent {
             }
             Self::MediaSnapshot(snapshot) => state.apply_media_snapshot(snapshot),
             Self::VoipSnapshot(snapshot) => state.apply_voip_snapshot(snapshot),
+            Self::NetworkSnapshot(snapshot) => state.apply_network_snapshot(snapshot),
             Self::UiScreenChanged { screen } => {
                 state.current_screen = screen.clone();
             }
@@ -57,7 +61,12 @@ impl RuntimeEvent {
             Self::WorkerExited { domain, reason } => {
                 state.mark_worker(*domain, WorkerState::Stopped, reason.clone());
             }
-            Self::UiInput(_) | Self::UiIntent { .. } | Self::Shutdown | Self::Ignored => {}
+            Self::UiIntent {
+                domain,
+                action,
+                payload,
+            } => state.apply_ui_intent(domain, action, payload),
+            Self::UiInput(_) | Self::Shutdown | Self::Ignored => {}
         }
     }
 }
@@ -79,6 +88,12 @@ pub fn runtime_event_from_worker(
             message: worker_error_message(&message_type, &payload),
         }),
         EnvelopeKind::Event => Some(runtime_event_from_message(domain, &message_type, payload)),
+        EnvelopeKind::Result
+            if domain == WorkerDomain::Network
+                && matches!(message_type.as_str(), "network.snapshot" | "network.health") =>
+        {
+            Some(RuntimeEvent::NetworkSnapshot(payload))
+        }
         EnvelopeKind::Command | EnvelopeKind::Result | EnvelopeKind::Heartbeat => {
             Some(RuntimeEvent::Ignored)
         }
@@ -97,6 +112,7 @@ pub fn commands_for_event(state: &RuntimeState, event: &RuntimeEvent) -> Vec<Run
         RuntimeEvent::Shutdown => vec![RuntimeCommand::Shutdown],
         RuntimeEvent::WorkerReady { .. }
         | RuntimeEvent::MediaSnapshot(_)
+        | RuntimeEvent::NetworkSnapshot(_)
         | RuntimeEvent::UiScreenChanged { .. }
         | RuntimeEvent::WorkerError { .. }
         | RuntimeEvent::WorkerExited { .. }
@@ -120,13 +136,7 @@ fn runtime_event_from_message(
         WorkerDomain::Ui => ui_event_from_message(message_type, payload),
         WorkerDomain::Media => media_event_from_message(message_type, payload),
         WorkerDomain::Voip => voip_event_from_message(message_type, payload),
-        WorkerDomain::Network => health_only_event_from_message(
-            domain,
-            message_type,
-            &payload,
-            "network.ready",
-            "network.error",
-        ),
+        WorkerDomain::Network => network_event_from_message(message_type, payload),
         WorkerDomain::Power => health_only_event_from_message(
             domain,
             message_type,
@@ -190,6 +200,20 @@ fn voip_event_from_message(message_type: &str, payload: Value) -> RuntimeEvent {
     }
 }
 
+fn network_event_from_message(message_type: &str, payload: Value) -> RuntimeEvent {
+    match message_type {
+        "network.ready" => RuntimeEvent::WorkerReady {
+            domain: WorkerDomain::Network,
+        },
+        "network.snapshot" | "network.health" => RuntimeEvent::NetworkSnapshot(payload),
+        "network.error" => RuntimeEvent::WorkerError {
+            domain: WorkerDomain::Network,
+            message: worker_error_message(message_type, &payload),
+        },
+        _ => RuntimeEvent::Ignored,
+    }
+}
+
 fn health_only_event_from_message(
     domain: WorkerDomain,
     message_type: &str,
@@ -244,6 +268,7 @@ fn commands_for_ui_intent(
     match domain.as_str() {
         "music" => commands_for_music_intent(state, &action, payload),
         "call" => commands_for_call_intent(state, &action, payload),
+        "voice" => commands_for_voice_intent(state, &action, payload),
         _ => Vec::new(),
     }
 }
@@ -346,6 +371,115 @@ fn commands_for_call_intent(
     }
 }
 
+fn commands_for_voice_intent(
+    state: &RuntimeState,
+    action: &str,
+    payload: &Value,
+) -> Vec<RuntimeCommand> {
+    match action {
+        "capture_start" | "start_recording" => {
+            let file_path = state.voice.recording_file_path();
+            vec![worker_command(
+                WorkerDomain::Voip,
+                "voip.start_voice_note_recording",
+                json!({ "file_path": file_path }),
+            )]
+        }
+        "capture_stop" | "stop_recording" => vec![worker_command(
+            WorkerDomain::Voip,
+            "voip.stop_voice_note_recording",
+            empty_payload(),
+        )],
+        "capture_cancel" | "cancel_recording" => vec![worker_command(
+            WorkerDomain::Voip,
+            "voip.cancel_voice_note_recording",
+            empty_payload(),
+        )],
+        "capture_toggle" => {
+            if state.voice.phase == "recording" {
+                commands_for_voice_intent(state, "capture_stop", payload)
+            } else {
+                commands_for_voice_intent(state, "capture_start", payload)
+            }
+        }
+        "send" | "send_voice_note" => {
+            let uri = string_field(payload, "recipient_address")
+                .or_else(|| string_field(payload, "sip_address"))
+                .or_else(|| string_field(payload, "id"))
+                .or_else(|| string_field(payload, "uri"));
+            let file_path = string_field(payload, "file_path")
+                .or_else(|| non_empty_string(&state.voice.file_path));
+            let Some(uri) = uri else {
+                return Vec::new();
+            };
+            let Some(file_path) = file_path else {
+                return Vec::new();
+            };
+            vec![worker_command(
+                WorkerDomain::Voip,
+                "voip.send_voice_note",
+                json!({
+                    "uri": uri,
+                    "file_path": file_path,
+                    "duration_ms": state.voice.duration_ms.max(0),
+                    "mime_type": non_empty_string(&state.voice.mime_type)
+                        .unwrap_or_else(|| "audio/wav".to_string()),
+                    "client_id": new_voice_note_client_id(),
+                }),
+            )]
+        }
+        "play" | "play_voice_note" => string_field(payload, "file_path")
+            .or_else(|| non_empty_string(&state.voice.file_path))
+            .map(|file_path| {
+                vec![worker_command(
+                    WorkerDomain::Voip,
+                    "voip.play_voice_note",
+                    json!({ "file_path": file_path }),
+                )]
+            })
+            .unwrap_or_default(),
+        "play_latest" => {
+            let Some(file_path) = string_field(payload, "file_path") else {
+                return Vec::new();
+            };
+            let mut commands = vec![worker_command(
+                WorkerDomain::Voip,
+                "voip.play_voice_note",
+                json!({ "file_path": file_path }),
+            )];
+            if let Some(uri) = string_field(payload, "id")
+                .or_else(|| string_field(payload, "uri"))
+                .or_else(|| string_field(payload, "sip_address"))
+            {
+                commands.push(worker_command(
+                    WorkerDomain::Voip,
+                    "voip.mark_voice_notes_seen",
+                    json!({ "uri": uri }),
+                ));
+            }
+            commands
+        }
+        "stop_playback" => vec![worker_command(
+            WorkerDomain::Voip,
+            "voip.stop_voice_note_playback",
+            empty_payload(),
+        )],
+        "mark_seen" => string_field(payload, "id")
+            .or_else(|| string_field(payload, "uri"))
+            .or_else(|| string_field(payload, "sip_address"))
+            .map(|uri| {
+                vec![worker_command(
+                    WorkerDomain::Voip,
+                    "voip.mark_voice_notes_seen",
+                    json!({ "uri": uri }),
+                )]
+            })
+            .unwrap_or_default(),
+        "discard" | "again" | "reset" => Vec::new(),
+        _ => Vec::new(),
+    }
+}
+
 fn commands_for_ui_input(state: &RuntimeState, payload: &Value) -> Vec<RuntimeCommand> {
     if state.call.state == CallState::Incoming
         && string_field(payload, "action")
@@ -418,6 +552,23 @@ fn string_field(value: &Value, key: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(str::to_string)
+}
+
+fn non_empty_string(value: &str) -> Option<String> {
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.to_string())
+    }
+}
+
+fn new_voice_note_client_id() -> String {
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default();
+    format!("runtime-vn-{}-{millis}", std::process::id())
 }
 
 fn normalized(value: &str) -> String {

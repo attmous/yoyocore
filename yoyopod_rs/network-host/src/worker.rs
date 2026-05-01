@@ -97,6 +97,7 @@ where
     W: Write,
 {
     write_envelope(output, &ready_event(&runtime.snapshot().config_dir))?;
+    write_envelope(output, &snapshot_event(runtime.snapshot()))?;
     if should_boot_runtime(runtime.snapshot()) {
         runtime.start();
     }

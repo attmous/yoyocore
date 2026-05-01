@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuntimeSnapshot {
@@ -115,6 +116,10 @@ pub struct CallRuntimeSnapshot {
     pub contacts: Vec<ListItemSnapshot>,
     #[serde(default)]
     pub history: Vec<ListItemSnapshot>,
+    #[serde(default)]
+    pub unread_voice_notes_by_contact: BTreeMap<String, usize>,
+    #[serde(default)]
+    pub latest_voice_note_by_contact: BTreeMap<String, VoiceNoteSummarySnapshot>,
 }
 
 impl Default for CallRuntimeSnapshot {
@@ -127,8 +132,28 @@ impl Default for CallRuntimeSnapshot {
             muted: false,
             contacts: Vec::new(),
             history: Vec::new(),
+            unread_voice_notes_by_contact: BTreeMap::new(),
+            latest_voice_note_by_contact: BTreeMap::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct VoiceNoteSummarySnapshot {
+    #[serde(default)]
+    pub message_id: String,
+    #[serde(default)]
+    pub direction: String,
+    #[serde(default)]
+    pub delivery_state: String,
+    #[serde(default)]
+    pub local_file_path: String,
+    #[serde(default)]
+    pub duration_ms: i32,
+    #[serde(default)]
+    pub unread: bool,
+    #[serde(default)]
+    pub display_name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -167,6 +192,8 @@ pub struct PowerRuntimeSnapshot {
     pub power_available: bool,
     #[serde(default)]
     pub rows: Vec<String>,
+    #[serde(default)]
+    pub pages: Vec<PowerPageSnapshot>,
 }
 
 impl Default for PowerRuntimeSnapshot {
@@ -176,8 +203,18 @@ impl Default for PowerRuntimeSnapshot {
             charging: false,
             power_available: true,
             rows: Vec::new(),
+            pages: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PowerPageSnapshot {
+    pub title: String,
+    #[serde(default = "default_power_icon")]
+    pub icon_key: String,
+    #[serde(default)]
+    pub rows: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +223,8 @@ pub struct NetworkRuntimeSnapshot {
     pub enabled: bool,
     #[serde(default)]
     pub connected: bool,
+    #[serde(default = "default_connection_type")]
+    pub connection_type: String,
     #[serde(default)]
     pub signal_strength: i32,
     #[serde(default)]
@@ -197,6 +236,7 @@ impl Default for NetworkRuntimeSnapshot {
         Self {
             enabled: false,
             connected: false,
+            connection_type: default_connection_type(),
             signal_strength: 0,
             gps_has_fix: false,
         }
@@ -265,6 +305,14 @@ fn default_music_title() -> String {
 
 fn default_battery_percent() -> i32 {
     100
+}
+
+fn default_power_icon() -> String {
+    "battery".to_string()
+}
+
+fn default_connection_type() -> String {
+    "none".to_string()
 }
 
 fn default_hub_accent() -> u32 {

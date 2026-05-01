@@ -6,7 +6,8 @@ use yoyopod_ui_host::lvgl::{
 use yoyopod_ui_host::runtime::UiScreen;
 use yoyopod_ui_host::screens::{
     CallViewModel, ChromeModel, HubCardModel, HubViewModel, ListRowModel, ListScreenModel,
-    OverlayViewModel, PowerViewModel, ScreenModel, StatusBarModel,
+    OverlayViewModel, PowerViewModel, ScreenModel, StatusBarModel, TalkActionButtonModel,
+    TalkActionsViewModel,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +44,11 @@ enum FacadeEvent {
     SetVisible {
         id: WidgetId,
         visible: bool,
+    },
+    SetVariant {
+        id: WidgetId,
+        variant: &'static str,
+        accent_rgb: u32,
     },
     Destroy {
         id: WidgetId,
@@ -132,6 +138,20 @@ impl LvglFacade for FakeFacade {
         Ok(())
     }
 
+    fn set_variant(
+        &mut self,
+        widget: WidgetId,
+        variant: &'static str,
+        accent_rgb: u32,
+    ) -> Result<()> {
+        self.events.push(FacadeEvent::SetVariant {
+            id: widget,
+            variant,
+            accent_rgb,
+        });
+        Ok(())
+    }
+
     fn destroy(&mut self, widget: WidgetId) -> Result<()> {
         self.events.push(FacadeEvent::Destroy { id: widget });
         if self.destroy_failures_remaining > 0 {
@@ -170,6 +190,19 @@ fn has_text(events: &[FacadeEvent], id: WidgetId, text: &str) -> bool {
                 id: event_id,
                 text: event_text,
             } if *event_id == id && event_text == text
+        )
+    })
+}
+
+fn has_variant(events: &[FacadeEvent], id: WidgetId, variant: &'static str) -> bool {
+    events.iter().any(|event| {
+        matches!(
+            event,
+            FacadeEvent::SetVariant {
+                id: event_id,
+                variant: event_variant,
+                ..
+            } if *event_id == id && *event_variant == variant
         )
     })
 }
@@ -380,23 +413,22 @@ fn shrinking_list_scene_hides_stale_rows_without_rebuild() -> Result<()> {
 }
 
 #[test]
-fn ask_scene_updates_title_subtitle_footer_in_place() -> Result<()> {
+fn talk_actions_scene_updates_voice_note_primary_state_in_place() -> Result<()> {
     let facade = FakeFacade::default();
     let mut renderer = LvglRenderer::new(facade);
 
-    renderer.render(&ask_screen_model())?;
+    renderer.render(&voice_note_screen_model())?;
     let first_len = renderer.facade().events().len();
 
-    renderer.render(&voice_note_screen_model())?;
+    renderer.render(&voice_note_recording_screen_model())?;
 
     let events = renderer.facade().events();
     let second_pass = &events[first_len..];
-    let title_id = created_label_id(events, "ask_title");
-    let subtitle_id = created_label_id(events, "ask_subtitle");
-    let footer_id = created_label_id(events, "ask_footer");
-    let icon_id = created_label_id(events, "ask_icon");
+    let status_id = created_label_id(events, "talk_actions_status_label");
+    let footer_id = created_label_id(events, "talk_actions_footer");
+    let icon_id = created_label_id(events, "talk_actions_button_label");
 
-    assert_eq!(renderer.active_scene(), Some(SceneKey::Ask));
+    assert_eq!(renderer.active_scene(), Some(SceneKey::TalkActions));
     assert_eq!(renderer.active_screen(), Some(UiScreen::VoiceNote));
     assert!(!second_pass.iter().any(|event| matches!(
         event,
@@ -404,16 +436,11 @@ fn ask_scene_updates_title_subtitle_footer_in_place() -> Result<()> {
             | FacadeEvent::CreateContainer { .. }
             | FacadeEvent::CreateLabel { .. }
     )));
-    assert!(has_text(second_pass, title_id, "Voice Note"));
-    assert!(has_text(second_pass, subtitle_id, "Ready to record"));
-    assert!(has_text(
-        second_pass,
-        footer_id,
-        "2x Tap = Record | Hold = Back"
-    ));
+    assert!(has_text(second_pass, status_id, "Recording"));
+    assert!(has_text(second_pass, footer_id, "Release to stop"));
     assert!(second_pass.contains(&FacadeEvent::SetIcon {
         id: icon_id,
-        icon_key: "microphone".to_string(),
+        icon_key: "voice_note".to_string(),
     }));
 
     Ok(())
@@ -437,6 +464,7 @@ fn now_playing_scene_updates_progress_state_and_title_without_rebuild() -> Resul
     let second_pass = &events[first_len..];
     let title_id = created_label_id(events, "now_playing_title");
     let state_id = created_label_id(events, "now_playing_state_label");
+    let footer_id = created_label_id(events, "now_playing_footer");
     let progress_id = created_container_ids(events, "now_playing_progress_fill")
         .into_iter()
         .next()
@@ -452,10 +480,46 @@ fn now_playing_scene_updates_progress_state_and_title_without_rebuild() -> Resul
     )));
     assert!(has_text(second_pass, title_id, "Track B"));
     assert!(has_text(second_pass, state_id, "Paused"));
+    assert!(has_variant(second_pass, state_id, "now_playing_paused"));
+    assert!(has_variant(second_pass, footer_id, "now_playing_paused"));
+    assert!(has_variant(second_pass, progress_id, "now_playing_paused"));
     assert!(second_pass.contains(&FacadeEvent::SetProgress {
         id: progress_id,
         value: 640,
     }));
+
+    Ok(())
+}
+
+#[test]
+fn now_playing_stopped_state_uses_gray_variant() -> Result<()> {
+    let facade = FakeFacade::default();
+    let mut renderer = LvglRenderer::new(facade);
+
+    renderer.render(&now_playing_screen_model(
+        "Nothing Playing",
+        "",
+        "Stopped",
+        0,
+    ))?;
+
+    let events = renderer.facade().events();
+    let state_chip_id = created_container_ids(events, "now_playing_state_chip")
+        .into_iter()
+        .next()
+        .expect("now-playing state chip should exist");
+    let state_label_id = created_label_id(events, "now_playing_state_label");
+    let footer_id = created_label_id(events, "now_playing_footer");
+    let progress_id = created_container_ids(events, "now_playing_progress_fill")
+        .into_iter()
+        .next()
+        .expect("now-playing progress fill should exist");
+
+    assert!(has_text(events, state_label_id, "Stopped"));
+    assert!(has_variant(events, state_chip_id, "now_playing_stopped"));
+    assert!(has_variant(events, state_label_id, "now_playing_stopped"));
+    assert!(has_variant(events, footer_id, "now_playing_stopped"));
+    assert!(has_variant(events, progress_id, "now_playing_stopped"));
 
     Ok(())
 }
@@ -472,12 +536,17 @@ fn now_playing_progress_is_clamped_before_reaching_the_facade() -> Result<()> {
         "Track B", "Artist B", "Playing", 1200,
     ))?;
 
+    let progress_id =
+        created_container_ids(renderer.facade().events(), "now_playing_progress_fill")
+            .into_iter()
+            .next()
+            .expect("now-playing progress fill should exist");
     let progress_values: Vec<_> = renderer
         .facade()
         .events()
         .iter()
         .filter_map(|event| match event {
-            FacadeEvent::SetProgress { value, .. } => Some(*value),
+            FacadeEvent::SetProgress { id, value } if *id == progress_id => Some(*value),
             _ => None,
         })
         .collect();
@@ -573,6 +642,15 @@ fn scene_key_groups_raw_screens_into_future_shared_controller_families() {
     assert_eq!(SceneKey::for_screen(UiScreen::IncomingCall), SceneKey::Call);
     assert_eq!(SceneKey::for_screen(UiScreen::OutgoingCall), SceneKey::Call);
     assert_eq!(SceneKey::for_screen(UiScreen::InCall), SceneKey::Call);
+    assert_eq!(
+        SceneKey::for_screen(UiScreen::TalkContact),
+        SceneKey::TalkActions
+    );
+    assert_eq!(
+        SceneKey::for_screen(UiScreen::VoiceNote),
+        SceneKey::TalkActions
+    );
+    assert_eq!(SceneKey::for_screen(UiScreen::Ask), SceneKey::Ask);
     assert_eq!(SceneKey::for_screen(UiScreen::Power), SceneKey::Power);
     assert_eq!(SceneKey::for_screen(UiScreen::Loading), SceneKey::Overlay);
     assert_eq!(SceneKey::for_screen(UiScreen::Error), SceneKey::Overlay);
@@ -611,6 +689,10 @@ fn native_scene_key_matches_python_c_lvgl_retained_scene_contract() {
     assert_eq!(
         NativeSceneKey::for_screen(UiScreen::CallHistory),
         NativeSceneKey::Playlist
+    );
+    assert_eq!(
+        NativeSceneKey::for_screen(UiScreen::TalkContact),
+        NativeSceneKey::TalkActions
     );
     assert_eq!(
         NativeSceneKey::for_screen(UiScreen::VoiceNote),
@@ -827,11 +909,7 @@ fn call_scene_updates_icon_footer_and_mute_visibility_without_rebuild() -> Resul
     )));
     assert!(has_text(second_pass, title_id, "Alice"));
     assert!(has_text(second_pass, state_id, "IN CALL | 00:42"));
-    assert!(has_text(
-        second_pass,
-        footer_id,
-        "Tap = Mute | Hold = Hang Up"
-    ));
+    assert!(has_text(second_pass, footer_id, "Tap = Mute | Hold = End"));
     assert!(has_text(second_pass, icon_id, "AL"));
     assert!(second_pass.contains(&FacadeEvent::SetVisible {
         id: mute_badge_id,
@@ -888,6 +966,58 @@ fn power_scene_reuses_rows_and_hides_stale_entries_without_rebuild() -> Result<(
     }));
     assert!(second_pass.contains(&FacadeEvent::SetVisible {
         id: row_ids[1],
+        visible: false,
+    }));
+
+    Ok(())
+}
+
+#[test]
+fn power_scene_uses_active_setup_page_icon_title_and_page_dots() -> Result<()> {
+    let mut facade = FakeFacade::default();
+    let mut controller = PowerController::default();
+    let model = ScreenModel::Power(PowerViewModel {
+        chrome: ChromeModel {
+            footer: "Tap page / Hold back".to_string(),
+            ..chrome_model()
+        },
+        title: "Voice".to_string(),
+        subtitle: String::new(),
+        icon_key: "voice_note".to_string(),
+        rows: vec![ListRowModel {
+            id: "voice-cmds".to_string(),
+            title: "Voice Cmds: Unknown".to_string(),
+            subtitle: String::new(),
+            icon_key: "voice_note".to_string(),
+            selected: false,
+        }],
+        current_page_index: 3,
+        total_pages: 4,
+    });
+
+    controller.sync(&mut facade, &model)?;
+
+    let events = facade.events();
+    let icon_id = created_label_id(events, "power_icon");
+    let title_id = created_label_id(events, "power_title");
+    let dots = created_container_ids(events, "power_dot");
+
+    assert!(events.contains(&FacadeEvent::SetIcon {
+        id: icon_id,
+        icon_key: "voice_note".to_string(),
+    }));
+    assert!(has_text(events, title_id, "Voice"));
+    assert_eq!(dots.len(), 8);
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[0],
+        visible: true,
+    }));
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[3],
+        visible: true,
+    }));
+    assert!(events.contains(&FacadeEvent::SetVisible {
+        id: dots[4],
         visible: false,
     }));
 
@@ -1066,14 +1196,44 @@ fn ask_screen_model() -> ScreenModel {
 }
 
 fn voice_note_screen_model() -> ScreenModel {
-    ScreenModel::VoiceNote(yoyopod_ui_host::screens::AskViewModel {
+    ScreenModel::VoiceNote(TalkActionsViewModel {
         chrome: ChromeModel {
-            footer: "2x Tap = Record | Hold = Back".to_string(),
+            footer: "Hold record / Double back".to_string(),
             ..chrome_model()
         },
+        contact_name: "Friend".to_string(),
         title: "Voice Note".to_string(),
-        subtitle: "Ready to record".to_string(),
-        icon_key: "microphone".to_string(),
+        status: "Hold to record".to_string(),
+        status_kind: 4,
+        buttons: vec![TalkActionButtonModel {
+            title: "Voice Note".to_string(),
+            icon_key: "voice_note".to_string(),
+            color_kind: 3,
+        }],
+        selected_index: 0,
+        layout_kind: 1,
+        button_size_kind: 2,
+    })
+}
+
+fn voice_note_recording_screen_model() -> ScreenModel {
+    ScreenModel::VoiceNote(TalkActionsViewModel {
+        chrome: ChromeModel {
+            footer: "Release to stop".to_string(),
+            ..chrome_model()
+        },
+        contact_name: "Friend".to_string(),
+        title: "Recording".to_string(),
+        status: "Recording".to_string(),
+        status_kind: 3,
+        buttons: vec![TalkActionButtonModel {
+            title: "Recording".to_string(),
+            icon_key: "voice_note".to_string(),
+            color_kind: 3,
+        }],
+        selected_index: 0,
+        layout_kind: 1,
+        button_size_kind: 2,
     })
 }
 
@@ -1108,7 +1268,7 @@ fn incoming_call_screen_model() -> ScreenModel {
 fn in_call_screen_model() -> ScreenModel {
     ScreenModel::InCall(CallViewModel {
         chrome: ChromeModel {
-            footer: "Tap = Mute | Hold = Hang Up".to_string(),
+            footer: "Tap = Mute | Hold = End".to_string(),
             ..chrome_model()
         },
         title: "Alice".to_string(),
@@ -1121,11 +1281,12 @@ fn in_call_screen_model() -> ScreenModel {
 fn power_screen_model(subtitle: &str, rows: &[(&str, &str, &str, bool)]) -> ScreenModel {
     ScreenModel::Power(PowerViewModel {
         chrome: ChromeModel {
-            footer: "Tap = Next | Hold = Back".to_string(),
+            footer: "Tap page / Hold back".to_string(),
             ..chrome_model()
         },
-        title: "Status".to_string(),
+        title: "Power".to_string(),
         subtitle: subtitle.to_string(),
+        icon_key: "battery".to_string(),
         rows: rows
             .iter()
             .map(|(id, title, row_subtitle, selected)| ListRowModel {
@@ -1136,6 +1297,8 @@ fn power_screen_model(subtitle: &str, rows: &[(&str, &str, &str, bool)]) -> Scre
                 selected: *selected,
             })
             .collect(),
+        current_page_index: 0,
+        total_pages: 4,
     })
 }
 
@@ -1166,9 +1329,12 @@ fn chrome_model() -> ChromeModel {
         status: StatusBarModel {
             network_connected: true,
             network_enabled: true,
+            connection_type: "4g".to_string(),
             signal_strength: 4,
+            gps_has_fix: true,
             battery_percent: 88,
             charging: false,
+            power_available: true,
             voip_state: 1,
         },
         footer: "Footer".to_string(),

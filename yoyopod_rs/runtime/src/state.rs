@@ -1,3 +1,7 @@
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use serde_json::{json, Value};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -124,12 +128,13 @@ impl ListItem {
             .or_else(|| string_field(value, "subtitle"))
             .or_else(|| playlist_track_count_subtitle(value, icon_key))
             .unwrap_or_default();
+        let icon_key = string_field(value, "icon_key").unwrap_or_else(|| icon_key.to_string());
 
         Some(Self {
             id,
             title,
             subtitle,
-            icon_key: icon_key.to_string(),
+            icon_key,
         })
     }
 
@@ -179,6 +184,8 @@ pub struct CallRuntimeState {
     pub muted: bool,
     pub contacts: Vec<ListItem>,
     pub history: Vec<ListItem>,
+    pub unread_voice_notes_by_contact: BTreeMap<String, usize>,
+    pub latest_voice_note_by_contact: BTreeMap<String, VoiceNoteSummary>,
 }
 
 impl Default for CallRuntimeState {
@@ -193,7 +200,129 @@ impl Default for CallRuntimeState {
             muted: false,
             contacts: Vec::new(),
             history: Vec::new(),
+            unread_voice_notes_by_contact: BTreeMap::new(),
+            latest_voice_note_by_contact: BTreeMap::new(),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceNoteSummary {
+    pub message_id: String,
+    pub direction: String,
+    pub delivery_state: String,
+    pub local_file_path: String,
+    pub duration_ms: i32,
+    pub unread: bool,
+    pub display_name: String,
+}
+
+impl VoiceNoteSummary {
+    fn to_payload(&self) -> Value {
+        json!({
+            "message_id": self.message_id,
+            "direction": self.direction,
+            "delivery_state": self.delivery_state,
+            "local_file_path": self.local_file_path,
+            "duration_ms": self.duration_ms,
+            "unread": self.unread,
+            "display_name": self.display_name,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VoiceRuntimeState {
+    pub phase: String,
+    pub status_text: String,
+    pub file_path: String,
+    pub duration_ms: i32,
+    pub mime_type: String,
+    pub message_id: String,
+    pub playback_active: bool,
+    pub playback_file_path: String,
+    pub voice_note_store_dir: String,
+}
+
+impl Default for VoiceRuntimeState {
+    fn default() -> Self {
+        Self {
+            phase: "idle".to_string(),
+            status_text: String::new(),
+            file_path: String::new(),
+            duration_ms: 0,
+            mime_type: "audio/wav".to_string(),
+            message_id: String::new(),
+            playback_active: false,
+            playback_file_path: String::new(),
+            voice_note_store_dir: "data/communication/voice_notes".to_string(),
+        }
+    }
+}
+
+impl VoiceRuntimeState {
+    pub fn recording_file_path(&self) -> String {
+        let filename = format!(
+            "yoyopod-voice-note-{}-{}.wav",
+            std::process::id(),
+            current_millis()
+        );
+        Path::new(&self.voice_note_store_dir)
+            .join(filename)
+            .to_string_lossy()
+            .to_string()
+    }
+
+    fn reset_draft(&mut self) {
+        let store_dir = self.voice_note_store_dir.clone();
+        *self = Self {
+            voice_note_store_dir: store_dir,
+            ..Self::default()
+        };
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkRuntimeState {
+    pub enabled: bool,
+    pub connected: bool,
+    pub connection_type: String,
+    pub signal_strength: i32,
+    pub gps_has_fix: bool,
+    pub setup_network_rows: Vec<SetupRow>,
+    pub setup_gps_rows: Vec<SetupRow>,
+}
+
+impl Default for NetworkRuntimeState {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            connected: false,
+            connection_type: "none".to_string(),
+            signal_strength: 0,
+            gps_has_fix: false,
+            setup_network_rows: Vec::new(),
+            setup_gps_rows: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SetupRow {
+    pub label: String,
+    pub value: String,
+}
+
+impl SetupRow {
+    fn new(label: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            value: value.into(),
+        }
+    }
+
+    fn formatted(&self) -> String {
+        format!("{}: {}", self.label, self.value)
     }
 }
 
@@ -202,6 +331,8 @@ pub struct RuntimeState {
     pub current_screen: String,
     pub media: MediaState,
     pub call: CallRuntimeState,
+    pub voice: VoiceRuntimeState,
+    pub network: NetworkRuntimeState,
     pub ui: WorkerHealth,
     pub media_worker: WorkerHealth,
     pub voip_worker: WorkerHealth,
@@ -218,6 +349,8 @@ impl Default for RuntimeState {
             current_screen: "hub".to_string(),
             media: MediaState::default(),
             call: CallRuntimeState::default(),
+            voice: VoiceRuntimeState::default(),
+            network: NetworkRuntimeState::default(),
             ui: WorkerHealth::default(),
             media_worker: WorkerHealth::default(),
             voip_worker: WorkerHealth::default(),
@@ -251,6 +384,17 @@ impl RuntimeState {
         let health = self.worker_health_mut(domain);
         health.state = state;
         health.last_reason = reason.into();
+    }
+
+    pub fn seed_contacts(&mut self, contacts: Vec<ListItem>) {
+        self.call.contacts = contacts;
+    }
+
+    pub fn configure_voice_note_store_dir(&mut self, voice_note_store_dir: impl Into<String>) {
+        let voice_note_store_dir = voice_note_store_dir.into();
+        if !voice_note_store_dir.trim().is_empty() {
+            self.voice.voice_note_store_dir = voice_note_store_dir;
+        }
     }
 
     fn worker_health_mut(&mut self, domain: WorkerDomain) -> &mut WorkerHealth {
@@ -334,8 +478,179 @@ impl RuntimeState {
         {
             self.call.history = history
                 .iter()
-                .filter_map(recent_call_history_item)
+                .filter_map(|item| recent_call_history_item(item, &self.call.contacts))
                 .collect();
+        }
+        if let Some(unread) = snapshot
+            .get("unread_voice_notes_by_contact")
+            .and_then(Value::as_object)
+        {
+            self.call.unread_voice_notes_by_contact = unread
+                .iter()
+                .filter_map(|(key, value)| {
+                    value.as_u64().map(|count| (key.clone(), count as usize))
+                })
+                .collect();
+        }
+        if let Some(latest) = snapshot
+            .get("latest_voice_note_by_contact")
+            .and_then(Value::as_object)
+        {
+            self.call.latest_voice_note_by_contact = latest
+                .iter()
+                .filter_map(|(key, value)| {
+                    voice_note_summary_from_value(value).map(|summary| (key.clone(), summary))
+                })
+                .collect();
+        }
+        if let Some(voice_note) = snapshot.get("voice_note") {
+            self.apply_voice_note_snapshot(voice_note);
+        }
+        if let Some(playback) = snapshot.get("voice_note_playback") {
+            self.apply_voice_note_playback_snapshot(playback);
+        }
+    }
+
+    pub fn apply_ui_intent(&mut self, domain: &str, action: &str, payload: &Value) {
+        if domain.trim().eq_ignore_ascii_case("voice") {
+            self.apply_voice_intent(action, payload);
+        }
+    }
+
+    fn apply_voice_intent(&mut self, action: &str, payload: &Value) {
+        match normalized(action).as_str() {
+            "capture_start" | "start_recording" => {
+                self.voice.phase = "recording".to_string();
+                self.voice.status_text = "Recording...".to_string();
+                if let Some(file_path) = string_field(payload, "file_path") {
+                    self.voice.file_path = file_path;
+                }
+            }
+            "capture_stop" | "stop_recording" => {
+                if self.voice.phase == "recording" {
+                    self.voice.phase = "review".to_string();
+                    self.voice.status_text = "Ready to send".to_string();
+                }
+            }
+            "send" | "send_voice_note" => {
+                self.voice.phase = "sending".to_string();
+                self.voice.status_text = "Sending...".to_string();
+            }
+            "play" | "play_latest" => {
+                self.voice.playback_active = true;
+                self.voice.status_text = "Playing preview".to_string();
+                if let Some(file_path) = string_field(payload, "file_path") {
+                    self.voice.playback_file_path = file_path;
+                }
+            }
+            "stop_playback" => {
+                self.voice.playback_active = false;
+                self.voice.playback_file_path.clear();
+            }
+            "discard" | "again" | "reset" => self.voice.reset_draft(),
+            _ => {}
+        }
+    }
+
+    fn apply_voice_note_snapshot(&mut self, voice_note: &Value) {
+        let raw_state = string_field(voice_note, "state").unwrap_or_else(|| "idle".to_string());
+        let phase = match normalized(&raw_state).as_str() {
+            "recording" => "recording",
+            "recorded" | "review" => "review",
+            "sending" => "sending",
+            "sent" | "delivered" => "sent",
+            "failed" | "error" => "failed",
+            _ => "idle",
+        };
+
+        if phase == "idle" {
+            self.voice.reset_draft();
+            return;
+        }
+
+        self.voice.phase = phase.to_string();
+        self.voice.status_text = voice_status_text(phase);
+        if let Some(file_path) = string_field(voice_note, "file_path") {
+            self.voice.file_path = file_path;
+        }
+        if let Some(duration_ms) = i32_field(voice_note, "duration_ms") {
+            self.voice.duration_ms = duration_ms.max(0);
+        }
+        if let Some(mime_type) = string_field(voice_note, "mime_type") {
+            self.voice.mime_type = mime_type;
+        }
+        if let Some(message_id) = string_field(voice_note, "message_id") {
+            self.voice.message_id = message_id;
+        }
+    }
+
+    fn apply_voice_note_playback_snapshot(&mut self, playback: &Value) {
+        if let Some(playing) = playback.get("playing").and_then(Value::as_bool) {
+            self.voice.playback_active = playing;
+            if playing {
+                self.voice.status_text = "Playing preview".to_string();
+            }
+        }
+        if let Some(file_path) = string_field(playback, "file_path") {
+            self.voice.playback_file_path = file_path;
+        }
+        if !self.voice.playback_active {
+            self.voice.playback_file_path.clear();
+        }
+    }
+
+    pub fn apply_network_snapshot(&mut self, snapshot: &Value) {
+        let snapshot = snapshot.get("snapshot").unwrap_or(snapshot);
+        let app_state = snapshot.get("app_state").unwrap_or(snapshot);
+        if let Some(enabled) = app_state
+            .get("network_enabled")
+            .or_else(|| app_state.get("enabled"))
+            .and_then(Value::as_bool)
+        {
+            self.network.enabled = enabled;
+        }
+        if let Some(connected) = app_state.get("connected").and_then(Value::as_bool) {
+            self.network.connected = connected;
+        } else if let Some(connected) = snapshot.get("connected").and_then(Value::as_bool) {
+            self.network.connected = connected;
+        }
+        if let Some(connection_type) = string_field(app_state, "connection_type")
+            .or_else(|| string_field(snapshot, "connection_type"))
+        {
+            self.network.connection_type = connection_type;
+        }
+        if let Some(signal_strength) = i32_field(app_state, "signal_bars")
+            .or_else(|| i32_field(app_state, "signal_strength"))
+            .or_else(|| {
+                snapshot
+                    .get("signal")
+                    .and_then(|signal| i32_field(signal, "bars"))
+            })
+            .or_else(|| i32_field(snapshot, "signal_strength"))
+        {
+            self.network.signal_strength = signal_strength.clamp(0, 4);
+        }
+        if let Some(gps_has_fix) = app_state
+            .get("gps_has_fix")
+            .or_else(|| snapshot.get("gps_has_fix"))
+            .and_then(Value::as_bool)
+        {
+            self.network.gps_has_fix = gps_has_fix;
+        }
+        if let Some(setup) = snapshot
+            .get("views")
+            .and_then(|views| views.get("setup"))
+            .filter(|setup| setup.is_object())
+        {
+            if let Some(enabled) = setup.get("network_enabled").and_then(Value::as_bool) {
+                self.network.enabled = enabled;
+            }
+            if let Some(rows) = setup_rows(setup.get("network_rows")) {
+                self.network.setup_network_rows = rows;
+            }
+            if let Some(rows) = setup_rows(setup.get("gps_rows")) {
+                self.network.setup_gps_rows = rows;
+            }
         }
     }
 
@@ -362,25 +677,29 @@ impl RuntimeState {
                 "muted": self.call.muted,
                 "contacts": list_payload(&self.call.contacts),
                 "history": list_payload(&self.call.history),
+                "unread_voice_notes_by_contact": self.call.unread_voice_notes_by_contact,
+                "latest_voice_note_by_contact": voice_note_summary_payload(&self.call.latest_voice_note_by_contact),
             },
             "voice": {
-                "phase": "idle",
+                "phase": self.voice.phase,
                 "headline": "Ask",
-                "body": "Ask me anything...",
-                "capture_in_flight": false,
-                "ptt_active": false,
+                "body": voice_body_text(&self.voice),
+                "capture_in_flight": self.voice.phase == "recording",
+                "ptt_active": self.voice.phase == "recording",
             },
             "power": {
                 "battery_percent": 100,
                 "charging": false,
                 "power_available": true,
                 "rows": self.power_rows(),
+                "pages": self.setup_pages(),
             },
             "network": {
-                "enabled": false,
-                "connected": false,
-                "signal_strength": 0,
-                "gps_has_fix": false,
+                "enabled": self.network.enabled,
+                "connected": self.network.connected,
+                "connection_type": self.network.connection_type,
+                "signal_strength": self.network.signal_strength,
+                "gps_has_fix": self.network.gps_has_fix,
             },
             "overlay": {
                 "loading": false,
@@ -431,13 +750,143 @@ impl RuntimeState {
         vec![
             "Battery 100%".to_string(),
             "On battery".to_string(),
-            "Network offline".to_string(),
+            self.network_status_row(),
             if self.call.registered {
                 "VoIP ready".to_string()
             } else {
                 "VoIP offline".to_string()
             },
         ]
+    }
+
+    fn network_status_row(&self) -> String {
+        if self.network.connected {
+            "Network connected".to_string()
+        } else if self.network.enabled {
+            "Network searching".to_string()
+        } else {
+            "Network offline".to_string()
+        }
+    }
+
+    fn setup_pages(&self) -> Vec<Value> {
+        let mut pages = vec![setup_page(
+            "Power",
+            "battery",
+            vec![
+                SetupRow::new("Battery", "100%"),
+                SetupRow::new("Charging", "On battery"),
+                SetupRow::new("External", "Available"),
+            ],
+        )];
+
+        if self.network.enabled {
+            pages.push(setup_page(
+                "Network",
+                "signal",
+                if self.network.setup_network_rows.is_empty() {
+                    vec![
+                        SetupRow::new("Status", self.network_setup_status()),
+                        SetupRow::new("Type", self.network.connection_type.to_uppercase()),
+                        SetupRow::new("Signal", format!("{}/4", self.network.signal_strength)),
+                        SetupRow::new("PPP", if self.network.connected { "Up" } else { "Down" }),
+                    ]
+                } else {
+                    self.network.setup_network_rows.clone()
+                },
+            ));
+            pages.push(setup_page(
+                "GPS",
+                "care",
+                if self.network.setup_gps_rows.is_empty() {
+                    vec![
+                        SetupRow::new(
+                            "Fix",
+                            if self.network.gps_has_fix {
+                                "Yes"
+                            } else {
+                                "Searching"
+                            },
+                        ),
+                        SetupRow::new("Lat", "--"),
+                        SetupRow::new("Lng", "--"),
+                        SetupRow::new("Alt", "--"),
+                        SetupRow::new("Speed", "--"),
+                    ]
+                } else {
+                    self.network.setup_gps_rows.clone()
+                },
+            ));
+        }
+
+        pages.extend([
+            setup_page(
+                "Time",
+                "clock",
+                vec![
+                    SetupRow::new("RTC", "Unknown"),
+                    SetupRow::new("Alarm", "Unknown"),
+                    SetupRow::new("Uptime", "--"),
+                    SetupRow::new("Screen", "Awake"),
+                ],
+            ),
+            setup_page(
+                "Care",
+                "care",
+                vec![
+                    SetupRow::new("Network", self.network_status_value()),
+                    SetupRow::new(
+                        "VoIP",
+                        if self.call.registered {
+                            "Ready"
+                        } else {
+                            "Offline"
+                        },
+                    ),
+                    SetupRow::new(
+                        "Media",
+                        if self.media.connected {
+                            "Connected"
+                        } else {
+                            "Offline"
+                        },
+                    ),
+                    SetupRow::new("Watchdog", "Off"),
+                ],
+            ),
+            setup_page(
+                "Voice",
+                "voice_note",
+                vec![
+                    SetupRow::new("Voice Cmds", "Unknown"),
+                    SetupRow::new("AI Requests", "Unknown"),
+                    SetupRow::new("Screen Read", "Unknown"),
+                    SetupRow::new("Mic", "Unknown"),
+                    SetupRow::new("Volume", "--"),
+                ],
+            ),
+        ]);
+        pages
+    }
+
+    fn network_setup_status(&self) -> &'static str {
+        if self.network.connected {
+            "Online"
+        } else if self.network.enabled {
+            "Registered"
+        } else {
+            "Disabled"
+        }
+    }
+
+    fn network_status_value(&self) -> &'static str {
+        if self.network.connected {
+            "Connected"
+        } else if self.network.enabled {
+            "Searching"
+        } else {
+            "Offline"
+        }
     }
 
     pub fn status_payload(&self) -> Value {
@@ -535,28 +984,42 @@ fn call_duration_text(snapshot: &Value, call_state: CallState) -> Option<String>
         .map(format_duration_text)
 }
 
-fn recent_call_history_item(value: &Value) -> Option<ListItem> {
+fn recent_call_history_item(value: &Value, contacts: &[ListItem]) -> Option<ListItem> {
     let peer_sip_address = string_field(value, "peer_sip_address")?;
     if peer_sip_address.is_empty() {
         return None;
     }
 
-    let direction = string_field(value, "direction").unwrap_or_default();
     let outcome = string_field(value, "outcome").unwrap_or_default();
-    let duration = u64_field(value, "duration_seconds")
-        .map(format_duration_text)
-        .unwrap_or_else(|| format_duration_text(0));
-    let subtitle = [direction, outcome, duration]
-        .into_iter()
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
+    let duration_seconds = u64_field(value, "duration_seconds").unwrap_or(0);
+    let title = contacts
+        .iter()
+        .find(|contact| contact.id == peer_sip_address)
+        .map(|contact| contact.title.clone())
+        .unwrap_or_else(|| peer_sip_address.clone());
+    let subtitle = match outcome.as_str() {
+        "missed" => "Missed call".to_string(),
+        "completed" if duration_seconds > 0 => {
+            format!("Call {}", format_duration_text(duration_seconds))
+        }
+        "completed" => "Call done".to_string(),
+        "rejected" => "Rejected".to_string(),
+        "failed" => "Failed".to_string(),
+        "cancelled" | "canceled" => "Cancelled".to_string(),
+        _ => String::new(),
+    };
+    let direction = string_field(value, "direction").unwrap_or_default();
+    let icon_key = if direction == "outgoing" {
+        "call"
+    } else {
+        "talk"
+    };
 
     Some(ListItem {
         id: peer_sip_address.clone(),
-        title: peer_sip_address,
+        title,
         subtitle,
-        icon_key: "call".to_string(),
+        icon_key: icon_key.to_string(),
     })
 }
 
@@ -574,6 +1037,92 @@ fn format_duration_text(total_seconds: u64) -> String {
 
 fn list_payload(items: &[ListItem]) -> Vec<Value> {
     items.iter().map(ListItem::to_payload).collect()
+}
+
+fn setup_page(title: &str, icon_key: &str, rows: Vec<SetupRow>) -> Value {
+    json!({
+        "title": title,
+        "icon_key": icon_key,
+        "rows": rows.into_iter().map(|row| row.formatted()).collect::<Vec<_>>(),
+    })
+}
+
+fn setup_rows(value: Option<&Value>) -> Option<Vec<SetupRow>> {
+    let rows = value?.as_array()?;
+    let parsed = rows
+        .iter()
+        .filter_map(|row| {
+            let values = row.as_array()?;
+            if values.len() != 2 {
+                return None;
+            }
+            Some(SetupRow::new(
+                values[0].as_str().unwrap_or_default(),
+                values[1].as_str().unwrap_or_default(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    Some(parsed)
+}
+
+fn voice_note_summary_from_value(value: &Value) -> Option<VoiceNoteSummary> {
+    if !value.is_object() {
+        return None;
+    }
+
+    Some(VoiceNoteSummary {
+        message_id: string_field(value, "message_id").unwrap_or_default(),
+        direction: string_field(value, "direction").unwrap_or_default(),
+        delivery_state: string_field(value, "delivery_state").unwrap_or_default(),
+        local_file_path: string_field(value, "local_file_path").unwrap_or_default(),
+        duration_ms: i32_field(value, "duration_ms").unwrap_or(0).max(0),
+        unread: value
+            .get("unread")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        display_name: string_field(value, "display_name").unwrap_or_default(),
+    })
+}
+
+fn voice_note_summary_payload(summaries: &BTreeMap<String, VoiceNoteSummary>) -> Value {
+    Value::Object(
+        summaries
+            .iter()
+            .map(|(key, summary)| (key.clone(), summary.to_payload()))
+            .collect(),
+    )
+}
+
+fn voice_status_text(phase: &str) -> String {
+    match phase {
+        "recording" => "Recording...".to_string(),
+        "review" => "Ready to send".to_string(),
+        "sending" => "Sending...".to_string(),
+        "sent" => "Sent".to_string(),
+        "failed" => "Couldn't send".to_string(),
+        _ => String::new(),
+    }
+}
+
+fn voice_body_text(voice: &VoiceRuntimeState) -> String {
+    if voice.phase == "idle" {
+        "Ask me anything...".to_string()
+    } else if voice.status_text.trim().is_empty() {
+        voice_status_text(&voice.phase)
+    } else {
+        voice.status_text.clone()
+    }
+}
+
+fn current_millis() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis())
+        .unwrap_or_default()
+}
+
+fn normalized(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
 }
 
 fn worker_payload(worker: &WorkerHealth) -> Value {

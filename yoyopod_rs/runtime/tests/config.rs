@@ -45,6 +45,7 @@ const CONFIG_ENV_KEYS: &[&str] = &[
     "YOYOPOD_RUST_UI_WORKER",
     "YOYOPOD_RUST_MEDIA_HOST_WORKER",
     "YOYOPOD_RUST_VOIP_HOST_WORKER",
+    "YOYOPOD_RUST_NETWORK_HOST_WORKER",
 ];
 
 struct EnvSnapshot {
@@ -189,6 +190,10 @@ secrets:
     assert_eq!(
         config.worker_paths.ui,
         "yoyopod_rs/ui-host/build/yoyopod-ui-host"
+    );
+    assert_eq!(
+        config.worker_paths.network,
+        "yoyopod_rs/network-host/build/yoyopod-network-host"
     );
 }
 
@@ -403,6 +408,61 @@ calling:
 }
 
 #[test]
+fn people_contacts_load_from_mutable_file_or_seed_with_python_display_names() {
+    let _lock = lock_env();
+    let _env = clean_config_env();
+    let root = temp_config_dir("people-contacts");
+    let config_dir = root.join("config");
+    write(
+        &config_dir.join("people/directory.yaml"),
+        r#"
+contacts_file: "data/people/contacts.yaml"
+contacts_seed_file: "config/people/contacts.seed.yaml"
+"#,
+    );
+    write(
+        &config_dir.join("people/contacts.seed.yaml"),
+        r#"
+contacts:
+  - name: "Hagar"
+    sip_address: "sip:hagar@example.test"
+    favorite: true
+    notes: "Mama"
+  - name: "Ignored"
+    sip_address: ""
+  - name: "Baba"
+    sip_address: "sip:baba@example.test"
+    favorite: false
+"#,
+    );
+
+    let seed_config = RuntimeConfig::load(&config_dir).expect("load seed contacts");
+
+    assert_eq!(seed_config.people.contacts.len(), 2);
+    assert_eq!(seed_config.people.contacts[0].name, "Hagar");
+    assert_eq!(seed_config.people.contacts[0].display_name, "Mama");
+    assert_eq!(seed_config.people.to_contact_items()[0].icon_key, "mono:MA");
+
+    write(
+        &root.join("data/people/contacts.yaml"),
+        r#"
+contacts:
+  - name: "Local"
+    sip_address: "sip:local@example.test"
+    notes: "Local Name"
+"#,
+    );
+    let mutable_config = RuntimeConfig::load(&config_dir).expect("load mutable contacts");
+
+    assert_eq!(mutable_config.people.contacts.len(), 1);
+    assert_eq!(mutable_config.people.contacts[0].display_name, "Local Name");
+    assert_eq!(
+        mutable_config.people.contacts[0].sip_address,
+        "sip:local@example.test"
+    );
+}
+
+#[test]
 fn hosted_linphone_worker_payload_uses_effective_defaults_without_storing_them() {
     let _lock = lock_env();
     let _env = clean_config_env();
@@ -539,4 +599,21 @@ fn legacy_ui_worker_env_is_used_when_host_worker_is_default_or_empty() {
     std::env::set_var("YOYOPOD_RUST_UI_HOST_WORKER", "/host/yoyopod-ui-host");
     let host_config = RuntimeConfig::load(&dir).expect("load runtime config");
     assert_eq!(host_config.worker_paths.ui, "/host/yoyopod-ui-host");
+}
+
+#[test]
+fn network_worker_path_can_be_overridden_by_env() {
+    let _lock = lock_env();
+    let _env = clean_config_env();
+    let dir = temp_config_dir("network-worker-env");
+    fs::create_dir_all(&dir).expect("config dir");
+
+    std::env::set_var(
+        "YOYOPOD_RUST_NETWORK_HOST_WORKER",
+        "/host/yoyopod-network-host",
+    );
+
+    let config = RuntimeConfig::load(&dir).expect("load runtime config");
+
+    assert_eq!(config.worker_paths.network, "/host/yoyopod-network-host");
 }

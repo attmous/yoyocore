@@ -164,10 +164,7 @@ fn voip_snapshot_preserves_current_host_ui_details() {
     assert_eq!(ui["call"]["duration_text"], "01:15");
     assert_eq!(ui["call"]["history"][0]["id"], "sip:dad@example.test");
     assert_eq!(ui["call"]["history"][0]["title"], "sip:dad@example.test");
-    assert_eq!(
-        ui["call"]["history"][0]["subtitle"],
-        "incoming missed 00:00"
-    );
+    assert_eq!(ui["call"]["history"][0]["subtitle"], "Missed call");
 }
 
 #[test]
@@ -191,6 +188,158 @@ fn voip_snapshot_projects_contacts_into_ui_payload() {
         "sip:mama@example.test"
     );
     assert_eq!(ui["call"]["contacts"][0]["icon_key"], "person");
+}
+
+#[test]
+fn seeded_people_contacts_are_available_before_voip_snapshots() {
+    let mut state = RuntimeState::default();
+
+    state.seed_contacts(vec![yoyopod_runtime::state::ListItem {
+        id: "sip:mama@example.test".to_string(),
+        title: "Mama".to_string(),
+        subtitle: String::new(),
+        icon_key: "mono:MA".to_string(),
+    }]);
+
+    let ui = state.ui_snapshot_payload();
+    assert_eq!(ui["call"]["contacts"][0]["id"], "sip:mama@example.test");
+    assert_eq!(ui["call"]["contacts"][0]["title"], "Mama");
+    assert_eq!(ui["call"]["contacts"][0]["subtitle"], "");
+    assert_eq!(ui["call"]["contacts"][0]["icon_key"], "mono:MA");
+}
+
+#[test]
+fn voip_snapshot_projects_voice_note_flow_to_ui_payload() {
+    let mut state = RuntimeState::default();
+
+    state.apply_voip_snapshot(&json!({
+        "voice_note": {
+            "state": "recorded",
+            "file_path": "/tmp/note.wav",
+            "duration_ms": 1400,
+            "mime_type": "audio/wav",
+            "message_id": "note-1"
+        },
+        "voice_note_playback": {
+            "playing": true,
+            "file_path": "/tmp/note.wav"
+        }
+    }));
+
+    let ui = state.ui_snapshot_payload();
+    assert_eq!(ui["voice"]["phase"], "review");
+    assert_eq!(ui["voice"]["body"], "Playing preview");
+    assert_eq!(ui["voice"]["capture_in_flight"], false);
+    assert_eq!(state.voice.file_path, "/tmp/note.wav");
+    assert_eq!(state.voice.duration_ms, 1400);
+    assert!(state.voice.playback_active);
+}
+
+#[test]
+fn voip_snapshot_projects_latest_voice_notes_for_talk_contact_actions() {
+    let mut state = RuntimeState::default();
+
+    state.apply_voip_snapshot(&json!({
+        "unread_voice_notes_by_contact": {
+            "sip:mama@example.test": 1
+        },
+        "latest_voice_note_by_contact": {
+            "sip:mama@example.test": {
+                "message_id": "note-1",
+                "direction": "incoming",
+                "delivery_state": "delivered",
+                "local_file_path": "/tmp/mama-note.wav",
+                "duration_ms": 900,
+                "unread": true,
+                "display_name": "Mama"
+            }
+        }
+    }));
+
+    let ui = state.ui_snapshot_payload();
+    assert_eq!(
+        ui["call"]["unread_voice_notes_by_contact"]["sip:mama@example.test"],
+        1
+    );
+    assert_eq!(
+        ui["call"]["latest_voice_note_by_contact"]["sip:mama@example.test"]["local_file_path"],
+        "/tmp/mama-note.wav"
+    );
+    assert_eq!(
+        ui["call"]["latest_voice_note_by_contact"]["sip:mama@example.test"]["duration_ms"],
+        900
+    );
+}
+
+#[test]
+fn network_snapshot_updates_status_bar_payload_and_power_row() {
+    let mut state = RuntimeState::default();
+
+    state.apply_network_snapshot(&json!({
+        "app_state": {
+            "network_enabled": true,
+            "signal_bars": 4,
+            "connection_type": "4g",
+            "connected": true,
+            "gps_has_fix": true
+        }
+    }));
+
+    let ui = state.ui_snapshot_payload();
+    assert_eq!(ui["network"]["enabled"], true);
+    assert_eq!(ui["network"]["connected"], true);
+    assert_eq!(ui["network"]["connection_type"], "4g");
+    assert_eq!(ui["network"]["signal_strength"], 4);
+    assert_eq!(ui["network"]["gps_has_fix"], true);
+    assert_eq!(ui["power"]["rows"][2], "Network connected");
+}
+
+#[test]
+fn network_setup_projection_feeds_setup_pages() {
+    let mut state = RuntimeState::default();
+
+    state.apply_network_snapshot(&json!({
+        "app_state": {
+            "network_enabled": true,
+            "signal_bars": 3,
+            "connection_type": "4g",
+            "connected": false,
+            "gps_has_fix": false
+        },
+        "views": {
+            "setup": {
+                "network_enabled": true,
+                "network_rows": [
+                    ["Status", "Registered"],
+                    ["Carrier", "Telekom.de"],
+                    ["Type", "4G"],
+                    ["Signal", "3/4"],
+                    ["PPP", "Down"]
+                ],
+                "gps_rows": [
+                    ["Fix", "Searching"],
+                    ["Lat", "--"],
+                    ["Lng", "--"],
+                    ["Alt", "--"],
+                    ["Speed", "--"]
+                ]
+            }
+        }
+    }));
+
+    let ui = state.ui_snapshot_payload();
+    let pages = ui["power"]["pages"].as_array().expect("setup pages");
+
+    assert_eq!(pages.len(), 6);
+    assert_eq!(pages[0]["title"], "Power");
+    assert_eq!(pages[1]["title"], "Network");
+    assert_eq!(pages[1]["icon_key"], "signal");
+    assert_eq!(pages[1]["rows"][0], "Status: Registered");
+    assert_eq!(pages[1]["rows"][1], "Carrier: Telekom.de");
+    assert_eq!(pages[2]["title"], "GPS");
+    assert_eq!(pages[2]["rows"][0], "Fix: Searching");
+    assert_eq!(pages[5]["title"], "Voice");
+    assert_eq!(pages[5]["icon_key"], "voice_note");
 }
 
 #[test]
@@ -316,6 +465,7 @@ fn ui_snapshot_payload_decodes_into_ui_host_compatible_shape() {
     assert_eq!(snapshot.voice.phase, "idle");
     assert!(snapshot.power.power_available);
     assert!(!snapshot.network.connected);
+    assert_eq!(snapshot.network.connection_type, "none");
     assert!(!snapshot.overlay.loading);
 }
 
@@ -369,6 +519,7 @@ struct UiPowerSnapshot {
 #[derive(Debug, Deserialize)]
 struct UiNetworkSnapshot {
     connected: bool,
+    connection_type: String,
 }
 
 #[derive(Debug, Deserialize)]

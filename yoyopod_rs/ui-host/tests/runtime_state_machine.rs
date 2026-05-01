@@ -135,6 +135,147 @@ fn listen_select_order_matches_python_lvgl_menu() {
 }
 
 #[test]
+fn setup_pages_cycle_with_python_one_button_flow() {
+    let mut runtime = UiRuntime::default();
+    runtime.apply_snapshot(RuntimeSnapshot::default());
+
+    for _ in 0..3 {
+        runtime.handle_input(InputAction::Advance);
+    }
+    runtime.handle_input(InputAction::Select);
+
+    assert_eq!(runtime.active_screen(), UiScreen::Power);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Power");
+            assert_eq!(model.icon_key, "battery");
+            assert_eq!(model.chrome.footer, "Tap page / Hold back");
+            assert_eq!(model.current_page_index, 0);
+            assert_eq!(model.total_pages, 4);
+            assert!(model.rows.iter().any(|row| row.title == "Battery: 100%"));
+        }
+        other => panic!("expected setup power model, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Advance);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Time");
+            assert_eq!(model.icon_key, "clock");
+            assert_eq!(model.current_page_index, 1);
+            assert!(model.rows.iter().any(|row| row.title == "RTC: Unknown"));
+        }
+        other => panic!("expected setup time model, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Advance);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Care");
+            assert_eq!(model.icon_key, "care");
+            assert_eq!(model.current_page_index, 2);
+        }
+        other => panic!("expected setup care model, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Advance);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Voice");
+            assert_eq!(model.icon_key, "voice_note");
+            assert_eq!(model.current_page_index, 3);
+            assert!(model
+                .rows
+                .iter()
+                .any(|row| row.title == "Voice Cmds: Unknown"));
+        }
+        other => panic!("expected setup voice model, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Select);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Power");
+            assert_eq!(model.current_page_index, 0);
+        }
+        other => panic!("expected setup power model after wrap, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Back);
+    assert_eq!(runtime.active_screen(), UiScreen::Hub);
+}
+
+#[test]
+fn setup_pages_include_network_and_gps_when_runtime_projects_rows() {
+    let mut runtime = UiRuntime::default();
+    let mut snapshot = RuntimeSnapshot::default();
+    snapshot.network.enabled = true;
+    snapshot.power.pages = vec![
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "Power".to_string(),
+            icon_key: "battery".to_string(),
+            rows: vec!["Battery: 88%".to_string()],
+        },
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "Network".to_string(),
+            icon_key: "signal".to_string(),
+            rows: vec![
+                "Status: Registered".to_string(),
+                "Carrier: Telekom.de".to_string(),
+            ],
+        },
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "GPS".to_string(),
+            icon_key: "care".to_string(),
+            rows: vec!["Fix: Searching".to_string()],
+        },
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "Time".to_string(),
+            icon_key: "clock".to_string(),
+            rows: vec!["RTC: Unknown".to_string()],
+        },
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "Care".to_string(),
+            icon_key: "care".to_string(),
+            rows: vec!["Watchdog: Off".to_string()],
+        },
+        yoyopod_ui_host::runtime::PowerPageSnapshot {
+            title: "Voice".to_string(),
+            icon_key: "voice_note".to_string(),
+            rows: vec!["Voice Cmds: Unknown".to_string()],
+        },
+    ];
+    runtime.apply_snapshot(snapshot);
+
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Select);
+    assert_eq!(runtime.active_screen(), UiScreen::Power);
+
+    runtime.handle_input(InputAction::Advance);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "Network");
+            assert_eq!(model.icon_key, "signal");
+            assert_eq!(model.total_pages, 6);
+            assert_eq!(model.rows[0].title, "Status: Registered");
+        }
+        other => panic!("expected setup network model, got {other:?}"),
+    }
+
+    runtime.handle_input(InputAction::Advance);
+    match runtime.active_screen_model() {
+        ScreenModel::Power(model) => {
+            assert_eq!(model.title, "GPS");
+            assert_eq!(model.icon_key, "care");
+            assert_eq!(model.rows[0].title, "Fix: Searching");
+        }
+        other => panic!("expected setup gps model, got {other:?}"),
+    }
+}
+
+#[test]
 fn incoming_call_snapshot_preempts_current_screen() {
     let mut runtime = UiRuntime::default();
     runtime.apply_snapshot(RuntimeSnapshot::default());
@@ -240,6 +381,163 @@ fn recent_track_select_emits_play_recent_track_intent() {
 }
 
 #[test]
+fn contacts_open_talk_action_picker_before_dialing() {
+    let mut runtime = UiRuntime::default();
+    let mut snapshot = RuntimeSnapshot::default();
+    snapshot.app_state = "contacts".to_string();
+    snapshot.call.contacts = vec![ListItemSnapshot::new(
+        "sip:mama@example.test",
+        "Mama",
+        "",
+        "mono:MA",
+    )];
+    runtime.apply_snapshot(snapshot);
+
+    runtime.handle_input(InputAction::Select);
+
+    assert_eq!(runtime.active_screen(), UiScreen::TalkContact);
+    assert!(runtime.take_intents().is_empty());
+    let view = runtime.active_view();
+    assert_eq!(view.title, "Mama");
+    let action_titles = view
+        .items
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(action_titles, vec!["Call", "Voice Note"]);
+
+    runtime.handle_input(InputAction::Select);
+
+    assert_eq!(
+        runtime.take_intents(),
+        vec![UiIntent::with_payload(
+            "call",
+            "start",
+            json!({"id": "sip:mama@example.test", "name": "Mama"}),
+        )]
+    );
+}
+
+#[test]
+fn talk_contact_adds_play_note_when_latest_voice_note_exists() {
+    let mut runtime = UiRuntime::default();
+    let mut snapshot = RuntimeSnapshot::default();
+    snapshot.app_state = "contacts".to_string();
+    snapshot.call.contacts = vec![ListItemSnapshot::new(
+        "sip:mama@example.test",
+        "Mama",
+        "",
+        "mono:MA",
+    )];
+    snapshot.call.latest_voice_note_by_contact.insert(
+        "sip:mama@example.test".to_string(),
+        yoyopod_ui_host::runtime::VoiceNoteSummarySnapshot {
+            local_file_path: "/tmp/mama-note.wav".to_string(),
+            unread: true,
+            ..Default::default()
+        },
+    );
+    runtime.apply_snapshot(snapshot);
+
+    runtime.handle_input(InputAction::Select);
+
+    let view = runtime.active_view();
+    let action_titles = view
+        .items
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(action_titles, vec!["Call", "Voice Note", "Play Note"]);
+
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Select);
+
+    assert_eq!(
+        runtime.take_intents(),
+        vec![UiIntent::with_payload(
+            "voice",
+            "play_latest",
+            json!({
+                "id": "sip:mama@example.test",
+                "recipient_name": "Mama",
+                "file_path": "/tmp/mama-note.wav"
+            }),
+        )]
+    );
+}
+
+#[test]
+fn voice_note_review_actions_emit_send_play_and_discard() {
+    let mut runtime = UiRuntime::default();
+    let mut snapshot = RuntimeSnapshot::default();
+    snapshot.app_state = "voice_note".to_string();
+    snapshot.call.contacts = vec![ListItemSnapshot::new(
+        "sip:mama@example.test",
+        "Mama",
+        "",
+        "mono:MA",
+    )];
+    snapshot.voice.phase = "review".to_string();
+    runtime.apply_snapshot(snapshot);
+
+    runtime.handle_input(InputAction::Select);
+    assert_eq!(
+        runtime.take_intents(),
+        vec![UiIntent::with_payload(
+            "voice",
+            "send",
+            json!({
+                "id": "sip:mama@example.test",
+                "recipient_address": "sip:mama@example.test",
+                "recipient_name": "Mama"
+            }),
+        )]
+    );
+
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Select);
+    assert_eq!(runtime.take_intents(), vec![UiIntent::new("voice", "play")]);
+
+    runtime.handle_input(InputAction::Advance);
+    runtime.handle_input(InputAction::Select);
+    assert_eq!(
+        runtime.take_intents(),
+        vec![UiIntent::new("voice", "discard")]
+    );
+}
+
+#[test]
+fn voice_note_ready_uses_hold_passthrough_for_recording() {
+    let mut runtime = UiRuntime::default();
+    let mut snapshot = RuntimeSnapshot::default();
+    snapshot.app_state = "voice_note".to_string();
+    snapshot.call.contacts = vec![ListItemSnapshot::new(
+        "sip:mama@example.test",
+        "Mama",
+        "",
+        "mono:MA",
+    )];
+    runtime.apply_snapshot(snapshot);
+
+    assert!(runtime.wants_ptt_passthrough());
+    runtime.handle_input(InputAction::PttPress);
+
+    assert_eq!(
+        runtime.take_intents(),
+        vec![UiIntent::with_payload(
+            "voice",
+            "capture_start",
+            json!({
+                "id": "sip:mama@example.test",
+                "recipient_address": "sip:mama@example.test",
+                "recipient_name": "Mama"
+            }),
+        )]
+    );
+}
+
+#[test]
 fn required_screens_have_view_models() {
     let snapshot = RuntimeSnapshot::default();
     let screens = [
@@ -252,6 +550,7 @@ fn required_screens_have_view_models() {
         UiScreen::Talk,
         UiScreen::Contacts,
         UiScreen::CallHistory,
+        UiScreen::TalkContact,
         UiScreen::VoiceNote,
         UiScreen::IncomingCall,
         UiScreen::OutgoingCall,
@@ -353,6 +652,7 @@ fn required_screens_have_typed_models() {
         UiScreen::Talk,
         UiScreen::Contacts,
         UiScreen::CallHistory,
+        UiScreen::TalkContact,
         UiScreen::VoiceNote,
         UiScreen::IncomingCall,
         UiScreen::OutgoingCall,
@@ -414,6 +714,7 @@ fn typed_models_stay_in_sync_with_view_builders() {
         (UiScreen::Talk, list_snapshot.clone(), 2usize),
         (UiScreen::Contacts, list_snapshot.clone(), 1usize),
         (UiScreen::CallHistory, list_snapshot.clone(), 1usize),
+        (UiScreen::TalkContact, list_snapshot.clone(), 1usize),
         (UiScreen::VoiceNote, list_snapshot.clone(), 0usize),
         (
             UiScreen::IncomingCall,
@@ -482,7 +783,8 @@ fn chrome_voip_state(model: &ScreenModel) -> Option<i32> {
         | ScreenModel::Contacts(model)
         | ScreenModel::CallHistory(model) => Some(model.chrome.status.voip_state),
         ScreenModel::NowPlaying(model) => Some(model.chrome.status.voip_state),
-        ScreenModel::Ask(model) | ScreenModel::VoiceNote(model) => {
+        ScreenModel::Ask(model) => Some(model.chrome.status.voip_state),
+        ScreenModel::TalkContact(model) | ScreenModel::VoiceNote(model) => {
             Some(model.chrome.status.voip_state)
         }
         ScreenModel::IncomingCall(model)
@@ -510,7 +812,7 @@ fn parity_projection_for_view(view: &UiView) -> ScreenParityProjection {
                 title: item.title.clone(),
                 subtitle: item.subtitle.clone(),
                 icon_key: item.icon_key.clone(),
-                selected: index == view.focus_index,
+                selected: view.screen != UiScreen::Power && index == view.focus_index,
             })
             .collect(),
     }
@@ -577,12 +879,39 @@ fn parity_projection_for_model(model: &ScreenModel) -> ScreenParityProjection {
             focus_index: 0,
             rows: Vec::new(),
         },
-        ScreenModel::Ask(model) | ScreenModel::VoiceNote(model) => ScreenParityProjection {
+        ScreenModel::Ask(model) => ScreenParityProjection {
             title: model.title.clone(),
             subtitle: model.subtitle.clone(),
             footer: model.chrome.footer.clone(),
             focus_index: 0,
             rows: Vec::new(),
+        },
+        ScreenModel::TalkContact(model) | ScreenModel::VoiceNote(model) => ScreenParityProjection {
+            title: model.contact_name.clone(),
+            subtitle: model.status.clone(),
+            footer: model.chrome.footer.clone(),
+            focus_index: model.selected_index,
+            rows: if model.layout_kind == 1 {
+                Vec::new()
+            } else {
+                model
+                    .buttons
+                    .iter()
+                    .enumerate()
+                    .map(|(index, button)| ParityRow {
+                        id: if matches!(model.buttons.first(), Some(first) if first.title == "Call")
+                        {
+                            format!("talk_action_{index}")
+                        } else {
+                            format!("voice_note_action_{index}")
+                        },
+                        title: button.title.clone(),
+                        subtitle: String::new(),
+                        icon_key: button.icon_key.clone(),
+                        selected: index == model.selected_index,
+                    })
+                    .collect()
+            },
         },
         ScreenModel::IncomingCall(model)
         | ScreenModel::OutgoingCall(model)
@@ -597,7 +926,7 @@ fn parity_projection_for_model(model: &ScreenModel) -> ScreenParityProjection {
             title: model.title.clone(),
             subtitle: model.subtitle.clone(),
             footer: model.chrome.footer.clone(),
-            focus_index: model.rows.iter().position(|row| row.selected).unwrap_or(0),
+            focus_index: model.current_page_index,
             rows: model
                 .rows
                 .iter()
