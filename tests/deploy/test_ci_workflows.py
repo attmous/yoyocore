@@ -36,6 +36,8 @@ def test_rust_ci_builds_arm64_device_bundle_artifact() -> None:
     assert "working-directory: yoyopod_rs" in workflow
     assert "bazelbuild/setup-bazelisk" in workflow
     assert "git clone --depth 1 --branch v9.5.0 https://github.com/lvgl/lvgl.git .cache/lvgl/lvgl-9.5.0" in workflow
+    assert "Install native Rust host dependencies" in workflow
+    assert "pkg-config liblinphone-dev libudev-dev" in workflow
     assert (
         "bazel test //yoyopod_rs/ui-host/... //yoyopod_rs/media-host/... "
         "//yoyopod_rs/voip-host/... //yoyopod_rs/network-host/... //yoyopod_rs/runtime/..."
