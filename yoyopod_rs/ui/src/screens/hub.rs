@@ -30,7 +30,7 @@ pub fn view(snapshot: &RuntimeSnapshot, focus_index: usize) -> UiView {
             .unwrap_or_else(|| "Listen".to_string()),
         subtitle: focused
             .map(|card| card.subtitle.clone())
-            .unwrap_or_else(String::new),
+            .unwrap_or_default(),
         footer: "Tap = Next | 2x Tap = Open".to_string(),
         items: cards
             .iter()

@@ -168,6 +168,7 @@ fn voice_note_action_model(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn voice_note_primary_model(
     snapshot: &RuntimeSnapshot,
     contact_name: &str,

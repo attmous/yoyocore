@@ -221,17 +221,11 @@ where
 }
 
 pub fn resolve_pppd_binary() -> Option<PathBuf> {
-    resolve_pppd_binary_with(
-        |candidate| which_path(candidate),
-        |candidate| Path::new(candidate).exists(),
-    )
+    resolve_pppd_binary_with(which_path, |candidate| Path::new(candidate).exists())
 }
 
 pub fn resolve_sudo_binary() -> Option<PathBuf> {
-    resolve_sudo_binary_with(
-        |candidate| which_path(candidate),
-        |candidate| Path::new(candidate).exists(),
-    )
+    resolve_sudo_binary_with(which_path, |candidate| Path::new(candidate).exists())
 }
 
 pub fn resolve_pppd_binary_with<F, G>(which: F, exists: G) -> Option<PathBuf>

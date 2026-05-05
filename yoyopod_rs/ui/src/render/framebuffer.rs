@@ -175,9 +175,9 @@ fn render_list_rows(framebuffer: &mut Framebuffer, rows: &[ListRowModel], start_
         return;
     }
 
-    for index in 0..count {
+    for (index, row) in rows.iter().enumerate().take(count) {
         let y = start_y + index * 38;
-        let selected = rows[index].selected;
+        let selected = row.selected;
         framebuffer.fill_rect(
             18,
             y,

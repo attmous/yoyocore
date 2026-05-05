@@ -1,18 +1,10 @@
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 
+#[derive(Default)]
 pub struct VoiceNotePlayback {
     current: Option<Child>,
     current_file_path: String,
-}
-
-impl Default for VoiceNotePlayback {
-    fn default() -> Self {
-        Self {
-            current: None,
-            current_file_path: String::new(),
-        }
-    }
 }
 
 impl std::fmt::Debug for VoiceNotePlayback {

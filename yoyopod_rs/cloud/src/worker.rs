@@ -292,7 +292,9 @@ fn emit_runtime_events<W: Write, B: CloudMqttBackend>(
 ) -> Result<()> {
     for event in host.drain_runtime_events() {
         match event {
-            CloudRuntimeEvent::Snapshot(snapshot) => emit(output, &snapshot_event(&snapshot))?,
+            CloudRuntimeEvent::Snapshot(snapshot) => {
+                emit(output, &snapshot_event(snapshot.as_ref()))?
+            }
             CloudRuntimeEvent::Command(command) => emit(
                 output,
                 &WorkerEnvelope::event(

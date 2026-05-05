@@ -254,6 +254,7 @@ impl ActiveLvglRenderer for LvglRenderer {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_runtime_if_dirty<W, D>(
     output: &mut W,
     errors: &mut impl Write,
@@ -304,7 +305,7 @@ where
                 );
             };
 
-            return render_runtime_with_active_lvgl_or_fallback(
+            render_runtime_with_active_lvgl_or_fallback(
                 output,
                 errors,
                 display,
@@ -315,19 +316,17 @@ where
                 last_ui_renderer,
                 renderer,
                 false,
-            );
+            )
         }
-        RendererMode::Framebuffer => {
-            return render_runtime_with_framebuffer(
-                output,
-                display,
-                framebuffer,
-                ui_runtime,
-                last_active_screen,
-                &screen_model,
-                last_ui_renderer,
-            );
-        }
+        RendererMode::Framebuffer => render_runtime_with_framebuffer(
+            output,
+            display,
+            framebuffer,
+            ui_runtime,
+            last_active_screen,
+            &screen_model,
+            last_ui_renderer,
+        ),
         RendererMode::Lvgl => {
             if lvgl_renderer.is_none() {
                 match LvglRenderer::open(None) {
@@ -358,7 +357,7 @@ where
                     last_ui_renderer,
                 );
             };
-            return render_runtime_with_active_lvgl_or_fallback(
+            render_runtime_with_active_lvgl_or_fallback(
                 output,
                 errors,
                 display,
@@ -369,7 +368,7 @@ where
                 last_ui_renderer,
                 renderer,
                 true,
-            );
+            )
         }
     }
 }
@@ -395,6 +394,7 @@ where
     Ok(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_runtime_with_active_lvgl_or_fallback<W, D, R>(
     output: &mut W,
     errors: &mut impl Write,
@@ -578,10 +578,8 @@ mod tests {
             true,
         )?;
 
-        let stdout = String::from_utf8(output)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))?;
-        let stderr = String::from_utf8(errors)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error))?;
+        let stdout = String::from_utf8(output).map_err(io::Error::other)?;
+        let stderr = String::from_utf8(errors).map_err(io::Error::other)?;
         assert!(rendered);
         assert!(stdout.contains("\"code\":\"lvgl_unavailable\""));
         assert!(stdout.contains("\"type\":\"ui.screen_changed\""));

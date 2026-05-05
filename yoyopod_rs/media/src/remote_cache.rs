@@ -106,7 +106,7 @@ impl RemotePlaybackCache {
 
         if target_path.exists() {
             let _ = set_file_mtime(&target_path, FileTime::now());
-            self.prune(&[target_path.clone()])?;
+            self.prune(std::slice::from_ref(&target_path))?;
             return Ok(CachedPlaybackAsset {
                 path: target_path.display().to_string(),
                 cache_hit: true,
@@ -115,7 +115,7 @@ impl RemotePlaybackCache {
 
         self.downloader
             .download(media_url, &target_path, checksum_sha256)?;
-        self.prune(&[target_path.clone()])?;
+        self.prune(std::slice::from_ref(&target_path))?;
         Ok(CachedPlaybackAsset {
             path: target_path.display().to_string(),
             cache_hit: false,

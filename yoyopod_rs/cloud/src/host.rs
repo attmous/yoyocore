@@ -105,32 +105,32 @@ impl<B: CloudMqttBackend> CloudHost<B> {
                         events.push(CloudRuntimeEvent::Error(message));
                     }
                     self.persist_status();
-                    events.push(CloudRuntimeEvent::Snapshot(self.snapshot.clone()));
+                    events.push(CloudRuntimeEvent::Snapshot(Box::new(self.snapshot.clone())));
                 }
                 MqttRuntimeEvent::Disconnected(reason) => {
                     self.snapshot.mark_disconnected(reason);
                     self.persist_status();
-                    events.push(CloudRuntimeEvent::Snapshot(self.snapshot.clone()));
+                    events.push(CloudRuntimeEvent::Snapshot(Box::new(self.snapshot.clone())));
                 }
                 MqttRuntimeEvent::Command(command) => {
                     self.snapshot
                         .mark_command(command_type(&command).unwrap_or_default());
                     self.persist_status();
                     events.push(CloudRuntimeEvent::Command(command));
-                    events.push(CloudRuntimeEvent::Snapshot(self.snapshot.clone()));
+                    events.push(CloudRuntimeEvent::Snapshot(Box::new(self.snapshot.clone())));
                 }
                 MqttRuntimeEvent::Error(message) => {
                     self.snapshot.mark_degraded(message.clone());
                     self.persist_status();
                     events.push(CloudRuntimeEvent::Error(message));
-                    events.push(CloudRuntimeEvent::Snapshot(self.snapshot.clone()));
+                    events.push(CloudRuntimeEvent::Snapshot(Box::new(self.snapshot.clone())));
                 }
             }
         }
         if self.mqtt.is_connected() && !self.snapshot.mqtt_connected {
             self.snapshot.mark_connected();
             self.persist_status();
-            events.push(CloudRuntimeEvent::Snapshot(self.snapshot.clone()));
+            events.push(CloudRuntimeEvent::Snapshot(Box::new(self.snapshot.clone())));
         }
         events
     }
@@ -305,7 +305,7 @@ impl<B: CloudMqttBackend> CloudHost<B> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CloudRuntimeEvent {
-    Snapshot(CloudStatusSnapshot),
+    Snapshot(Box<CloudStatusSnapshot>),
     Command(Value),
     Error(String),
 }

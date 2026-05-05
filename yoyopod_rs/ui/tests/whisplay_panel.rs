@@ -36,8 +36,10 @@ fn defaults_match_whisplay_hat_board_pins() {
     assert_eq!(DEFAULT_RESET_GPIO, 4);
     assert_eq!(DEFAULT_BACKLIGHT_GPIO, 22);
     assert_eq!(DEFAULT_BUTTON_GPIO, 17);
-    assert!(DEFAULT_BACKLIGHT_ACTIVE_LOW);
-    assert!(!DEFAULT_BUTTON_ACTIVE_LOW);
+    const {
+        assert!(DEFAULT_BACKLIGHT_ACTIVE_LOW);
+        assert!(!DEFAULT_BUTTON_ACTIVE_LOW);
+    }
 }
 
 #[test]

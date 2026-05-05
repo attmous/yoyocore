@@ -332,12 +332,9 @@ impl ControlledInputHandle {
     pub fn send(&self, envelope: &WorkerEnvelope) {
         let (lock, condvar) = &*self.shared;
         let mut state = lock.lock().expect("controlled input lock");
-        state.buffer.extend(
-            envelope
-                .encode()
-                .expect("command should encode")
-                .into_iter(),
-        );
+        state
+            .buffer
+            .extend(envelope.encode().expect("command should encode"));
         condvar.notify_all();
     }
 

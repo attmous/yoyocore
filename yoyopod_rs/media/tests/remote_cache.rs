@@ -70,7 +70,7 @@ fn prepare_downloads_asset_once_and_reuses_cache_hit() {
             cache_hit: false,
         }
     );
-    assert_eq!(second.cache_hit, true);
+    assert!(second.cache_hit);
 }
 
 #[test]
