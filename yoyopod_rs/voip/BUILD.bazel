@@ -12,6 +12,7 @@ yoyopod_rust_host_library(
         exclude = ["src/main.rs"],
     ),
     crate_name = "yoyopod_voip",
+    deps = ["//yoyopod_rs/protocol:protocol_lib"],
 )
 
 yoyopod_rust_host_binary(
@@ -40,7 +41,10 @@ VOIP_HOST_TESTS = [
 yoyopod_rust_host_integration_tests(
     name = "tests",
     tests = VOIP_HOST_TESTS,
-    deps = [":voip_host_lib"],
+    deps = [
+        ":voip_host_lib",
+        "//yoyopod_rs/harness:harness_lib",
+    ],
     extra_srcs_by_test = {
         "host": ["tests/support/mod.rs"],
         "worker": ["tests/support/mod.rs"],

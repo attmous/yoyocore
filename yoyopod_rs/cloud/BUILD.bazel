@@ -12,6 +12,7 @@ yoyopod_rust_host_library(
         exclude = ["src/main.rs"],
     ),
     crate_name = "yoyopod_cloud",
+    deps = ["//yoyopod_rs/protocol:protocol_lib"],
 )
 
 yoyopod_rust_host_binary(
@@ -28,5 +29,8 @@ CLOUD_HOST_TESTS = [
 yoyopod_rust_host_integration_tests(
     name = "tests",
     tests = CLOUD_HOST_TESTS,
-    deps = [":cloud_host_lib"],
+    deps = [
+        ":cloud_host_lib",
+        "//yoyopod_rs/harness:harness_lib",
+    ],
 )

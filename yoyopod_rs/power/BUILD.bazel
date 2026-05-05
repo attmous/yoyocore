@@ -12,6 +12,10 @@ yoyopod_rust_host_library(
         exclude = ["src/main.rs"],
     ),
     crate_name = "yoyopod_power",
+    deps = [
+        "//yoyopod_rs/protocol:protocol_lib",
+        "//yoyopod_rs/worker:worker_lib",
+    ],
 )
 
 yoyopod_rust_host_binary(
@@ -29,5 +33,8 @@ POWER_HOST_TESTS = [
 yoyopod_rust_host_integration_tests(
     name = "tests",
     tests = POWER_HOST_TESTS,
-    deps = [":power_host_lib"],
+    deps = [
+        ":power_host_lib",
+        "//yoyopod_rs/harness:harness_lib",
+    ],
 )

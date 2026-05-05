@@ -12,6 +12,7 @@ yoyopod_rust_host_library(
         exclude = ["src/main.rs"],
     ),
     crate_name = "yoyopod_speech",
+    deps = ["//yoyopod_rs/protocol:protocol_lib"],
 )
 
 yoyopod_rust_host_binary(
@@ -28,5 +29,8 @@ SPEECH_HOST_TESTS = [
 yoyopod_rust_host_integration_tests(
     name = "tests",
     tests = SPEECH_HOST_TESTS,
-    deps = [":speech_host_lib"],
+    deps = [
+        ":speech_host_lib",
+        "//yoyopod_rs/harness:harness_lib",
+    ],
 )

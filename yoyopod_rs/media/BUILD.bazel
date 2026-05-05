@@ -12,6 +12,7 @@ yoyopod_rust_host_library(
         exclude = ["src/main.rs"],
     ),
     crate_name = "yoyopod_media",
+    deps = ["//yoyopod_rs/protocol:protocol_lib"],
 )
 
 yoyopod_rust_host_binary(
@@ -36,5 +37,8 @@ MEDIA_HOST_TESTS = [
 yoyopod_rust_host_integration_tests(
     name = "tests",
     tests = MEDIA_HOST_TESTS,
-    deps = [":media_host_lib"],
+    deps = [
+        ":media_host_lib",
+        "//yoyopod_rs/harness:harness_lib",
+    ],
 )
