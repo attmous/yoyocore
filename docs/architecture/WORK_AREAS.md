@@ -17,6 +17,13 @@ where a change belongs.
 - `yoyopod_rs/power/` owns power/battery integration.
 - `yoyopod_rs/speech/` owns cloud speech, TTS, and Ask worker protocol.
 
+## Monorepo App And Package Areas
+
+- `apps/` is for web/mobile applications.
+- `packages/` is for shared app/cloud contracts, SDKs, and reusable app code.
+- Device runtime code must not depend on `apps/`.
+- Shared contracts should flow through `packages/contracts/` when that package exists.
+
 ## Python Still-Owned Areas
 
 - `yoyopod_cli/` owns local and Pi operations tooling.

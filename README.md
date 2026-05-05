@@ -48,7 +48,9 @@ The current prototype runs on a Raspberry Pi Zero 2W and uses the Whisplay HAT b
 This repository contains the software that runs the current YoYoPod prototype:
 
 - `yoyopod_rs/runtime/` - Rust runtime owner for config, worker supervision, app state, event routing, and UI snapshots.
-- `yoyopod_rs/*-host/` - Rust domain hosts for UI, media, VoIP, network, cloud, power, and speech/Ask.
+- `yoyopod_rs/{ui,media,voip,network,cloud,power,speech}/` - Rust domain sidecar hosts for UI, media, VoIP, network, cloud, power, and speech/Ask.
+- `apps/` - future web and mobile applications.
+- `packages/` - future shared contracts, SDKs, and app packages.
 - `yoyopod/core/` - app lifecycle, scheduler, event bus, runtime loop, diagnostics, and shared state.
 - `yoyopod/integrations/` - higher-level product capabilities like calling, music, power, network, location, and cloud sync.
 - `yoyopod/backends/` - concrete hardware and service adapters such as Liblinphone, mpv, modem, and power backends.

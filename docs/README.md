@@ -35,6 +35,8 @@ Plan docs are useful context, but they are not automatically the current impleme
 - [`superpowers/`](superpowers/README.md) - preserved agent-generated specs and plans.
 - [`archive/`](archive/README.md) - retired historical material.
 - [`assets/`](assets/) - images and media used by docs.
+- [`../apps/`](../apps/) - future web and mobile applications.
+- [`../packages/`](../packages/) - future shared contracts, SDKs, and app packages.
 
 ## Recommended Reading Paths
 

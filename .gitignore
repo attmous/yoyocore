@@ -38,6 +38,14 @@ Cargo.lock
 !yoyopod_rs/Cargo.lock
 !workers/ui/rust/Cargo.lock
 
+# Web/app packages
+node_modules/
+.next/
+.nuxt/
+.turbo/
+.svelte-kit/
+coverage/
+
 # Bazel
 bazel-*/
 
