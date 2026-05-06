@@ -4,6 +4,8 @@ from __future__ import annotations
 import sys
 from types import ModuleType
 
+import pytest
+import typer
 from typer.testing import CliRunner
 
 from yoyopod_cli.pi import validate as pi_validate
@@ -237,3 +239,75 @@ def test_display_check_keeps_immediate_draw_path_without_ui_backend(monkeypatch)
     assert result.status == "pass"
     assert "backend=pil" in result.details
     assert draw_calls == ["clear", "YoYoPod Pi smoke", "Display OK", "update"]
+
+
+def test_input_check_passes_when_whisplay_button_probe_is_readable() -> None:
+    class FakeWhisplayDevice:
+        def button_pressed(self) -> bool:
+            return False
+
+    class FakeAdapter:
+        DISPLAY_TYPE = "whisplay"
+
+        def __init__(self) -> None:
+            self.device = FakeWhisplayDevice()
+
+    class FakeDisplay:
+        def get_adapter(self) -> FakeAdapter:
+            return FakeAdapter()
+
+    result = _system._input_check(
+        FakeDisplay(),
+        {"input": {"ptt_navigation": True}},
+    )
+
+    assert result.status == "pass"
+    assert "source=button_pressed" in result.details
+
+
+def test_input_check_fails_when_whisplay_button_probe_is_missing() -> None:
+    class FakeAdapter:
+        DISPLAY_TYPE = "whisplay"
+        device = object()
+
+    class FakeDisplay:
+        def get_adapter(self) -> FakeAdapter:
+            return FakeAdapter()
+
+    result = _system._input_check(
+        FakeDisplay(),
+        {"input": {"ptt_navigation": True}},
+    )
+
+    assert result.status == "fail"
+    assert "button_pressed" in result.details
+
+
+def test_smoke_exits_nonzero_when_input_probe_fails(monkeypatch) -> None:
+    class FakeDisplay:
+        def cleanup(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        _system,
+        "_display_check",
+        lambda _app_config, _hold_seconds: (
+            _system._CheckResult("display", "pass", "display ok"),
+            FakeDisplay(),
+        ),
+    )
+    monkeypatch.setattr(_system, "_load_app_config", lambda _config_path: {})
+    monkeypatch.setattr(
+        _system,
+        "_input_check",
+        lambda _display, _app_config: _system._CheckResult(
+            "input",
+            "fail",
+            "input probe failed",
+        ),
+    )
+
+    with pytest.raises(typer.Exit) as exc:
+        _system.smoke(display_hold_seconds=0.0)
+
+    assert exc.value.exit_code == 1

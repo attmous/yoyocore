@@ -11,6 +11,7 @@ from yoyopod_cli.pi.validate._navigation_soak import idle as _idle
 from yoyopod_cli.pi.validate._navigation_soak import (
     NavigationSoakRunner,
     NavigationSoakStep,
+    run_navigation_soak,
     run_navigation_idle_soak,
 )
 
@@ -38,9 +39,45 @@ def test_wait_for_route_accepts_transition_completed_in_final_pump(
     helpers._wait_for_route(object(), "ask", timeout_seconds=1.0)
 
 
-def test_default_app_factory_rejects_retired_python_runtime() -> None:
-    with pytest.raises(_handle.NavigationSoakError, match="retired Python app runtime"):
-        _handle._default_app_factory(config_dir="test-config", simulate=True)
+def test_default_navigation_soak_factory_runs_cli_owned_validation_app(monkeypatch) -> None:
+    class _FakeUiBackend:
+        def initialize(self) -> bool:
+            return True
+
+        def pump(self, _milliseconds: int) -> None:
+            return None
+
+    class _FakeDisplay:
+        def __init__(self, *, simulate: bool = False) -> None:
+            self.simulate = simulate
+            self.backend_kind = "lvgl"
+            self.cleaned_up = False
+            self._ui_backend = _FakeUiBackend()
+
+        def get_ui_backend(self) -> _FakeUiBackend:
+            return self._ui_backend
+
+        def cleanup(self) -> None:
+            self.cleaned_up = True
+
+    from yoyopod_cli.pi.support import display as display_module
+
+    monkeypatch.setattr(display_module, "Display", _FakeDisplay)
+
+    ok, details = run_navigation_soak(
+        config_dir="test-config",
+        cycles=1,
+        hold_seconds=0.05,
+        idle_seconds=0.0,
+        tail_idle_seconds=0.0,
+        with_playback=True,
+        provision_test_music=False,
+        skip_sleep=True,
+    )
+
+    assert ok
+    assert "playback=verified" in details
+    assert "screens=" in details
 
 
 def test_explicit_app_factory_wraps_fake_with_stable_soak_surface(monkeypatch) -> None:

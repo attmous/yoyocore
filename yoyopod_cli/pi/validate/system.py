@@ -135,16 +135,173 @@ def _display_check(
 
 
 def _input_check(display: Any, app_config: dict[str, Any]) -> _CheckResult:
-    """Report that Python runtime input validation has been retired."""
+    """Validate that the active display hardware exposes a readable input path."""
+
+    try:
+        adapter = display.get_adapter()
+        display_type = _display_type(adapter)
+        if display_type == "whisplay":
+            return _whisplay_input_check(adapter, app_config)
+        if display_type == "pimoroni":
+            return _pimoroni_input_check(adapter, app_config)
+        return _CheckResult(
+            name="input",
+            status="fail",
+            details=f"no smoke input probe is registered for display type {display_type}",
+        )
+    except Exception as exc:
+        return _CheckResult(name="input", status="fail", details=str(exc))
+
+
+def _display_type(adapter: Any) -> str:
+    display_type = getattr(adapter, "DISPLAY_TYPE", None)
+    if isinstance(display_type, str) and display_type.strip():
+        return display_type.strip().lower()
+    adapter_name = str(adapter.__class__.__name__)
+    return adapter_name.replace("DisplayAdapter", "").lower()
+
+
+def _whisplay_input_check(adapter: Any, app_config: dict[str, Any]) -> _CheckResult:
+    input_config = app_config.get("input", {})
+    if not isinstance(input_config, dict):
+        input_config = {}
+    if not bool(input_config.get("ptt_navigation", True)):
+        return _CheckResult(
+            name="input",
+            status="fail",
+            details="Whisplay ptt_navigation is disabled; one-button navigation input is unavailable",
+        )
+
+    device = getattr(adapter, "device", None)
+    if device is None:
+        return _CheckResult(
+            name="input",
+            status="fail",
+            details="Whisplay display initialized without a readable button device",
+        )
+
+    reader = getattr(device, "button_pressed", None)
+    if callable(reader):
+        pressed = bool(reader())
+        return _CheckResult(
+            name="input",
+            status="pass",
+            details=f"adapter=Whisplay one_button source=button_pressed pressed={pressed}",
+        )
+    if reader is not None:
+        pressed = bool(reader)
+        return _CheckResult(
+            name="input",
+            status="pass",
+            details=f"adapter=Whisplay one_button source=button_pressed_attr pressed={pressed}",
+        )
+
+    state_reader = getattr(device, "get_button_state", None)
+    if callable(state_reader):
+        pressed = bool(state_reader())
+        return _CheckResult(
+            name="input",
+            status="pass",
+            details=f"adapter=Whisplay one_button source=get_button_state pressed={pressed}",
+        )
 
     return _CheckResult(
         name="input",
-        status="warn",
-        details=(
-            "Python runtime input validation is retired; use hardware-backed Rust validation "
-            "for input checks"
-        ),
+        status="fail",
+        details="Whisplay button device does not expose button_pressed or get_button_state",
     )
+
+
+def _pimoroni_input_check(adapter: Any, app_config: dict[str, Any]) -> _CheckResult:
+    device = getattr(adapter, "device", None)
+    if device is not None and _pimoroni_displayhatmini_probe(device):
+        return _CheckResult(
+            name="input",
+            status="pass",
+            details="adapter=Pimoroni source=displayhatmini buttons=A,B,X,Y",
+        )
+
+    input_config = app_config.get("input", {})
+    if not isinstance(input_config, dict):
+        input_config = {}
+    gpio_config = input_config.get("pimoroni_gpio")
+    if not isinstance(gpio_config, dict) or not gpio_config:
+        return _CheckResult(
+            name="input",
+            status="fail",
+            details="Pimoroni input has no displayhatmini device and no input.pimoroni_gpio config",
+        )
+
+    acquired = _probe_pimoroni_gpiod_buttons(gpio_config)
+    if acquired != 4:
+        return _CheckResult(
+            name="input",
+            status="fail",
+            details=f"Pimoroni gpiod probe acquired {acquired}/4 configured buttons",
+        )
+    return _CheckResult(
+        name="input",
+        status="pass",
+        details="adapter=Pimoroni source=gpiod buttons=A,B,X,Y",
+    )
+
+
+def _pimoroni_displayhatmini_probe(device: Any) -> bool:
+    reader = getattr(device, "read_button", None)
+    if not callable(reader):
+        return False
+
+    button_names = ("BUTTON_A", "BUTTON_B", "BUTTON_X", "BUTTON_Y")
+    for name in button_names:
+        button = getattr(device, name, None)
+        if button is None:
+            raise RuntimeError(f"displayhatmini device is missing {name}")
+        bool(reader(button))
+    return True
+
+
+def _probe_pimoroni_gpiod_buttons(gpio_config: dict[str, Any]) -> int:
+    from yoyopod_cli.pi.support.gpiod_compat import HAS_GPIOD, open_chip, request_input
+
+    if not HAS_GPIOD:
+        raise RuntimeError("gpiod module is required for Pimoroni GPIO input smoke probe")
+
+    acquired = 0
+    handles: list[Any] = []
+    chips: list[Any] = []
+    try:
+        for key in ("button_a", "button_b", "button_x", "button_y"):
+            pin = gpio_config.get(key)
+            if not isinstance(pin, dict):
+                continue
+            chip_name = pin.get("chip")
+            line_offset = pin.get("line")
+            if chip_name is None or line_offset is None:
+                continue
+            chip = open_chip(str(chip_name))
+            chips.append(chip)
+            line = request_input(chip, int(line_offset), f"yoyopod-smoke-{key}")
+            handles.append(line)
+            getter = getattr(line, "get_value", None)
+            if callable(getter):
+                getter()
+            acquired += 1
+        return acquired
+    finally:
+        for line in handles:
+            releaser = getattr(line, "release", None)
+            if callable(releaser):
+                try:
+                    releaser()
+                except Exception:
+                    pass
+        for chip in chips:
+            closer = getattr(chip, "close", None)
+            if callable(closer):
+                try:
+                    closer()
+                except Exception:
+                    pass
 
 
 def _power_check(config_dir: Path) -> _CheckResult:
