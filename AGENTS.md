@@ -11,7 +11,7 @@ Purpose
 
 Guidance order
 1. Current Rust code in `device/`
-2. Current deploy/runtime code in `deploy/`, `yoyopod_cli/`, and `yoyopod/`
+2. Current deploy/runtime code in `deploy/` and `yoyopod_cli/`
 3. `README.md`, `docs/README.md`, and current operation docs
 4. `rules/` for constraints and style
 5. `skills/` for deploy/debug playbooks
@@ -52,9 +52,9 @@ Current Runtime Status
   screen set. The C LVGL shim and LVGL native library still exist as display
   infrastructure during the transition.
 - Python is no longer the architectural target for the app runtime. It remains
-  for CLI/deploy tooling and compatibility paths.
+  for CLI/deploy tooling.
 - Dev service runs the Rust owner directly through `yoyopod-runtime`.
-  Legacy Python runtime entrypoints are quarantined under `legacy/` only.
+  Legacy Python runtime entrypoints have been deleted.
 
 Pi Lanes And Bootstrap
 - Dev lane: mutable hardware-testing checkout at `/opt/yoyopod-dev/checkout`,

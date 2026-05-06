@@ -1,1 +1,0 @@
-../../../skills/yoyopod-screenshot/SKILL.md

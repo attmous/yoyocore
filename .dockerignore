@@ -1,7 +1,6 @@
 .git/
 .github/
 .mypy_cache/
-.pytest_cache/
 .ruff_cache/
 .venv/
 .worktrees/
@@ -31,4 +30,3 @@ dist/
 docs/
 htmlcov/
 logs/
-tests/
