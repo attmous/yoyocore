@@ -198,11 +198,12 @@ fn worker_enables_feeds_and_disables_watchdog_when_configured() {
         watchdog_commands: Arc::clone(&watchdog_commands),
     };
     let host = PowerHost::new(backend);
-    let input = DelayedInput::new(
+    let input = WaitForWatchdogFeedInput::new(
         br#"{"schema_version":1,"kind":"command","type":"worker.stop","payload":{}}
 "#
         .to_vec(),
-        Duration::from_millis(30),
+        Arc::clone(&watchdog_commands),
+        Duration::from_millis(250),
     );
     let mut output = Vec::new();
 
@@ -275,27 +276,44 @@ fn worker_suppresses_watchdog_disable_for_pending_system_poweroff() {
     );
 }
 
-struct DelayedInput {
+struct WaitForWatchdogFeedInput {
     payload: Cursor<Vec<u8>>,
-    delay: Duration,
-    delayed: bool,
+    watchdog_commands: Arc<Mutex<Vec<PowerWatchdogCommand>>>,
+    max_wait: Duration,
+    released: bool,
 }
 
-impl DelayedInput {
-    fn new(payload: Vec<u8>, delay: Duration) -> Self {
+impl WaitForWatchdogFeedInput {
+    fn new(
+        payload: Vec<u8>,
+        watchdog_commands: Arc<Mutex<Vec<PowerWatchdogCommand>>>,
+        max_wait: Duration,
+    ) -> Self {
         Self {
             payload: Cursor::new(payload),
-            delay,
-            delayed: false,
+            watchdog_commands,
+            max_wait,
+            released: false,
         }
     }
 }
 
-impl Read for DelayedInput {
+impl Read for WaitForWatchdogFeedInput {
     fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
-        if !self.delayed {
-            self.delayed = true;
-            thread::sleep(self.delay);
+        if !self.released {
+            let started_at = std::time::Instant::now();
+            while started_at.elapsed() < self.max_wait {
+                if self
+                    .watchdog_commands
+                    .lock()
+                    .expect("watchdog command lock")
+                    .contains(&PowerWatchdogCommand::Feed)
+                {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(1));
+            }
+            self.released = true;
         }
         self.payload.read(buffer)
     }
