@@ -98,6 +98,7 @@ disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["tests/legacy_python_runtime"]
 
 [tool.yoyopod_quality]
 gate_format_paths = [

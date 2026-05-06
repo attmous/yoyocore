@@ -6,7 +6,7 @@ import runpy
 import sys
 from pathlib import Path
 
-QUALITY_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "quality.py"
+QUALITY_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "quality.py"
 QUALITY = runpy.run_path(str(QUALITY_SCRIPT))
 
 

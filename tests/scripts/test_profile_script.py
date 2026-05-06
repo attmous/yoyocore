@@ -6,7 +6,7 @@ import runpy
 import sys
 from pathlib import Path
 
-PROFILE_SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "profile.py"
+PROFILE_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "profile.py"
 PROFILE = runpy.run_path(str(PROFILE_SCRIPT))
 
 
